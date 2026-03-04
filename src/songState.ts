@@ -12,6 +12,8 @@ export type SongItem = LyricLine | SectionMarker
 
 const KEY_SONG_LINES = 'songLines'
 const KEY_SONG_INDEX = 'songIndex'
+const KEY_SONG_BLANK = 'songBlank'
+const KEY_CURRENT_SONG_ID = 'currentSongId'
 
 export function isSection(item: SongItem): item is SectionMarker {
   return 'type' in item && item.type === 'section'
@@ -76,12 +78,32 @@ export function setSongLines(lines: SongItem[]): void {
 }
 
 export function getSongIndex(): number {
-  const n = Number(localStorage.getItem(KEY_SONG_INDEX) ?? 0)
-  return Math.max(0, Math.floor(n))
+  const raw = localStorage.getItem(KEY_SONG_INDEX)
+  if (raw === null || raw === '') return -1
+  const n = Number(raw)
+  if (Number.isNaN(n) || n < -1) return -1
+  return Math.floor(n)
 }
 
 export function setSongIndex(index: number): void {
-  localStorage.setItem(KEY_SONG_INDEX, String(Math.max(0, Math.floor(index))))
+  const value = index < 0 ? -1 : Math.max(0, Math.floor(index))
+  localStorage.setItem(KEY_SONG_INDEX, String(value))
+}
+
+export function getBlank(): boolean {
+  return localStorage.getItem(KEY_SONG_BLANK) === 'true'
+}
+
+export function setBlank(blank: boolean): void {
+  localStorage.setItem(KEY_SONG_BLANK, String(blank))
+}
+
+export function getCurrentSongId(): string {
+  return localStorage.getItem(KEY_CURRENT_SONG_ID) || ''
+}
+
+export function setCurrentSongId(id: string): void {
+  localStorage.setItem(KEY_CURRENT_SONG_ID, id)
 }
 
 export function getCurrentItem(lines: SongItem[], index: number): SongItem | null {
@@ -97,13 +119,15 @@ export function getNextLyricIndex(lines: SongItem[], fromIndex: number): number 
   return -1
 }
 
-/** Bounds-safe next index (moves by one item). */
+/** Bounds-safe next index (moves by one item). From -1 goes to 0. */
 export function nextIndex(lines: SongItem[], current: number): number {
-  if (lines.length === 0) return 0
+  if (lines.length === 0) return current
+  if (current < 0) return 0
   return Math.min(current + 1, lines.length - 1)
 }
 
-/** Bounds-safe previous index. */
+/** Bounds-safe previous index. From -1 stays -1. */
 export function prevIndex(_lines: SongItem[], current: number): number {
+  if (current <= -1) return -1
   return Math.max(0, current - 1)
 }
