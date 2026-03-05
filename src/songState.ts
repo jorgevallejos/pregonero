@@ -24,19 +24,25 @@ export function isLyricLine(item: SongItem): item is LyricLine {
   return !isSection(item) && 'es' in item && 'translations' in item
 }
 
-function normalizeTranslations(obj: Record<string, unknown>): Record<string, string> {
-  if (obj.translations !== undefined && obj.translations !== null && typeof obj.translations === 'object' && !Array.isArray(obj.translations)) {
-    const trans = obj.translations as Record<string, unknown>
-    const out: Record<string, string> = {}
-    for (const [k, v] of Object.entries(trans)) {
-      if (typeof v === 'string' && v.trim() !== '') out[k] = v.trim()
+function validateTranslations(obj: Record<string, unknown>, index: number): Record<string, string> {
+  if (obj.translations === undefined || obj.translations === null) {
+    throw new Error('Invalid song format: missing \'translations\' field.')
+  }
+  const trans = obj.translations
+  if (typeof trans !== 'object' || Array.isArray(trans)) {
+    throw new Error(`Item ${index}: "translations" must be an object`)
+  }
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(trans)) {
+    if (typeof k !== 'string') {
+      throw new Error(`Item ${index}: "translations" keys must be strings`)
     }
-    return out
+    if (typeof v !== 'string') {
+      throw new Error(`Item ${index}: "translations" values must be strings`)
+    }
+    out[k] = v.trim()
   }
-  if (typeof obj.tr === 'string' && obj.tr.trim() !== '') {
-    return { en: obj.tr.trim() }
-  }
-  return {}
+  return out
 }
 
 function validateLine(item: unknown, index: number): SongItem {
@@ -57,7 +63,7 @@ function validateLine(item: unknown, index: number): SongItem {
     if (esTrim === '') {
       throw new Error(`Item ${index}: "es" must be non-empty`)
     }
-    const translations = normalizeTranslations(obj)
+    const translations = validateTranslations(obj, index)
     return { es: esTrim, translations }
   }
   throw new Error(`Item ${index}: must be an object (lyric line or section marker)`)
@@ -65,8 +71,7 @@ function validateLine(item: unknown, index: number): SongItem {
 
 /**
  * Parse and validate JSON. Returns array of SongItem.
- * Normal lines: { "es": "...", "translations": { "en": "...", ... } }
- * Legacy: { "es": "...", "tr": "..." } → converted to translations: { en: tr }
+ * Lyric lines: { "es": "...", "translations": { "en": "...", ... } }
  * Section markers: { "type": "section", "label": "..." }
  */
 export function parseSongJson(jsonString: string): SongItem[] {
