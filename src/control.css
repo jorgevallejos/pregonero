@@ -36,23 +36,37 @@ html, body, #root {
   background: #444;
 }
 
-.top-btn-songs {
+.top-btn-songs,
+.top-btn-languages {
   font-weight: 600;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .top-current {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 1.25rem;
+}
+
+.top-current-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
 }
 
 .top-label {
   color: #888;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 .top-title {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
@@ -188,4 +202,17 @@ html, body, #root {
 
 .songs-song-btn:hover {
   background: #444;
+}
+
+/* ---- Languages screen ---- */
+.languages-screen .languages-empty {
+  margin: 0;
+  color: #888;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.languages-lang-btn {
+  font-size: clamp(1.25rem, 4vw, 1.5rem);
+  letter-spacing: 0.05em;
 }

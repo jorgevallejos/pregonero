@@ -11,7 +11,6 @@ import {
   getNextLyricIndex,
   nextIndex,
   prevIndex,
-  parseSongJson,
   type SongItem,
   type LyricLine,
 } from './songState'

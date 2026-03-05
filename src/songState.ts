@@ -1,6 +1,6 @@
 export interface LyricLine {
   es: string
-  tr: string
+  translations: Record<string, string>
 }
 
 export interface SectionMarker {
@@ -14,13 +14,29 @@ const KEY_SONG_LINES = 'songLines'
 const KEY_SONG_INDEX = 'songIndex'
 const KEY_SONG_BLANK = 'songBlank'
 const KEY_CURRENT_SONG_ID = 'currentSongId'
+const KEY_PROJECTION_LANGUAGE = 'projectionLanguage'
 
 export function isSection(item: SongItem): item is SectionMarker {
   return 'type' in item && item.type === 'section'
 }
 
 export function isLyricLine(item: SongItem): item is LyricLine {
-  return !isSection(item) && 'es' in item && 'tr' in item
+  return !isSection(item) && 'es' in item && 'translations' in item
+}
+
+function normalizeTranslations(obj: Record<string, unknown>): Record<string, string> {
+  if (obj.translations !== undefined && obj.translations !== null && typeof obj.translations === 'object' && !Array.isArray(obj.translations)) {
+    const trans = obj.translations as Record<string, unknown>
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(trans)) {
+      if (typeof v === 'string' && v.trim() !== '') out[k] = v.trim()
+    }
+    return out
+  }
+  if (typeof obj.tr === 'string' && obj.tr.trim() !== '') {
+    return { en: obj.tr.trim() }
+  }
+  return {}
 }
 
 function validateLine(item: unknown, index: number): SongItem {
@@ -34,23 +50,23 @@ function validateLine(item: unknown, index: number): SongItem {
       return { type: 'section', label }
     }
     const es = obj.es
-    const tr = obj.tr
-    if (typeof es !== 'string' || typeof tr !== 'string') {
-      throw new Error(`Item ${index}: lyric line must have "es" and "tr" strings`)
+    if (typeof es !== 'string') {
+      throw new Error(`Item ${index}: lyric line must have "es" string`)
     }
     const esTrim = es.trim()
-    const trTrim = tr.trim()
-    if (esTrim === '' || trTrim === '') {
-      throw new Error(`Item ${index}: "es" and "tr" must be non-empty`)
+    if (esTrim === '') {
+      throw new Error(`Item ${index}: "es" must be non-empty`)
     }
-    return { es: esTrim, tr: trTrim }
+    const translations = normalizeTranslations(obj)
+    return { es: esTrim, translations }
   }
   throw new Error(`Item ${index}: must be an object (lyric line or section marker)`)
 }
 
 /**
  * Parse and validate JSON. Returns array of SongItem.
- * Normal lines: { "es": "...", "tr": "..." }
+ * Normal lines: { "es": "...", "translations": { "en": "...", ... } }
+ * Legacy: { "es": "...", "tr": "..." } → converted to translations: { en: tr }
  * Section markers: { "type": "section", "label": "..." }
  */
 export function parseSongJson(jsonString: string): SongItem[] {
@@ -104,6 +120,37 @@ export function getCurrentSongId(): string {
 
 export function setCurrentSongId(id: string): void {
   localStorage.setItem(KEY_CURRENT_SONG_ID, id)
+}
+
+export function getProjectionLanguage(): string {
+  return localStorage.getItem(KEY_PROJECTION_LANGUAGE) ?? ''
+}
+
+export function setProjectionLanguage(lang: string): void {
+  if (lang) {
+    localStorage.setItem(KEY_PROJECTION_LANGUAGE, lang)
+  } else {
+    localStorage.removeItem(KEY_PROJECTION_LANGUAGE)
+  }
+}
+
+/** Union of all translation keys across lyric lines. */
+export function getAvailableLanguages(lines: SongItem[]): string[] {
+  const set = new Set<string>()
+  for (const item of lines) {
+    if (isLyricLine(item)) {
+      for (const k of Object.keys(item.translations)) set.add(k)
+    }
+  }
+  return [...set].sort()
+}
+
+/** Effective projection language: stored value, or 'en' if song has it, else ''. */
+export function getEffectiveProjectionLanguage(lines: SongItem[]): string {
+  const stored = getProjectionLanguage()
+  if (stored) return stored
+  const available = getAvailableLanguages(lines)
+  return available.includes('en') ? 'en' : ''
 }
 
 export function getCurrentItem(lines: SongItem[], index: number): SongItem | null {
