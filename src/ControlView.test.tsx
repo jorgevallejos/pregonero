@@ -13,6 +13,8 @@ import {
   setBlank,
   setCurrentSongId,
   setProjectionLanguage,
+  getSongIndex,
+  getBlank,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import type { SongItem } from './songState'
@@ -441,6 +443,169 @@ describe('ControlView performer state flow', () => {
       })
       const main = screen.getByRole('main')
       expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
+    })
+  })
+
+  describe('projection synchronization (control state → projection payload)', () => {
+    let sendSpy: ReturnType<typeof vi.fn>
+    let WsConstructor: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      sendSpy = vi.fn()
+      WsConstructor = vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+        const instance = {
+          readyState: 1,
+          send: sendSpy,
+          close: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }
+        return instance
+      })
+      const StubWS = Object.assign(WsConstructor, { OPEN: 1 })
+      vi.stubGlobal('WebSocket', StubWS)
+    })
+
+    function getLastCommandPayload(): { type: string; action: string; currentIndex?: number; blank?: boolean; value?: number } | null {
+      const calls = sendSpy.mock.calls
+      for (let i = calls.length - 1; i >= 0; i--) {
+        try {
+          const msg = JSON.parse(calls[i][0]) as { type: string; action?: string; currentIndex?: number; blank?: boolean; value?: number }
+          if (msg.type === 'command') return msg
+        } catch {
+          // ignore
+        }
+      }
+      return null
+    }
+
+    it('1. advancing to next line sends command with currentIndex and blank matching control state after goNext', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+
+      const cmd = getLastCommandPayload()
+      expect(cmd).not.toBeNull()
+      expect(cmd?.action).toBe('next')
+      expect(cmd?.currentIndex).toBe(0)
+      expect(cmd?.blank).toBe(false)
+      expect(getSongIndex()).toBe(0)
+      expect(getBlank()).toBe(false)
+    })
+
+    it('2. restart sends setIndex with currentIndex -1 and blank true', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+
+      vi.useFakeTimers()
+      const restartBtn = screen.getByRole('button', { name: /restart/i })
+      await act(async () => {
+        fireEvent.pointerDown(restartBtn)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      const cmd = getLastCommandPayload()
+      expect(cmd).not.toBeNull()
+      expect(cmd?.action).toBe('setIndex')
+      expect(cmd?.value).toBe(-1)
+      expect(cmd?.currentIndex).toBe(-1)
+      expect(cmd?.blank).toBe(true)
+      expect(getSongIndex()).toBe(-1)
+      expect(getBlank()).toBe(true)
+    })
+
+    it('3. setIndex (restart path) sends payload consistent with control state', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: /restart/i }))
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      const cmd = getLastCommandPayload()
+      expect(cmd?.currentIndex).toBe(getSongIndex())
+      expect(cmd?.blank).toBe(getBlank())
+    })
+
+    it('4. blank/index state sent to projection matches control state (prev and blankToggle)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getByText('Mundo')).toBeTruthy()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /previous/i }))
+      })
+
+      const prevCmd = getLastCommandPayload()
+      expect(prevCmd?.action).toBe('prev')
+      expect(prevCmd?.currentIndex).toBe(getSongIndex())
+      expect(prevCmd?.blank).toBe(getBlank())
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'b' })
+      })
+      const blankCmd = getLastCommandPayload()
+      expect(blankCmd?.action).toBe('blankToggle')
+      expect(blankCmd?.currentIndex).toBe(getSongIndex())
+      expect(blankCmd?.blank).toBe(getBlank())
     })
   })
 })
