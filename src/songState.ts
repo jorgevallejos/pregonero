@@ -158,17 +158,14 @@ export function getEffectiveProjectionLanguage(lines: SongItem[]): string {
   return available.includes('en') ? 'en' : ''
 }
 
-export function getCurrentItem(lines: SongItem[], index: number): SongItem | null {
-  if (lines.length === 0 || index < 0 || index >= lines.length) return null
+export function getCurrentItem(lines: SongItem[], index: number): SongItem | undefined {
+  if (index < 0 || index >= lines.length) return undefined
   return lines[index]
 }
 
 /** Index of the next lyric line (skipping section markers), or -1 if none. */
 export function getNextLyricIndex(lines: SongItem[], fromIndex: number): number {
-  for (let i = fromIndex + 1; i < lines.length; i++) {
-    if (isLyricLine(lines[i])) return i
-  }
-  return -1
+  return lines.findIndex((item, i) => i > fromIndex && isLyricLine(item))
 }
 
 /** Bounds-safe next index (moves by one item). From -1 goes to 0. */

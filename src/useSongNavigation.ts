@@ -20,7 +20,7 @@ export function useSongNavigation(): {
   lines: SongItem[]
   index: number
   blank: boolean
-  currentItem: SongItem | null
+  currentItem: SongItem | undefined
   nextLyricLine: LyricLine | null
   goNext: () => void
   goPrev: () => void
