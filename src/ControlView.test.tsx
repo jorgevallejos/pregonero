@@ -608,4 +608,192 @@ describe('ControlView performer state flow', () => {
       expect(blankCmd?.blank).toBe(getBlank())
     })
   })
+
+  describe('keyboard shortcut behavior', () => {
+    it('1. Next shortcut triggers navigation when allowed (armed)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+
+      expect(getSongIndex()).toBe(0)
+      expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+    })
+
+    it('2. Restart shortcut triggers restart when allowed (after hold)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+      expect(getSongIndex()).toBe(0)
+
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'r' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      await act(async () => {
+        fireEvent.keyUp(window, { key: 'r' })
+      })
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(getSongIndex()).toBe(-1)
+      expect(getBlank()).toBe(true)
+    })
+
+    it('3. Arm shortcut changes state when allowed (ready)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'a' })
+      })
+
+      expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+    })
+
+    it('4. Unarm shortcut changes state when allowed (armed)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'a' })
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'a' })
+      })
+
+      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.queryByText('Ready to Perform')).toBeNull()
+    })
+
+    it('5. Next shortcut does nothing when not allowed (ready, not armed)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(getSongIndex()).toBe(-1)
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+
+      expect(getSongIndex()).toBe(-1)
+    })
+
+    it('6. Next shortcut does nothing when at last line (performing)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+      await waitFor(() => {
+        expect(screen.getByText('Mundo')).toBeTruthy()
+      })
+      expect(getSongIndex()).toBe(1)
+      expect(VALID_LINES.length).toBe(2)
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('7. Restart shortcut does nothing without hold (does not bypass safety)', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'ArrowRight' })
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'r' })
+      })
+      await act(async () => {
+        fireEvent.keyUp(window, { key: 'r' })
+      })
+
+      expect(getSongIndex()).toBe(0)
+      expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+    })
+
+    it('8. Arm shortcut does nothing when not allowed (setup)', async () => {
+      setupControlViewWithReadinessFailing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Setup').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'a' })
+      })
+
+      expect(screen.queryByText('Ready to Perform')).toBeNull()
+      const main = screen.getByRole('main')
+      expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
+    })
+  })
 })

@@ -37,3 +37,39 @@ export function useHoldToConfirm(onConfirm: () => void) {
     onPointerLeave: () => setIsHolding(false),
   }
 }
+
+/**
+ * Hold-to-confirm for Restart keyboard shortcut (R key).
+ * Keydown starts the hold timer; keyup cancels it. Does not bypass safety.
+ */
+export function useRestartKeyHold(onConfirm: () => void) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onConfirmRef = useRef(onConfirm)
+  onConfirmRef.current = onConfirm
+
+  const onKeyDown = () => {
+    if (timerRef.current) return
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      onConfirmRef.current()
+    }, HOLD_CONFIRM_MS)
+  }
+
+  const onKeyUp = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [])
+
+  return { onKeyDown, onKeyUp }
+}
