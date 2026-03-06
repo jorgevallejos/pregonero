@@ -50,6 +50,12 @@ const VALID_LINES: SongItem[] = [
   { es: 'Mundo', translations: { en: 'World' } },
 ]
 
+/** Lines for a different "song" and with a second language for language-change tests */
+const OTHER_LINES: SongItem[] = [
+  { es: 'Uno', translations: { en: 'One', fr: 'Un' } },
+  { es: 'Dos', translations: { en: 'Two', fr: 'Deux' } },
+]
+
 const WAIT_TIMEOUT = 3000
 
 function getArmButton() {
@@ -100,6 +106,11 @@ function setupControlViewWithReadinessFailing() {
 function clearStorage() {
   sessionStorage.clear()
   localStorage.clear()
+}
+
+/** Trigger storage listeners so hooks re-read from localStorage (simulates another tab changing config). */
+function dispatchStorageEvent() {
+  window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
 }
 
 describe('ControlView performer state flow', () => {
@@ -215,4 +226,221 @@ describe('ControlView performer state flow', () => {
     const main = screen.getByRole('main')
     expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
   }, 10000)
+
+  describe('reset behavior when configuration changes during a session', () => {
+    it('1. changing song while armed resets the session', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      setCurrentSongId('other')
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(screen.queryByText('Ready to Perform')).toBeNull()
+    })
+
+    it('2. changing song while performing resets the session', async () => {
+      setupControlViewWithReadinessPassing()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+
+      setCurrentSongId('other')
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(screen.queryByText('Performing')).toBeNull()
+    })
+
+    it('3. changing language while armed resets the session', async () => {
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setCurrentSongId('duelo')
+      setProjectionLanguage('en')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/'
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      setProjectionLanguage('fr')
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(screen.queryByText('Ready to Perform')).toBeNull()
+    })
+
+    it('4. changing language while performing resets the session', async () => {
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setCurrentSongId('duelo')
+      setProjectionLanguage('en')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/'
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+
+      setProjectionLanguage('fr')
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      expect(screen.queryByText('Performing')).toBeNull()
+    })
+
+    it('5. closing projection while armed causes readiness to fail', async () => {
+      const closeCallbacks: Array<() => void> = []
+      setupControlViewWithReadinessPassing()
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn((cb: () => void) => {
+          closeCallbacks.push(cb)
+          return vi.fn()
+        }),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        closeCallbacks[0]()
+      })
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Setup').length).toBeGreaterThan(0)
+      })
+      const main = screen.getByRole('main')
+      expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
+    })
+
+    it('6. closing projection while performing causes readiness to fail', async () => {
+      const closeCallbacks: Array<() => void> = []
+      setupControlViewWithReadinessPassing()
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn((cb: () => void) => {
+          closeCallbacks.push(cb)
+          return vi.fn()
+        }),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        closeCallbacks[0]()
+      })
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Setup').length).toBeGreaterThan(0)
+      })
+      const main = screen.getByRole('main')
+      expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
+    })
+  })
 })
