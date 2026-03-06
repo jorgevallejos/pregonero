@@ -796,4 +796,122 @@ describe('ControlView performer state flow', () => {
       expect(within(main).queryByRole('button', { name: 'Arm' })).toBeNull()
     })
   })
+
+  describe('Performer journey (full integration)', () => {
+    const SONG_JSON = JSON.stringify([
+      { es: 'Hola', translations: { en: 'Hello' } },
+      { es: 'Mundo', translations: { en: 'World' } },
+    ])
+
+    /** Helper: hold a button for HOLD_CONFIRM_MS so the confirm action runs (Restart / Close Projection). */
+    async function holdConfirm(button: HTMLElement) {
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.pointerDown(button)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      await act(async () => {
+        fireEvent.pointerUp(button)
+      })
+      vi.useRealTimers()
+    }
+
+    it('full flow: load song → open projection → choose language → Ready to Arm → Arm → Next → Performing → restart → close projection', async () => {
+      // Steps: 1 load song, 2 open projection, 3 choose language, 4 reach Ready to Arm,
+      // 5 Arm, 6 Next, 7 Performing, 8 restart, 9 close projection.
+      clearStorage()
+      window.location.hash = '#/'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === '/duelo.json') {
+          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
+        }
+        return Promise.reject(new Error('Unexpected fetch'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(false),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Songs' })).toBeTruthy()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
+      })
+      window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Duelo')).toBeTruthy()
+      }, { timeout: WAIT_TIMEOUT })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Languages' }))
+      })
+      window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'EN' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+      })
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Open Projection' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Open Projection' }))
+      })
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      }, { timeout: WAIT_TIMEOUT })
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Perform').length).toBeGreaterThan(0)
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByText('Hola')).toBeTruthy()
+      })
+
+      await holdConfirm(screen.getByRole('button', { name: /restart/i }))
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      })
+
+      await holdConfirm(screen.getByRole('button', { name: 'Close Projection' }))
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Setup').length).toBeGreaterThan(0)
+        expect(screen.getByRole('button', { name: 'Open Projection' })).toBeTruthy()
+      }, { timeout: WAIT_TIMEOUT })
+    }, 15000)
+  })
 })
