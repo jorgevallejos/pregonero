@@ -7,6 +7,7 @@ import {
   getEffectiveProjectionLanguage,
   getNextLyricIndex,
   nextIndex,
+  parseSongJson,
   prevIndex,
   setProjectionLanguage,
 } from './songState'
@@ -219,5 +220,64 @@ describe('getEffectiveProjectionLanguage', () => {
       lyric('Hola', { fr: 'Bonjour', es: 'Hola' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('')
+  })
+})
+
+describe('parseSongJson', () => {
+  it('valid lyric array parses correctly', () => {
+    const json = '[{"es":"Hola","translations":{"en":"Hello"}}]'
+    const result = parseSongJson(json)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({ es: 'Hola', translations: { en: 'Hello' } })
+  })
+
+  it('invalid JSON string throws an error', () => {
+    expect(() => parseSongJson('not json')).toThrow()
+    expect(() => parseSongJson('{')).toThrow()
+  })
+
+  it('JSON that is not an array throws an error', () => {
+    expect(() => parseSongJson('{}')).toThrow('JSON must be a flat array')
+    expect(() => parseSongJson('"hello"')).toThrow('JSON must be a flat array')
+  })
+
+  it('lyric line missing "es" field throws an error', () => {
+    const json = '[{"translations":{"en":"Hi"}}]'
+    expect(() => parseSongJson(json)).toThrow(/lyric line must have "es"/)
+  })
+
+  it('lyric line missing "translations" field throws an error', () => {
+    const json = '[{"es":"Hola"}]'
+    expect(() => parseSongJson(json)).toThrow(/translations/)
+  })
+
+  it('section marker with { type: "section", label: string } is accepted', () => {
+    const json = '[{"type":"section","label":"Verse 1"}]'
+    const result = parseSongJson(json)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({ type: 'section', label: 'Verse 1' })
+  })
+
+  it('malformed section marker (missing label or wrong type) throws an error', () => {
+    expect(() => parseSongJson('[{"type":"section"}]')).toThrow(/section must have a string "label"/)
+    expect(() => parseSongJson('[{"type":"section","label":null}]')).toThrow(/section must have a string "label"/)
+    expect(() => parseSongJson('[{"type":"other","label":"X"}]')).toThrow(/lyric line must have "es"/)
+  })
+
+  it('mixed lyric lines and section markers parse correctly', () => {
+    const json = [
+      { type: 'section', label: 'Intro' },
+      { es: 'Uno', translations: { en: 'One' } },
+      { es: 'Dos', translations: { en: 'Two' } },
+      { type: 'section', label: 'Chorus' },
+      { es: 'Tres', translations: { en: 'Three' } },
+    ]
+    const result = parseSongJson(JSON.stringify(json))
+    expect(result).toHaveLength(5)
+    expect(result[0]).toEqual({ type: 'section', label: 'Intro' })
+    expect(result[1]).toEqual({ es: 'Uno', translations: { en: 'One' } })
+    expect(result[2]).toEqual({ es: 'Dos', translations: { en: 'Two' } })
+    expect(result[3]).toEqual({ type: 'section', label: 'Chorus' })
+    expect(result[4]).toEqual({ es: 'Tres', translations: { en: 'Three' } })
   })
 })
