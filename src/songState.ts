@@ -150,11 +150,13 @@ export function getAvailableLanguages(lines: SongItem[]): string[] {
   return [...set].sort()
 }
 
-/** Effective projection language: stored value, or 'en' if song has it, else ''. */
+/** Effective projection language: stored value if available in song, else 'en' if no stored and song has it, else ''. */
 export function getEffectiveProjectionLanguage(lines: SongItem[]): string {
   const stored = getProjectionLanguage()
-  if (stored) return stored
   const available = getAvailableLanguages(lines)
+  if (stored) {
+    return available.includes(stored) ? stored : ''
+  }
   return available.includes('en') ? 'en' : ''
 }
 

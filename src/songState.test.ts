@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest'
+/** @vitest-environment jsdom */
+import { describe, it, expect, beforeEach } from 'vitest'
 import type { LyricLine, SectionMarker, SongItem } from './songState'
 import {
   getAvailableLanguages,
   getCurrentItem,
+  getEffectiveProjectionLanguage,
   getNextLyricIndex,
   nextIndex,
   prevIndex,
+  setProjectionLanguage,
 } from './songState'
 
 const lyric = (es: string, translations: Record<string, string>): LyricLine =>
@@ -161,5 +164,60 @@ describe('getAvailableLanguages', () => {
       lyric('Hola', { fr: 'Bonjour', en: 'Hello', de: 'Hallo' }),
     ]
     expect(getAvailableLanguages(lines)).toEqual(['de', 'en', 'fr'])
+  })
+})
+
+describe('getEffectiveProjectionLanguage', () => {
+  let storage: Record<string, string>
+
+  beforeEach(() => {
+    storage = {}
+    globalThis.localStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v
+      },
+      removeItem: (k: string) => {
+        delete storage[k]
+      },
+      clear: () => {
+        for (const k of Object.keys(storage)) delete storage[k]
+      },
+      get length() {
+        return Object.keys(storage).length
+      },
+      key: () => null,
+    }
+  })
+
+  it('when a stored projection language exists and is available in the song → return that language', () => {
+    setProjectionLanguage('fr')
+    const lines: SongItem[] = [
+      lyric('Hola', { en: 'Hello', fr: 'Bonjour' }),
+      lyric('Adiós', { en: 'Goodbye', fr: 'Au revoir' }),
+    ]
+    expect(getEffectiveProjectionLanguage(lines)).toBe('fr')
+  })
+
+  it('when stored language exists but is NOT available in the song → return empty string', () => {
+    setProjectionLanguage('de')
+    const lines: SongItem[] = [
+      lyric('Hola', { en: 'Hello', fr: 'Bonjour' }),
+    ]
+    expect(getEffectiveProjectionLanguage(lines)).toBe('')
+  })
+
+  it('when no stored language exists and "en" is available → return "en"', () => {
+    const lines: SongItem[] = [
+      lyric('Hola', { en: 'Hello', es: 'Hola' }),
+    ]
+    expect(getEffectiveProjectionLanguage(lines)).toBe('en')
+  })
+
+  it('when no stored language exists and "en" is not available → return empty string', () => {
+    const lines: SongItem[] = [
+      lyric('Hola', { fr: 'Bonjour', es: 'Hola' }),
+    ]
+    expect(getEffectiveProjectionLanguage(lines)).toBe('')
   })
 })
