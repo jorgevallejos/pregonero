@@ -9,11 +9,10 @@ import {
   getCurrentSongId,
   getCurrentItem,
   getNextLyricIndex,
-  nextIndex,
-  prevIndex,
   type SongItem,
   type LyricLine,
 } from './songState'
+import { computeNavigationState } from './navigationState'
 import { SONGS } from './songs'
 
 export function useSongNavigation(): {
@@ -54,35 +53,35 @@ export function useSongNavigation(): {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
+  const applyComputedState = (nextIndex: number, nextBlank: boolean) => {
+    setSongIndex(nextIndex)
+    setIndexState(nextIndex)
+    setBlank(nextBlank)
+    setBlankState(nextBlank)
+  }
+
   const goNext = () => {
     const ls = getSongLines()
     const idx = getSongIndex()
-    const next = nextIndex(ls, idx)
-    setSongIndex(next)
-    setIndexState(next)
-    if (next >= 0) {
-      setBlank(false)
-      setBlankState(false)
-    }
+    const curBlank = getBlank()
+    const next = computeNavigationState(ls, idx, curBlank, 'next')
+    applyComputedState(next.index, next.blank)
   }
 
   const goPrev = () => {
     const ls = getSongLines()
     const idx = getSongIndex()
-    const prev = prevIndex(ls, idx)
-    setSongIndex(prev)
-    setIndexState(prev)
-    if (prev >= 0) {
-      setBlank(false)
-      setBlankState(false)
-    }
+    const curBlank = getBlank()
+    const next = computeNavigationState(ls, idx, curBlank, 'prev')
+    applyComputedState(next.index, next.blank)
   }
 
   const goRestart = () => {
-    setSongIndex(-1)
-    setIndexState(-1)
-    setBlank(true)
-    setBlankState(true)
+    const ls = getSongLines()
+    const idx = getSongIndex()
+    const curBlank = getBlank()
+    const next = computeNavigationState(ls, idx, curBlank, 'restart')
+    applyComputedState(next.index, next.blank)
   }
 
   const setBlankAndStore = (value: boolean) => {
@@ -101,34 +100,8 @@ export function useSongNavigation(): {
     const ls = getSongLines()
     const idx = getSongIndex()
     const curBlank = getBlank()
-    if (action === 'next') {
-      const next = nextIndex(ls, idx)
-      setSongIndex(next)
-      setIndexState(next)
-      if (next >= 0) {
-        setBlank(false)
-        setBlankState(false)
-      }
-    } else if (action === 'prev') {
-      const prev = prevIndex(ls, idx)
-      setSongIndex(prev)
-      setIndexState(prev)
-      if (prev >= 0) {
-        setBlank(false)
-        setBlankState(false)
-      }
-    } else if (action === 'blankToggle') {
-      setBlank(!curBlank)
-      setBlankState(!curBlank)
-    } else if (action === 'setIndex' && value !== undefined) {
-      const clamped = value < 0 ? -1 : Math.max(0, Math.min(value, ls.length - 1))
-      setSongIndex(clamped)
-      setIndexState(clamped)
-      if (clamped === -1) {
-        setBlank(true)
-        setBlankState(true)
-      }
-    }
+    const next = computeNavigationState(ls, idx, curBlank, action, value)
+    applyComputedState(next.index, next.blank)
   }
 
   const loadLines = (items: SongItem[]) => {
