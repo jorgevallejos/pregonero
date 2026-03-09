@@ -214,7 +214,6 @@ describe('v0.5 control screen state machine integration', () => {
     )
 
     expect(screen.queryByRole('banner')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Languages' })).toBeNull()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
@@ -232,10 +231,61 @@ describe('v0.5 control screen state machine integration', () => {
     )
 
     expect(screen.queryByRole('banner')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Languages' })).toBeNull()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
+  })
+
+  it('2d. In Setup state, Languages column has a single "Languages" button (not Singing/Translation)', async () => {
+    setupControlViewInitial()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    expect(screen.getByRole('button', { name: 'Languages' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Singing' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Translation' })).toBeNull()
+  })
+
+  it('2e. Languages screen: two columns (Singing language, Translation language), Confirm button; only Confirm returns to control', async () => {
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+    setSingingLanguage('')
+    setProjectionLanguage('')
+    window.location.hash = '#/languages'
+    render(<App initialHash="#/languages" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Languages' })).toBeTruthy()
+    })
+
+    expect(screen.getByRole('region', { name: 'Singing language' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Translation language' })).toBeTruthy()
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
+    expect(confirmBtn).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('region', { name: 'Singing language' })).getByRole('button', { name: 'ES' }))
+    })
+    expect(window.location.hash).toBe('#/languages')
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('region', { name: 'Translation language' })).getByRole('button', { name: 'EN' }))
+    })
+    expect(window.location.hash).toBe('#/languages')
+
+    await act(async () => {
+      fireEvent.click(confirmBtn)
+    })
+    expect(window.location.hash).toBe('#/')
   })
 
   it('3. Arm is disabled until all prerequisites are satisfied', async () => {
@@ -1353,7 +1403,7 @@ describe('ControlView performer state flow', () => {
       }, { timeout: WAIT_TIMEOUT })
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Translation' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Languages' }))
       })
       window.location.hash = '#/languages'
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
@@ -1367,6 +1417,9 @@ describe('ControlView performer state flow', () => {
       })
       await act(async () => {
         fireEvent.click(within(screen.getByRole('region', { name: 'Translation language' })).getByRole('button', { name: 'EN' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
 
       await waitFor(() => {

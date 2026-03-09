@@ -380,6 +380,7 @@ html, body, #root {
 }
 
 .songs-top-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 1em;
@@ -403,6 +404,11 @@ html, body, #root {
 }
 
 .songs-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
   margin: 0;
   font-size: 1.5em;
   font-weight: 600;
@@ -420,17 +426,33 @@ html, body, #root {
   margin: 0 auto;
 }
 
+/* Songs selection: responsive grid of song buttons (not used on Languages screen) */
+.songs-screen:not(.languages-screen) .songs-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 220px));
+  justify-content: center;
+  gap: 1.5rem;
+  justify-items: center;
+  align-items: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
 .songs-song-btn {
+  width: 220px;
+  min-height: 3.5em;
   font-size: clamp(1.1em, 3vw, 1.35em);
   padding: 1em 1.25em;
-  min-height: 3.5em;
   background: #2c2c2e;
   color: #e5e5e5;
   border: 1px solid #48484a;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   touch-action: manipulation;
 }
 
@@ -446,8 +468,31 @@ html, body, #root {
   line-height: 1.5;
 }
 
-.languages-screen .languages-section {
+.languages-screen .languages-columns {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.5rem;
+  flex: 1;
   margin-bottom: 1.5rem;
+}
+
+.languages-screen .languages-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 140px;
+}
+
+.languages-screen .languages-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  font-size: 1.5em;
+  color: #8e8e93;
+  flex-shrink: 0;
 }
 
 .languages-screen .languages-section-title {
@@ -463,9 +508,40 @@ html, body, #root {
   gap: 0.5rem;
 }
 
+.languages-screen .languages-buttons-vertical {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
 .languages-lang-btn {
   font-size: clamp(1.25em, 4vw, 1.5em);
   letter-spacing: 0.05em;
+  padding: 0.4em 0.75em;
+  border-radius: 0.35em;
+  border: 1px solid #3a3a3c;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  cursor: pointer;
+}
+
+.languages-lang-btn-selected {
+  background: #2d4a2d;
+  color: #e8f0e8;
+  border-color: #3d5c3d;
+}
+
+.languages-screen .languages-confirm-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-bottom: 2rem;
+}
+
+.languages-screen .languages-confirm {
+  min-width: 8em;
 }
 
 /* ---- Projection screen (independent from control UI) ---- */
