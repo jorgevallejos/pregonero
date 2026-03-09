@@ -3,13 +3,17 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { LyricLine, SectionMarker, SongItem } from './songState'
 import {
   getAvailableLanguages,
+  getAvailableSingingLanguages,
   getCurrentItem,
   getEffectiveProjectionLanguage,
+  getEffectiveSingingLanguage,
   getNextLyricIndex,
+  getSingingLanguage,
   nextIndex,
   parseSongJson,
   prevIndex,
   setProjectionLanguage,
+  setSingingLanguage,
 } from './songState'
 
 const lyric = (es: string, translations: Record<string, string>): LyricLine =>
@@ -165,6 +169,109 @@ describe('getAvailableLanguages', () => {
       lyric('Hola', { fr: 'Bonjour', en: 'Hello', de: 'Hallo' }),
     ]
     expect(getAvailableLanguages(lines)).toEqual(['de', 'en', 'fr'])
+  })
+})
+
+describe('getAvailableSingingLanguages', () => {
+  it('returns empty when no lyric lines', () => {
+    expect(getAvailableSingingLanguages([])).toEqual([])
+    expect(getAvailableSingingLanguages([section('Verse 1')])).toEqual([])
+  })
+
+  it('returns ["es"] when song has lyric lines (current model: single source language)', () => {
+    const lines: SongItem[] = [
+      lyric('Hola', { en: 'Hello' }),
+      lyric('Mundo', { en: 'World' }),
+    ]
+    expect(getAvailableSingingLanguages(lines)).toEqual(['es'])
+  })
+
+  it('returns ["es"] for mixed lines with sections', () => {
+    const lines: SongItem[] = [
+      section('Intro'),
+      lyric('Uno', { en: 'One' }),
+    ]
+    expect(getAvailableSingingLanguages(lines)).toEqual(['es'])
+  })
+})
+
+describe('getSingingLanguage / setSingingLanguage', () => {
+  let storage: Record<string, string>
+
+  beforeEach(() => {
+    storage = {}
+    globalThis.localStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v
+      },
+      removeItem: (k: string) => {
+        delete storage[k]
+      },
+      clear: () => {
+        for (const k of Object.keys(storage)) delete storage[k]
+      },
+      get length() {
+        return Object.keys(storage).length
+      },
+      key: () => null,
+    }
+  })
+
+  it('returns empty string when nothing stored', () => {
+    expect(getSingingLanguage()).toBe('')
+  })
+
+  it('stores and returns singing language', () => {
+    setSingingLanguage('es')
+    expect(getSingingLanguage()).toBe('es')
+  })
+
+  it('overwrites previous value', () => {
+    setSingingLanguage('es')
+    setSingingLanguage('en')
+    expect(getSingingLanguage()).toBe('en')
+  })
+})
+
+describe('getEffectiveSingingLanguage', () => {
+  let storage: Record<string, string>
+
+  beforeEach(() => {
+    storage = {}
+    globalThis.localStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v
+      },
+      removeItem: (k: string) => {
+        delete storage[k]
+      },
+      clear: () => {
+        for (const k of Object.keys(storage)) delete storage[k]
+      },
+      get length() {
+        return Object.keys(storage).length
+      },
+      key: () => null,
+    }
+  })
+
+  it('when stored singing language is available in song, returns it', () => {
+    setSingingLanguage('es')
+    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    expect(getEffectiveSingingLanguage(lines)).toBe('es')
+  })
+
+  it('when stored singing language is not available for song, returns empty string', () => {
+    setSingingLanguage('en')
+    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    expect(getEffectiveSingingLanguage(lines)).toBe('')
+  })
+
+  it('when nothing stored, returns empty string', () => {
+    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    expect(getEffectiveSingingLanguage(lines)).toBe('')
   })
 })
 

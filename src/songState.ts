@@ -15,6 +15,7 @@ const KEY_SONG_INDEX = 'songIndex'
 const KEY_SONG_BLANK = 'songBlank'
 const KEY_CURRENT_SONG_ID = 'currentSongId'
 const KEY_PROJECTION_LANGUAGE = 'projectionLanguage'
+const KEY_SINGING_LANGUAGE = 'singingLanguage'
 
 export function isSection(item: SongItem): item is SectionMarker {
   return 'type' in item && item.type === 'section'
@@ -139,6 +140,18 @@ export function setProjectionLanguage(lang: string): void {
   }
 }
 
+export function getSingingLanguage(): string {
+  return localStorage.getItem(KEY_SINGING_LANGUAGE) ?? ''
+}
+
+export function setSingingLanguage(lang: string): void {
+  if (lang) {
+    localStorage.setItem(KEY_SINGING_LANGUAGE, lang)
+  } else {
+    localStorage.removeItem(KEY_SINGING_LANGUAGE)
+  }
+}
+
 /** Union of all translation keys across lyric lines. */
 export function getAvailableLanguages(lines: SongItem[]): string[] {
   const set = new Set<string>()
@@ -148,6 +161,19 @@ export function getAvailableLanguages(lines: SongItem[]): string[] {
     }
   }
   return [...set].sort()
+}
+
+/** Available singing languages for the current song. v0.5: single source key "es" in LyricLine. */
+export function getAvailableSingingLanguages(lines: SongItem[]): string[] {
+  const hasLyric = lines.some((item) => isLyricLine(item))
+  return hasLyric ? ['es'] : []
+}
+
+/** Effective singing language: stored value if available for song, else ''. */
+export function getEffectiveSingingLanguage(lines: SongItem[]): string {
+  const stored = getSingingLanguage()
+  const available = getAvailableSingingLanguages(lines)
+  return stored && available.includes(stored) ? stored : ''
 }
 
 /** Effective projection language: stored value if available in song, else 'en' if no stored and song has it, else ''. */

@@ -13,6 +13,8 @@ import {
   setBlank,
   setCurrentSongId,
   setProjectionLanguage,
+  setSingingLanguage,
+  getSingingLanguage,
   getSongIndex,
   getBlank,
   getCurrentSongId,
@@ -74,6 +76,7 @@ function setupControlViewWithReadinessPassing() {
   setBlank(true)
   setCurrentSongId('duelo')
   setProjectionLanguage('en')
+  setSingingLanguage('es')
   window.location.hash = '#/'
   const mockApi = {
     isProjectionOpen: vi.fn().mockResolvedValue(true),
@@ -94,6 +97,7 @@ function setupControlViewWithReadinessFailing() {
   setBlank(true)
   setCurrentSongId('duelo')
   setProjectionLanguage('en')
+  setSingingLanguage('es')
   window.location.hash = '#/'
   const mockApi = {
     isProjectionOpen: vi.fn().mockResolvedValue(false),
@@ -125,6 +129,7 @@ function setupControlViewInitial() {
   setBlank(true)
   setCurrentSongId('')
   setProjectionLanguage('')
+  setSingingLanguage('')
   window.location.hash = '#/'
   if (typeof window.history?.replaceState === 'function') {
     window.history.replaceState(null, '', window.location.pathname + window.location.search + '#/')
@@ -267,6 +272,53 @@ describe('v0.5 control screen state machine integration', () => {
     expect((armBtn as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it('4b. When song and translation are set but singing language is not selected, state remains SETUP', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    const armBtn = getArmButton()
+    expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('4c. Setup/ready screen displays language pair as singing → translation (ES → EN)', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    const main = screen.getByRole('main')
+    expect(main.textContent).toMatch(/ES → EN/)
+  })
+
   it('5. Pressing Arm switches the UI to ARMED state', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -404,10 +456,11 @@ describe('v0.5 control screen state machine integration', () => {
     expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
     const main = screen.getByRole('main')
     expect(main.textContent).toMatch(/Duelo|Song selected/)
-    expect(main.textContent).toMatch(/Languages selected|EN|ES/)
+    expect(main.textContent).toMatch(/ES → EN|Languages selected/)
     expect(main.textContent).toMatch(/Open|Projection/)
     expect(getSongIndex()).toBe(-1)
     expect(getCurrentSongId()).toBe('duelo')
+    expect(getSingingLanguage()).toBe('es')
   })
 
   it('8c. Unarm when a prerequisite is no longer satisfied returns to SETUP', async () => {
@@ -429,6 +482,7 @@ describe('v0.5 control screen state machine integration', () => {
     setBlank(true)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
+    setSingingLanguage('es')
     window.location.hash = '#/'
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
@@ -715,6 +769,7 @@ describe('ControlView performer state flow', () => {
       setBlank(true)
       setCurrentSongId('duelo')
       setProjectionLanguage('en')
+      setSingingLanguage('es')
       sessionStorage.setItem('liveLyricLaunched', '1')
       sessionStorage.removeItem('liveLyricPerformanceArmed')
       window.location.hash = '#/'
@@ -754,6 +809,7 @@ describe('ControlView performer state flow', () => {
       setBlank(true)
       setCurrentSongId('duelo')
       setProjectionLanguage('en')
+      setSingingLanguage('es')
       sessionStorage.setItem('liveLyricLaunched', '1')
       sessionStorage.removeItem('liveLyricPerformanceArmed')
       window.location.hash = '#/'
@@ -1301,6 +1357,9 @@ describe('ControlView performer state flow', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'EN' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'ES' }))
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'EN' }))
