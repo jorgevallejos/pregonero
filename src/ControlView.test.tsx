@@ -15,6 +15,7 @@ import {
   setProjectionLanguage,
   getSongIndex,
   getBlank,
+  getCurrentSongId,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import type { SongItem } from './songState'
@@ -139,11 +140,6 @@ function setupControlViewInitial() {
   return mockApi
 }
 
-/** Returns true if a appears before b in document order */
-function isBefore(a: HTMLElement, b: HTMLElement): boolean {
-  return a.compareDocumentPosition(b) === Node.DOCUMENT_POSITION_FOLLOWING
-}
-
 describe('v0.5 control screen state machine integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -188,14 +184,53 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    const songSection = screen.getByRole('button', { name: 'Songs' })
-    const languagesSection = screen.getByRole('button', { name: 'Languages' })
-    const projectionSection = screen.getByRole('button', { name: 'Open Projection' })
-    const armSection = within(screen.getByRole('main')).getByRole('button', { name: 'Arm' })
+    const main = screen.getByRole('main')
+    const sections = main.querySelectorAll('.control-setup-section')
+    expect(sections.length).toBeGreaterThanOrEqual(4)
+    const firstLabels = Array.from(sections).map((s) => s.querySelector('.control-setup-label')?.textContent)
+    expect(firstLabels[0]).toBe('Song')
+    expect(firstLabels[1]).toBe('Languages')
+    expect(firstLabels[2]).toBe('Projection')
+    expect(firstLabels[3]).toBe('Arm')
+  })
 
-    expect(isBefore(songSection, languagesSection)).toBe(true)
-    expect(isBefore(languagesSection, projectionSection)).toBe(true)
-    expect(isBefore(projectionSection, armSection)).toBe(true)
+  it('2b. In Setup state, old top navigation shell is not rendered (no top bar, no bottom transport)', async () => {
+    setupControlViewInitial()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Languages' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
+  })
+
+  it('2c. In Ready to Arm state, old top navigation shell and bottom transport are not rendered', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Languages' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
   })
 
   it('3. Arm is disabled until all prerequisites are satisfied', async () => {
@@ -223,7 +258,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -238,7 +273,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -246,7 +281,7 @@ describe('v0.5 control screen state machine integration', () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Armed')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
   })
 
   it('6. In ARMED state, show Previous, Next, Restart, Unarm', async () => {
@@ -255,7 +290,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -263,11 +298,11 @@ describe('v0.5 control screen state machine integration', () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Armed')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     expect(screen.getByRole('button', { name: /previous/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /restart/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Unarm' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Unarm/ })).toBeTruthy()
   })
 
   it('7. In ARMED state, show header summary with Song, Languages, Projection state', async () => {
@@ -276,7 +311,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -284,7 +319,7 @@ describe('v0.5 control screen state machine integration', () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Armed')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     const header = screen.getByRole('banner')
     expect(header.textContent).toMatch(/Duelo/)
     expect(header.textContent).toMatch(/EN|language/i)
@@ -297,20 +332,156 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
     await act(async () => {
       fireEvent.click(getArmButton())
     })
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Armed')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    vi.useFakeTimers()
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => {
+      fireEvent.pointerDown(unarmBtn)
+    })
+    act(() => {
+      vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+    })
+    vi.useRealTimers()
+
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+  })
+
+  it('8a. Unarm button requires hold-to-confirm (single click does not unarm)', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Unarm' }))
+      fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
     })
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+  })
+
+  it('8b. Unarm does not clear setup values: song, languages, projection remain', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    vi.useFakeTimers()
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => {
+      fireEvent.pointerDown(unarmBtn)
+    })
+    act(() => {
+      vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+    })
+    vi.useRealTimers()
+
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    const main = screen.getByRole('main')
+    expect(main.textContent).toMatch(/Duelo|Song selected/)
+    expect(main.textContent).toMatch(/Languages selected|EN|ES/)
+    expect(main.textContent).toMatch(/Open|Projection/)
+    expect(getSongIndex()).toBe(-1)
+    expect(getCurrentSongId()).toBe('duelo')
+  })
+
+  it('8c. Unarm when a prerequisite is no longer satisfied returns to SETUP', async () => {
+    let onProjectionClosed: (() => void) | null = null
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn((cb: () => void) => {
+        onProjectionClosed = cb
+        return vi.fn()
+      }),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    window.location.hash = '#/'
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    await act(async () => {
+      onProjectionClosed?.()
+    })
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+  })
+
+  it('8d. Close: single click closes projection (no hold required)', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
+    const closeProjection = (window as unknown as { electronAPI?: { closeProjection: () => unknown } }).electronAPI!.closeProjection
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    })
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    expect(closeProjection).toHaveBeenCalledTimes(1)
   })
 
   it('9. Navigation controls are only available in ARMED state', async () => {
@@ -319,21 +490,20 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
       },
       { timeout: WAIT_TIMEOUT }
     )
 
-    const nextBtn = screen.getByRole('button', { name: /next/i })
-    const prevBtn = screen.getByRole('button', { name: /previous/i })
-    expect((nextBtn as HTMLButtonElement).disabled).toBe(true)
-    expect((prevBtn as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
 
     await act(async () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Armed')
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
     expect((screen.getByRole('button', { name: /next/i }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
@@ -355,7 +525,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     }, { timeout: WAIT_TIMEOUT })
   })
 
@@ -364,14 +534,14 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     })
 
     await act(async () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
   })
 
   it('3. pressing Next from Ready to Perform reveals the first line and enters Performing', async () => {
@@ -379,29 +549,29 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     })
     await act(async () => {
       fireEvent.click(getArmButton())
     })
     await waitFor(() => {
-      expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
     })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /next/i }))
     })
 
-    expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     expect(screen.getByText('Hola')).toBeTruthy()
   })
 
-  it('4. Restart returns the UI to Ready to Arm', async () => {
+  it('4. Restart from ARMED keeps state ARMED and resets only song position', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -410,8 +580,9 @@ describe('ControlView performer state flow', () => {
       fireEvent.click(screen.getByRole('button', { name: /next/i }))
     })
     await waitFor(() => {
-      expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('Hola')).toBeTruthy()
 
     vi.useFakeTimers()
     const restartBtn = screen.getByRole('button', { name: /restart/i })
@@ -424,20 +595,48 @@ describe('ControlView performer state flow', () => {
     vi.useRealTimers()
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     })
+    expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+    expect(getSongIndex()).toBe(-1)
   }, 10000)
 
-  it('5. Next is disabled when the app is not armed', async () => {
+  it('4b. Unarm from ARMED returns to READY_TO_ARM without clearing setup values', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    vi.useFakeTimers()
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => {
+      fireEvent.pointerDown(unarmBtn)
+    })
+    act(() => {
+      vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+    })
+    vi.useRealTimers()
+
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(getCurrentSongId()).toBe('duelo')
+    expect(getSongIndex()).toBe(-1)
+  })
+
+  it('5. Next is not shown when the app is not armed (transport only in Armed state)', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     }, { timeout: WAIT_TIMEOUT })
 
-    const nextBtn = screen.getByRole('button', { name: /next/i })
-    expect((nextBtn as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
   }, 10000)
 
   it('6. Arm is unavailable when readiness checks fail', async () => {
@@ -460,13 +659,13 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       setCurrentSongId('other')
@@ -476,9 +675,9 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
-      expect(screen.queryByText('Armed')).toBeNull()
+      expect(screen.queryByText(/Armed/)).toBeNull()
     })
 
     it('2. changing song while performing resets the session', async () => {
@@ -486,7 +685,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -495,7 +694,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /next/i }))
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
       setCurrentSongId('other')
@@ -505,9 +704,9 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
-      expect(screen.queryByText('Performing')).toBeNull()
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
     })
 
     it('3. changing language while armed resets the session', async () => {
@@ -531,22 +730,22 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       setProjectionLanguage('fr')
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
-      expect(screen.queryByText('Armed')).toBeNull()
+      expect(screen.queryByText(/Armed/)).toBeNull()
     })
 
     it('4. changing language while performing resets the session', async () => {
@@ -570,7 +769,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -579,16 +778,16 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /next/i }))
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
       setProjectionLanguage('fr')
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
-      expect(screen.queryByText('Performing')).toBeNull()
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
     })
 
     it('5. closing projection while armed causes readiness to fail', async () => {
@@ -609,13 +808,13 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
@@ -649,7 +848,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -658,7 +857,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /next/i }))
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
       await act(async () => {
@@ -713,13 +912,13 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
@@ -740,7 +939,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -749,7 +948,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /next/i }))
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
       vi.useFakeTimers()
@@ -777,7 +976,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -804,7 +1003,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -844,13 +1043,13 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
@@ -858,7 +1057,7 @@ describe('ControlView performer state flow', () => {
       })
 
       expect(getSongIndex()).toBe(0)
-      expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     })
 
     it('2. Restart shortcut triggers restart when allowed (after hold)', async () => {
@@ -866,7 +1065,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -875,7 +1074,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.keyDown(window, { key: 'ArrowRight' })
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
       expect(getSongIndex()).toBe(0)
 
@@ -892,7 +1091,7 @@ describe('ControlView performer state flow', () => {
       vi.useRealTimers()
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
       expect(getSongIndex()).toBe(-1)
       expect(getBlank()).toBe(true)
@@ -903,14 +1102,14 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
         fireEvent.keyDown(window, { key: 'a' })
       })
 
-      expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
     })
 
     it('4. Unarm shortcut changes state when allowed (armed)', async () => {
@@ -918,21 +1117,21 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.keyDown(window, { key: 'a' })
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
         fireEvent.keyDown(window, { key: 'a' })
       })
 
-      expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
-      expect(screen.queryByText('Armed')).toBeNull()
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(screen.queryByText(/Armed/)).toBeNull()
     })
 
     it('5. Next shortcut does nothing when not allowed (ready, not armed)', async () => {
@@ -940,7 +1139,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       expect(getSongIndex()).toBe(-1)
 
@@ -956,7 +1155,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -985,7 +1184,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -994,7 +1193,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.keyDown(window, { key: 'ArrowRight' })
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
       await act(async () => {
@@ -1005,7 +1204,7 @@ describe('ControlView performer state flow', () => {
       })
 
       expect(getSongIndex()).toBe(0)
-      expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     })
 
     it('8. Arm shortcut does nothing when not allowed (setup)', async () => {
@@ -1020,7 +1219,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.keyDown(window, { key: 'a' })
       })
 
-      expect(screen.queryByText('Armed')).toBeNull()
+      expect(screen.queryByText(/Armed/)).toBeNull()
       const main = screen.getByRole('main')
       const armBtn = within(main).queryByRole('button', { name: 'Arm' })
       expect(armBtn).not.toBeNull()
@@ -1034,7 +1233,7 @@ describe('ControlView performer state flow', () => {
       { es: 'Mundo', translations: { en: 'World' } },
     ])
 
-    /** Helper: hold a button for HOLD_CONFIRM_MS so the confirm action runs (Restart / Close Projection). */
+    /** Helper: hold a button for HOLD_CONFIRM_MS so the confirm action runs (Restart / Close). */
     async function holdConfirm(button: HTMLElement) {
       vi.useFakeTimers()
       await act(async () => {
@@ -1074,11 +1273,11 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Songs' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy()
       })
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Song' }))
       })
       window.location.hash = '#/songs'
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
@@ -1095,7 +1294,7 @@ describe('ControlView performer state flow', () => {
       }, { timeout: WAIT_TIMEOUT })
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Languages' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Translation' }))
       })
       window.location.hash = '#/languages'
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
@@ -1108,42 +1307,49 @@ describe('ControlView performer state flow', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Open Projection' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Open Projection' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Open' }))
       })
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
       }, { timeout: WAIT_TIMEOUT })
 
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Armed').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Armed/).length).toBeGreaterThan(0)
       })
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /next/i }))
       })
       await waitFor(() => {
-        expect(screen.getAllByText('Performing').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
         expect(screen.getByText('Hola')).toBeTruthy()
       })
 
       await holdConfirm(screen.getByRole('button', { name: /restart/i }))
 
       await waitFor(() => {
-        expect(screen.getAllByText('Ready to Arm').length).toBeGreaterThan(0)
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
 
-      await holdConfirm(screen.getByRole('button', { name: 'Close Projection' }))
+      await holdConfirm(screen.getByRole('button', { name: /^Unarm/ }))
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      })
 
       await waitFor(() => {
         expect(screen.getAllByText(/Setup/).length).toBeGreaterThan(0)
-        expect(screen.getByRole('button', { name: 'Open Projection' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
       }, { timeout: WAIT_TIMEOUT })
     }, 15000)
   })
