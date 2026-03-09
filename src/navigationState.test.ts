@@ -4,7 +4,6 @@ import { computeNavigationState } from './navigationState'
 
 const lyric = (es: string, translations: Record<string, string>): LyricLine =>
   ({ es, translations })
-const section = (label: string): SectionMarker => ({ type: 'section', label })
 
 describe('computeNavigationState', () => {
   describe('next', () => {
