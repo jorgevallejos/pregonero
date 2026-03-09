@@ -7,10 +7,12 @@ import {
   setSongIndex,
   setBlank,
   getCurrentSongId,
+  getCurrentSongTitle,
   getCurrentItem,
   getNextLyricIndex,
   type SongItem,
   type LyricLine,
+  isLyricLine,
 } from './songState'
 import { computeNavigationState } from './navigationState'
 import { SONGS } from './songs'
@@ -115,7 +117,7 @@ export function useSongNavigation(): {
   const currentItem = getCurrentItem(lines, index)
   const nextLyricIdx = getNextLyricIndex(lines, index)
   const nextLyricLine =
-    nextLyricIdx >= 0 && nextLyricIdx < lines.length && 'es' in lines[nextLyricIdx]
+    nextLyricIdx >= 0 && nextLyricIdx < lines.length && isLyricLine(lines[nextLyricIdx])
       ? (lines[nextLyricIdx] as LyricLine)
       : null
 
@@ -132,9 +134,10 @@ export function useSongNavigation(): {
     loadLines,
     loadError,
     currentSongTitle: (() => {
+      const fromStorage = getCurrentSongTitle()
+      if (fromStorage) return fromStorage
       const id = getCurrentSongId()
-      if (!id) return 'No song selected'
-      return SONGS.find((s) => s.id === id)?.title ?? '—'
+      return id ? SONGS.find((s) => s.id === id)?.title ?? '—' : 'No song selected'
     })(),
     applyRemoteState,
     applyCommand,

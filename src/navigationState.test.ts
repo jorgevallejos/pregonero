@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest'
 import type { LyricLine, SongItem } from './songState'
 import { computeNavigationState } from './navigationState'
 
-const lyric = (es: string, translations: Record<string, string>): LyricLine =>
-  ({ es, translations })
+const lyric = (languages: Record<string, string>): LyricLine => ({ languages })
 
 describe('computeNavigationState', () => {
   describe('next', () => {
     it('from -1 with non-empty lines → index 0, blank false', () => {
-      const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+      const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
       expect(computeNavigationState(lines, -1, true, 'next')).toEqual({
         index: 0,
         blank: false,
@@ -17,9 +16,9 @@ describe('computeNavigationState', () => {
 
     it('from middle index → index +1, blank false', () => {
       const lines: SongItem[] = [
-        lyric('Uno', {}),
-        lyric('Dos', {}),
-        lyric('Tres', {}),
+        lyric({ es: 'Uno' }),
+        lyric({ es: 'Dos' }),
+        lyric({ es: 'Tres' }),
       ]
       expect(computeNavigationState(lines, 1, true, 'next')).toEqual({
         index: 2,
@@ -28,7 +27,7 @@ describe('computeNavigationState', () => {
     })
 
     it('from last index → index unchanged, blank false', () => {
-      const lines: SongItem[] = [lyric('Uno', {}), lyric('Dos', {})]
+      const lines: SongItem[] = [lyric({ es: 'Uno' }), lyric({ es: 'Dos' })]
       expect(computeNavigationState(lines, 1, true, 'next')).toEqual({
         index: 1,
         blank: false,
@@ -45,7 +44,7 @@ describe('computeNavigationState', () => {
 
   describe('prev', () => {
     it('from 0 → index 0, blank false', () => {
-      const lines: SongItem[] = [lyric('Uno', {}), lyric('Dos', {})]
+      const lines: SongItem[] = [lyric({ es: 'Uno' }), lyric({ es: 'Dos' })]
       expect(computeNavigationState(lines, 0, true, 'prev')).toEqual({
         index: 0,
         blank: false,
@@ -54,9 +53,9 @@ describe('computeNavigationState', () => {
 
     it('from middle index → index -1, blank false', () => {
       const lines: SongItem[] = [
-        lyric('Uno', {}),
-        lyric('Dos', {}),
-        lyric('Tres', {}),
+        lyric({ es: 'Uno' }),
+        lyric({ es: 'Dos' }),
+        lyric({ es: 'Tres' }),
       ]
       expect(computeNavigationState(lines, 1, true, 'prev')).toEqual({
         index: 0,
@@ -65,7 +64,7 @@ describe('computeNavigationState', () => {
     })
 
     it('from -1 → index stays -1, blank unchanged', () => {
-      const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+      const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
       expect(computeNavigationState(lines, -1, true, 'prev')).toEqual({
         index: -1,
         blank: true,
@@ -75,7 +74,7 @@ describe('computeNavigationState', () => {
 
   describe('restart', () => {
     it('always → index -1, blank true', () => {
-      const lines: SongItem[] = [lyric('Uno', {}), lyric('Dos', {})]
+      const lines: SongItem[] = [lyric({ es: 'Uno' }), lyric({ es: 'Dos' })]
       expect(computeNavigationState(lines, 1, false, 'restart')).toEqual({
         index: -1,
         blank: true,
@@ -89,7 +88,7 @@ describe('computeNavigationState', () => {
 
   describe('blankToggle', () => {
     it('index unchanged, blank toggled', () => {
-      const lines: SongItem[] = [lyric('Uno', {})]
+      const lines: SongItem[] = [lyric({ es: 'Uno' })]
       expect(computeNavigationState(lines, 0, true, 'blankToggle')).toEqual({
         index: 0,
         blank: false,
@@ -103,10 +102,10 @@ describe('computeNavigationState', () => {
 
   describe('setIndex', () => {
     const lines: SongItem[] = [
-      lyric('Uno', {}),
-      lyric('Dos', {}),
-      lyric('Tres', {}),
-    ]
+        lyric({ es: 'Uno' }),
+        lyric({ es: 'Dos' }),
+        lyric({ es: 'Tres' }),
+      ]
 
     it('valid index → that index, blank unchanged when index >= 0', () => {
       expect(computeNavigationState(lines, -1, true, 'setIndex', 1)).toEqual({

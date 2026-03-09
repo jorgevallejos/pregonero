@@ -10,14 +10,13 @@ import {
   getNextLyricIndex,
   getSingingLanguage,
   nextIndex,
-  parseSongJson,
+  parseSongFile,
   prevIndex,
   setProjectionLanguage,
   setSingingLanguage,
 } from './songState'
 
-const lyric = (es: string, translations: Record<string, string>): LyricLine =>
-  ({ es, translations })
+const lyric = (languages: Record<string, string>): LyricLine => ({ languages })
 const section = (label: string): SectionMarker => ({ type: 'section', label })
 
 describe('nextIndex', () => {
@@ -26,23 +25,23 @@ describe('nextIndex', () => {
   })
 
   it('index -1 with non-empty array → goes to 0', () => {
-    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(nextIndex(lines, -1)).toBe(0)
   })
 
   it('middle index → increments by 1', () => {
     const lines: SongItem[] = [
-      lyric('Uno', {}),
-      lyric('Dos', {}),
-      lyric('Tres', {}),
+      lyric({ es: 'Uno' }),
+      lyric({ es: 'Dos' }),
+      lyric({ es: 'Tres' }),
     ]
     expect(nextIndex(lines, 1)).toBe(2)
   })
 
   it('last index → stays at last index', () => {
     const lines: SongItem[] = [
-      lyric('Uno', {}),
-      lyric('Dos', {}),
+      lyric({ es: 'Uno' }),
+      lyric({ es: 'Dos' }),
     ]
     expect(nextIndex(lines, 1)).toBe(1)
   })
@@ -54,23 +53,23 @@ describe('prevIndex', () => {
   })
 
   it('index -1 → stays at -1', () => {
-    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(prevIndex(lines, -1)).toBe(-1)
   })
 
   it('middle index → decrements by 1', () => {
     const lines: SongItem[] = [
-      lyric('Uno', {}),
-      lyric('Dos', {}),
-      lyric('Tres', {}),
+      lyric({ es: 'Uno' }),
+      lyric({ es: 'Dos' }),
+      lyric({ es: 'Tres' }),
     ]
     expect(prevIndex(lines, 1)).toBe(0)
   })
 
   it('index 0 → stays at 0', () => {
     const lines: SongItem[] = [
-      lyric('Uno', {}),
-      lyric('Dos', {}),
+      lyric({ es: 'Uno' }),
+      lyric({ es: 'Dos' }),
     ]
     expect(prevIndex(lines, 0)).toBe(0)
   })
@@ -82,19 +81,19 @@ describe('getCurrentItem', () => {
   })
 
   it('valid index pointing to a lyric line → returns that lyric line', () => {
-    const line = lyric('Hola', { en: 'Hello' })
-    const lines: SongItem[] = [section('Intro'), line, lyric('Adiós', { en: 'Bye' })]
+    const line = lyric({ es: 'Hola', en: 'Hello' })
+    const lines: SongItem[] = [section('Intro'), line, lyric({ es: 'Adiós', en: 'Bye' })]
     expect(getCurrentItem(lines, 1)).toBe(line)
   })
 
   it('valid index pointing to a section marker → returns that section marker', () => {
     const sec = section('Verse 1')
-    const lines: SongItem[] = [sec, lyric('Uno', { en: 'One' })]
+    const lines: SongItem[] = [sec, lyric({ es: 'Uno', en: 'One' })]
     expect(getCurrentItem(lines, 0)).toBe(sec)
   })
 
   it('out-of-range index → returns undefined', () => {
-    const lines: SongItem[] = [lyric('Uno', { en: 'One' })]
+    const lines: SongItem[] = [lyric({ es: 'Uno', en: 'One' })]
     expect(getCurrentItem(lines, 1)).toBeUndefined()
     expect(getCurrentItem(lines, -2)).toBeUndefined()
     expect(getCurrentItem(lines, 5)).toBeUndefined()
@@ -109,8 +108,8 @@ describe('getNextLyricIndex', () => {
   it('index before the first lyric line → returns the index of the first lyric line', () => {
     const lines: SongItem[] = [
       section('Intro'),
-      lyric('First', { en: 'First' }),
-      lyric('Second', { en: 'Second' }),
+      lyric({ es: 'First', en: 'First' }),
+      lyric({ es: 'Second', en: 'Second' }),
     ]
     expect(getNextLyricIndex(lines, -1)).toBe(1)
     expect(getNextLyricIndex(lines, 0)).toBe(1)
@@ -118,10 +117,10 @@ describe('getNextLyricIndex', () => {
 
   it('skips section markers and returns the next lyric index', () => {
     const lines: SongItem[] = [
-      lyric('A', { en: 'A' }),
+      lyric({ es: 'A', en: 'A' }),
       section('Bridge'),
       section('Chorus'),
-      lyric('B', { en: 'B' }),
+      lyric({ es: 'B', en: 'B' }),
     ]
     expect(getNextLyricIndex(lines, 0)).toBe(3)
     expect(getNextLyricIndex(lines, 1)).toBe(3)
@@ -130,15 +129,15 @@ describe('getNextLyricIndex', () => {
 
   it('when already on the last lyric line → returns -1', () => {
     const lines: SongItem[] = [
-      lyric('Uno', { en: 'One' }),
-      lyric('Dos', { en: 'Two' }),
+      lyric({ es: 'Uno', en: 'One' }),
+      lyric({ es: 'Dos', en: 'Two' }),
     ]
     expect(getNextLyricIndex(lines, 1)).toBe(-1)
   })
 
   it('when only section markers remain after the current index → returns -1', () => {
     const lines: SongItem[] = [
-      lyric('Last lyric', { en: 'Last' }),
+      lyric({ es: 'Last lyric', en: 'Last' }),
       section('Outro'),
       section('End'),
     ]
@@ -151,24 +150,24 @@ describe('getAvailableLanguages', () => {
   it('ignores section markers', () => {
     const lines: SongItem[] = [
       section('Verse 1'),
-      lyric('Hola', { en: 'Hello', fr: 'Bonjour' }),
+      lyric({ es: 'Hola', en: 'Hello', fr: 'Bonjour' }),
     ]
-    expect(getAvailableLanguages(lines)).toEqual(['en', 'fr'])
+    expect(getAvailableLanguages(lines)).toEqual(['en', 'es', 'fr'])
   })
 
   it('returns unique language codes', () => {
     const lines: SongItem[] = [
-      lyric('Uno', { en: 'One', es: 'Uno' }),
-      lyric('Dos', { en: 'Two', es: 'Dos' }),
+      lyric({ es: 'Uno', en: 'One' }),
+      lyric({ es: 'Dos', en: 'Two' }),
     ]
     expect(getAvailableLanguages(lines)).toEqual(['en', 'es'])
   })
 
   it('returns sorted language codes', () => {
     const lines: SongItem[] = [
-      lyric('Hola', { fr: 'Bonjour', en: 'Hello', de: 'Hallo' }),
+      lyric({ es: 'Hola', fr: 'Bonjour', en: 'Hello', de: 'Hallo' }),
     ]
-    expect(getAvailableLanguages(lines)).toEqual(['de', 'en', 'fr'])
+    expect(getAvailableLanguages(lines)).toEqual(['de', 'en', 'es', 'fr'])
   })
 })
 
@@ -178,20 +177,20 @@ describe('getAvailableSingingLanguages', () => {
     expect(getAvailableSingingLanguages([section('Verse 1')])).toEqual([])
   })
 
-  it('returns ["es"] when song has lyric lines (current model: single source language)', () => {
+  it('returns all language codes from lyric lines when song has lyrics (multilingual model)', () => {
     const lines: SongItem[] = [
-      lyric('Hola', { en: 'Hello' }),
-      lyric('Mundo', { en: 'World' }),
+      lyric({ es: 'Hola', en: 'Hello' }),
+      lyric({ es: 'Mundo', en: 'World' }),
     ]
-    expect(getAvailableSingingLanguages(lines)).toEqual(['es'])
+    expect(getAvailableSingingLanguages(lines)).toEqual(['en', 'es'])
   })
 
-  it('returns ["es"] for mixed lines with sections', () => {
+  it('returns all language codes for mixed lines with sections', () => {
     const lines: SongItem[] = [
       section('Intro'),
-      lyric('Uno', { en: 'One' }),
+      lyric({ es: 'Uno', en: 'One' }),
     ]
-    expect(getAvailableSingingLanguages(lines)).toEqual(['es'])
+    expect(getAvailableSingingLanguages(lines)).toEqual(['en', 'es'])
   })
 })
 
@@ -259,18 +258,18 @@ describe('getEffectiveSingingLanguage', () => {
 
   it('when stored singing language is available in song, returns it', () => {
     setSingingLanguage('es')
-    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(getEffectiveSingingLanguage(lines)).toBe('es')
   })
 
   it('when stored singing language is not available for song, returns empty string', () => {
-    setSingingLanguage('en')
-    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    setSingingLanguage('de')
+    const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(getEffectiveSingingLanguage(lines)).toBe('')
   })
 
   it('when nothing stored, returns empty string', () => {
-    const lines: SongItem[] = [lyric('Hola', { en: 'Hello' })]
+    const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(getEffectiveSingingLanguage(lines)).toBe('')
   })
 })
@@ -301,8 +300,8 @@ describe('getEffectiveProjectionLanguage', () => {
   it('when a stored projection language exists and is available in the song → return that language', () => {
     setProjectionLanguage('fr')
     const lines: SongItem[] = [
-      lyric('Hola', { en: 'Hello', fr: 'Bonjour' }),
-      lyric('Adiós', { en: 'Goodbye', fr: 'Au revoir' }),
+      lyric({ es: 'Hola', en: 'Hello', fr: 'Bonjour' }),
+      lyric({ es: 'Adiós', en: 'Goodbye', fr: 'Au revoir' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('fr')
   })
@@ -310,81 +309,92 @@ describe('getEffectiveProjectionLanguage', () => {
   it('when stored language exists but is NOT available in the song → return empty string', () => {
     setProjectionLanguage('de')
     const lines: SongItem[] = [
-      lyric('Hola', { en: 'Hello', fr: 'Bonjour' }),
+      lyric({ es: 'Hola', en: 'Hello', fr: 'Bonjour' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('')
   })
 
   it('when no stored language exists and "en" is available → return "en"', () => {
     const lines: SongItem[] = [
-      lyric('Hola', { en: 'Hello', es: 'Hola' }),
+      lyric({ es: 'Hola', en: 'Hello' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('en')
   })
 
   it('when no stored language exists and "en" is not available → return empty string', () => {
     const lines: SongItem[] = [
-      lyric('Hola', { fr: 'Bonjour', es: 'Hola' }),
+      lyric({ es: 'Hola', fr: 'Bonjour' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('')
   })
 })
 
-describe('parseSongJson', () => {
-  it('valid lyric array parses correctly', () => {
-    const json = '[{"es":"Hola","translations":{"en":"Hello"}}]'
-    const result = parseSongJson(json)
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ es: 'Hola', translations: { en: 'Hello' } })
+describe('parseSongFile', () => {
+  it('parses valid object with title and lyrics array', () => {
+    const json = '{"title":"Paso","lyrics":[{"es":"Como cualquier atardecer,","en":"Like any sunset,"}]}'
+    const result = parseSongFile(json)
+    expect(result.title).toBe('Paso')
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toEqual({
+      languages: { es: 'Como cualquier atardecer,', en: 'Like any sunset,' },
+    })
   })
 
   it('invalid JSON string throws an error', () => {
-    expect(() => parseSongJson('not json')).toThrow()
-    expect(() => parseSongJson('{')).toThrow()
+    expect(() => parseSongFile('not json')).toThrow()
+    expect(() => parseSongFile('{')).toThrow()
   })
 
-  it('JSON that is not an array throws an error', () => {
-    expect(() => parseSongJson('{}')).toThrow('JSON must be a flat array')
-    expect(() => parseSongJson('"hello"')).toThrow('JSON must be a flat array')
+  it('JSON that is not an object throws an error', () => {
+    expect(() => parseSongFile('[]')).toThrow(/must be an object with "title" and "lyrics"/)
+    expect(() => parseSongFile('"hello"')).toThrow(/must be an object with "title" and "lyrics"/)
   })
 
-  it('lyric line missing "es" field throws an error', () => {
-    const json = '[{"translations":{"en":"Hi"}}]'
-    expect(() => parseSongJson(json)).toThrow(/lyric line must have "es"/)
+  it('object missing "title" throws an error', () => {
+    const json = '{"lyrics":[{"es":"Hola","en":"Hello"}]}'
+    expect(() => parseSongFile(json)).toThrow(/missing "title"/)
   })
 
-  it('lyric line missing "translations" field throws an error', () => {
-    const json = '[{"es":"Hola"}]'
-    expect(() => parseSongJson(json)).toThrow(/translations/)
+  it('object missing "lyrics" throws an error', () => {
+    const json = '{"title":"Song"}'
+    expect(() => parseSongFile(json)).toThrow(/missing "lyrics"/)
   })
 
-  it('section marker with { type: "section", label: string } is accepted', () => {
-    const json = '[{"type":"section","label":"Verse 1"}]'
-    const result = parseSongJson(json)
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ type: 'section', label: 'Verse 1' })
+  it('lyric line must have at least one language string', () => {
+    const json = '{"title":"S","lyrics":[{}]}'
+    expect(() => parseSongFile(json)).toThrow(/at least one language/)
+  })
+
+  it('section marker in lyrics array is accepted', () => {
+    const json = '{"title":"S","lyrics":[{"type":"section","label":"Verse 1"}]}'
+    const result = parseSongFile(json)
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toEqual({ type: 'section', label: 'Verse 1' })
   })
 
   it('malformed section marker (missing label or wrong type) throws an error', () => {
-    expect(() => parseSongJson('[{"type":"section"}]')).toThrow(/section must have a string "label"/)
-    expect(() => parseSongJson('[{"type":"section","label":null}]')).toThrow(/section must have a string "label"/)
-    expect(() => parseSongJson('[{"type":"other","label":"X"}]')).toThrow(/lyric line must have "es"/)
+    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section"}]}')).toThrow(/section must have a string "label"/)
+    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section","label":null}]}')).toThrow(/section must have a string "label"/)
   })
 
   it('mixed lyric lines and section markers parse correctly', () => {
-    const json = [
-      { type: 'section', label: 'Intro' },
-      { es: 'Uno', translations: { en: 'One' } },
-      { es: 'Dos', translations: { en: 'Two' } },
-      { type: 'section', label: 'Chorus' },
-      { es: 'Tres', translations: { en: 'Three' } },
-    ]
-    const result = parseSongJson(JSON.stringify(json))
-    expect(result).toHaveLength(5)
-    expect(result[0]).toEqual({ type: 'section', label: 'Intro' })
-    expect(result[1]).toEqual({ es: 'Uno', translations: { en: 'One' } })
-    expect(result[2]).toEqual({ es: 'Dos', translations: { en: 'Two' } })
-    expect(result[3]).toEqual({ type: 'section', label: 'Chorus' })
-    expect(result[4]).toEqual({ es: 'Tres', translations: { en: 'Three' } })
+    const json = JSON.stringify({
+      title: 'Test',
+      lyrics: [
+        { type: 'section', label: 'Intro' },
+        { es: 'Uno', en: 'One' },
+        { es: 'Dos', en: 'Two' },
+        { type: 'section', label: 'Chorus' },
+        { es: 'Tres', en: 'Three' },
+      ],
+    })
+    const result = parseSongFile(json)
+    expect(result.title).toBe('Test')
+    expect(result.items).toHaveLength(5)
+    expect(result.items[0]).toEqual({ type: 'section', label: 'Intro' })
+    expect(result.items[1]).toEqual({ languages: { es: 'Uno', en: 'One' } })
+    expect(result.items[2]).toEqual({ languages: { es: 'Dos', en: 'Two' } })
+    expect(result.items[3]).toEqual({ type: 'section', label: 'Chorus' })
+    expect(result.items[4]).toEqual({ languages: { es: 'Tres', en: 'Three' } })
   })
 })

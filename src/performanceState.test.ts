@@ -7,7 +7,7 @@ import {
 } from './performanceState'
 
 const validLines: SongItem[] = [
-  { es: 'Hola', translations: { en: 'Hello' } },
+  { languages: { es: 'Hola', en: 'Hello' } },
 ]
 
 describe('getPerformanceChecks', () => {

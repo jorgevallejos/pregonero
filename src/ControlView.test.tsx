@@ -51,14 +51,14 @@ beforeAll(() => {
 })
 
 const VALID_LINES: SongItem[] = [
-  { es: 'Hola', translations: { en: 'Hello' } },
-  { es: 'Mundo', translations: { en: 'World' } },
+  { languages: { es: 'Hola', en: 'Hello' } },
+  { languages: { es: 'Mundo', en: 'World' } },
 ]
 
 /** Lines for a different "song" and with a second language for language-change tests */
 const OTHER_LINES: SongItem[] = [
-  { es: 'Uno', translations: { en: 'One', fr: 'Un' } },
-  { es: 'Dos', translations: { en: 'Two', fr: 'Deux' } },
+  { languages: { es: 'Uno', en: 'One', fr: 'Un' } },
+  { languages: { es: 'Dos', en: 'Two', fr: 'Deux' } },
 ]
 
 const WAIT_TIMEOUT = 3000
@@ -1284,10 +1284,13 @@ describe('ControlView performer state flow', () => {
   })
 
   describe('Performer journey (full integration)', () => {
-    const SONG_JSON = JSON.stringify([
-      { es: 'Hola', translations: { en: 'Hello' } },
-      { es: 'Mundo', translations: { en: 'World' } },
-    ])
+    const SONG_JSON = JSON.stringify({
+      title: 'Duelo',
+      lyrics: [
+        { es: 'Hola', en: 'Hello' },
+        { es: 'Mundo', en: 'World' },
+      ],
+    })
 
     /** Helper: hold a button for HOLD_CONFIRM_MS so the confirm action runs (Restart / Close). */
     async function holdConfirm(button: HTMLElement) {
@@ -1356,13 +1359,14 @@ describe('ControlView performer state flow', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'EN' })).toBeTruthy()
+        const enButtons = screen.getAllByRole('button', { name: 'EN' })
+        expect(enButtons.length).toBeGreaterThanOrEqual(2)
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'ES' }))
+        fireEvent.click(within(screen.getByRole('region', { name: 'Singing language' })).getByRole('button', { name: 'ES' }))
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+        fireEvent.click(within(screen.getByRole('region', { name: 'Translation language' })).getByRole('button', { name: 'EN' }))
       })
 
       await waitFor(() => {
