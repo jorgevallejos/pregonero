@@ -170,7 +170,7 @@ describe('v0.5 control screen state machine integration', () => {
     )
   })
 
-  it('2. In Setup state, the sections appear in this exact order: Song, Languages, Projection, Arm', async () => {
+  it('2. In Setup state, the sections appear in this exact order: Song, LANGUAGE DISPLAY, Projection, Arm', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -194,7 +194,7 @@ describe('v0.5 control screen state machine integration', () => {
     expect(sections.length).toBeGreaterThanOrEqual(4)
     const firstLabels = Array.from(sections).map((s) => s.querySelector('.control-setup-label')?.textContent)
     expect(firstLabels[0]).toBe('Song')
-    expect(firstLabels[1]).toBe('Languages')
+    expect(firstLabels[1]).toBe('LANGUAGE DISPLAY')
     expect(firstLabels[2]).toBe('Projection')
     expect(firstLabels[3]).toBe('Arm')
   })
@@ -236,7 +236,7 @@ describe('v0.5 control screen state machine integration', () => {
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
   })
 
-  it('2d. In Setup state, Languages column has a single "Languages" button (not Singing/Translation)', async () => {
+  it('2d. In Setup state, LANGUAGE DISPLAY column has a single "Languages" button (not Singing/Translation)', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -255,7 +255,7 @@ describe('v0.5 control screen state machine integration', () => {
     expect(screen.queryByRole('button', { name: 'Translation' })).toBeNull()
   })
 
-  it('2e. Languages screen: two columns (Singing language, Translation language), Confirm button; only Confirm returns to control', async () => {
+  it('2e. Languages screen: two columns (Singing, Projection), Confirm button; only Confirm returns to control', async () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
     setSingingLanguage('')
@@ -267,18 +267,18 @@ describe('v0.5 control screen state machine integration', () => {
       expect(screen.getByRole('heading', { name: 'Languages' })).toBeTruthy()
     })
 
-    expect(screen.getByRole('region', { name: 'Singing language' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Translation language' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Singing' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Projection' })).toBeTruthy()
     const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
     expect(confirmBtn).toBeTruthy()
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('region', { name: 'Singing language' })).getByRole('button', { name: 'ES' }))
+      fireEvent.click(within(screen.getByRole('region', { name: 'Singing' })).getByRole('button', { name: 'ES' }))
     })
     expect(window.location.hash).toBe('#/languages')
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('region', { name: 'Translation language' })).getByRole('button', { name: 'EN' }))
+      fireEvent.click(within(screen.getByRole('region', { name: 'Projection' })).getByRole('button', { name: 'EN' }))
     })
     expect(window.location.hash).toBe('#/languages')
 
@@ -1418,7 +1418,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
       })
       expect(getCurrentSongId()).toBe('pimiento')
-      expect(screen.getByRole('heading', { name: 'Songs' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
     })
 
     it('selecting a song shows selection state and a primary confirm action', async () => {
@@ -1455,7 +1455,7 @@ describe('ControlView performer state flow', () => {
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('duelo')
-        expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
       }, { timeout: WAIT_TIMEOUT })
     })
 
@@ -1524,11 +1524,11 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
       })
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Song' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
       })
       window.location.hash = '#/songs'
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
@@ -1558,10 +1558,10 @@ describe('ControlView performer state flow', () => {
         expect(enButtons.length).toBeGreaterThanOrEqual(2)
       })
       await act(async () => {
-        fireEvent.click(within(screen.getByRole('region', { name: 'Singing language' })).getByRole('button', { name: 'ES' }))
+        fireEvent.click(within(screen.getByRole('region', { name: 'Singing' })).getByRole('button', { name: 'ES' }))
       })
       await act(async () => {
-        fireEvent.click(within(screen.getByRole('region', { name: 'Translation language' })).getByRole('button', { name: 'EN' }))
+        fireEvent.click(within(screen.getByRole('region', { name: 'Projection' })).getByRole('button', { name: 'EN' }))
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
