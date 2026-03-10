@@ -225,6 +225,14 @@ export function getNextLyricIndex(lines: SongItem[], fromIndex: number): number 
   return lines.findIndex((item, i) => i > fromIndex && isLyricLine(item))
 }
 
+/** Index of the last lyric line in the song, or -1 if there are no lyric lines. */
+export function getLastLyricIndex(lines: SongItem[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (isLyricLine(lines[i])) return i
+  }
+  return -1
+}
+
 /** Bounds-safe next index (moves by one item). From -1 goes to 0. */
 export function nextIndex(lines: SongItem[], current: number): number {
   if (lines.length === 0) return current

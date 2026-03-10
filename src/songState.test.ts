@@ -7,6 +7,7 @@ import {
   getCurrentItem,
   getEffectiveProjectionLanguage,
   getEffectiveSingingLanguage,
+  getLastLyricIndex,
   getNextLyricIndex,
   getSingingLanguage,
   nextIndex,
@@ -143,6 +144,44 @@ describe('getNextLyricIndex', () => {
     ]
     expect(getNextLyricIndex(lines, 0)).toBe(-1)
     expect(getNextLyricIndex(lines, 1)).toBe(-1)
+  })
+})
+
+describe('getLastLyricIndex', () => {
+  it('empty array → returns -1', () => {
+    expect(getLastLyricIndex([])).toBe(-1)
+  })
+
+  it('only section markers → returns -1', () => {
+    const lines: SongItem[] = [section('Intro'), section('Outro')]
+    expect(getLastLyricIndex(lines)).toBe(-1)
+  })
+
+  it('only lyric lines → returns last index', () => {
+    const lines: SongItem[] = [
+      lyric({ es: 'Uno', en: 'One' }),
+      lyric({ es: 'Dos', en: 'Two' }),
+    ]
+    expect(getLastLyricIndex(lines)).toBe(1)
+  })
+
+  it('mixed: last item is lyric → returns that index', () => {
+    const lines: SongItem[] = [
+      section('Verse'),
+      lyric({ es: 'A', en: 'A' }),
+      lyric({ es: 'B', en: 'B' }),
+      section('Outro'),
+    ]
+    expect(getLastLyricIndex(lines)).toBe(2)
+  })
+
+  it('mixed: last item is section → returns index of last lyric before it', () => {
+    const lines: SongItem[] = [
+      lyric({ es: 'First', en: 'First' }),
+      lyric({ es: 'Last lyric', en: 'Last' }),
+      section('Outro'),
+    ]
+    expect(getLastLyricIndex(lines)).toBe(1)
   })
 })
 

@@ -610,6 +610,147 @@ describe('v0.5 control screen state machine integration', () => {
     expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
     expect((screen.getByRole('button', { name: /next/i }) as HTMLButtonElement).disabled).toBe(false)
   })
+
+  describe('End-of-song behaviour', () => {
+    it('when armed and current phrase is the last lyric phrase, Unarm button uses same green style as Arm (ctrl-arm)', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      expect(unarmBtn.classList.contains('ctrl-arm')).toBe(true)
+      expect(unarmBtn.classList.contains('ctrl-unarm')).toBe(false)
+    })
+
+    it('when armed and at last lyric phrase, single click on Unarm unarms immediately (no hold required)', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      expect(screen.getByText('Mundo')).toBeTruthy()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
+      })
+
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    })
+
+    it('when armed and not at last lyric phrase, Unarm keeps normal style and requires hold-to-confirm', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(0)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      expect(unarmBtn.classList.contains('ctrl-unarm')).toBe(true)
+      expect(unarmBtn.classList.contains('ctrl-arm')).toBe(false)
+
+      await act(async () => {
+        fireEvent.click(unarmBtn)
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    })
+
+    it('when armed at last phrase then user restarts, Unarm returns to normal style and hold-to-confirm', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      const unarmAtEnd = screen.getByRole('button', { name: /^Unarm/ })
+      expect(unarmAtEnd.classList.contains('ctrl-arm')).toBe(true)
+
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: /restart/i }))
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+      })
+      const unarmAfterRestart = screen.getByRole('button', { name: /^Unarm/ })
+      expect(unarmAfterRestart.classList.contains('ctrl-unarm')).toBe(true)
+      expect(unarmAfterRestart.classList.contains('ctrl-arm')).toBe(false)
+
+      await act(async () => {
+        fireEvent.click(unarmAfterRestart)
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    })
+
+    it('when armed at last phrase then user goes Previous, Unarm returns to normal style and hold-to-confirm', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      expect(screen.getByRole('button', { name: /^Unarm/ }).classList.contains('ctrl-arm')).toBe(true)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /previous/i }))
+      })
+      await waitFor(() => {
+        expect(screen.getByText('Hola')).toBeTruthy()
+      })
+
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      expect(unarmBtn.classList.contains('ctrl-unarm')).toBe(true)
+      expect(unarmBtn.classList.contains('ctrl-arm')).toBe(false)
+      await act(async () => {
+        fireEvent.click(unarmBtn)
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    })
+  })
 })
 
 describe('ControlView performer state flow', () => {
