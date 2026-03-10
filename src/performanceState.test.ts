@@ -7,7 +7,7 @@ import {
 } from './performanceState'
 
 const validLines: SongItem[] = [
-  { es: 'Hola', translations: { en: 'Hello' } },
+  { languages: { es: 'Hola', en: 'Hello' } },
 ]
 
 describe('getPerformanceChecks', () => {
@@ -55,9 +55,12 @@ describe('getPerformanceState', () => {
     allPass: false,
   }
 
-  it('if index >= 0 → state is "performing"', () => {
-    expect(getPerformanceState(allPassChecks, 0, false)).toBe('performing')
+  it('if index >= 0 and armed → state is "performing"; if index >= 0 and !armed → "ready" or "setup"', () => {
+    expect(getPerformanceState(allPassChecks, 0, true)).toBe('performing')
     expect(getPerformanceState(allPassChecks, 1, true)).toBe('performing')
+    expect(getPerformanceState(allPassChecks, 0, false)).toBe('ready')
+    expect(getPerformanceState(allPassChecks, 5, false)).toBe('ready')
+    expect(getPerformanceState(notAllPassChecks, 0, false)).toBe('setup')
   })
 
   it('if index = -1, allPass = true, armed = true → state is "armed"', () => {

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 
 /**
  * Hold-to-confirm hook for destructive actions.
- * Used by Restart and Close Projection in the control UI.
+ * Used by Restart and Unarm in the control UI.
  */
 export const HOLD_CONFIRM_MS = 1000
 

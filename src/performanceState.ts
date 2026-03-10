@@ -48,7 +48,8 @@ function setArmedInStorage(armed: boolean): void {
 
 /**
  * Derives current performance state from checks, phrase index, and armed flag.
- * - index >= 0 → performing (first line already revealed)
+ * - index >= 0 and armed → performing (first line already revealed, still armed)
+ * - index >= 0 and !armed → ready or setup (user unarmed during performance)
  * - index === -1 and armed and all checks pass → armed (waiting for first Next)
  * - index === -1 and all checks pass → ready
  * - else → setup
@@ -58,7 +59,8 @@ export function getPerformanceState(
   index: number,
   armed: boolean
 ): PerformanceState {
-  if (index >= 0) return 'performing'
+  if (index >= 0 && armed) return 'performing'
+  if (index >= 0 && !armed) return checks.allPass ? 'ready' : 'setup'
   if (checks.allPass && armed) return 'armed'
   if (checks.allPass) return 'ready'
   return 'setup'
