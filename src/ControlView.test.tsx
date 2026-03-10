@@ -1909,3 +1909,189 @@ describe('ControlView performer state flow', () => {
     }, 15000)
   })
 })
+
+/** Lyric, section marker, lyric — next-line preview must skip section */
+const LINES_WITH_SECTION: SongItem[] = [
+  { languages: { es: 'Primero', en: 'First' } },
+  { type: 'section', label: 'Chorus' },
+  { languages: { es: 'Segundo', en: 'Second' } },
+]
+
+/** Three lyric lines for advance-update test */
+const THREE_LINES: SongItem[] = [
+  { languages: { es: 'Uno', en: 'One' } },
+  { languages: { es: 'Dos', en: 'Two' } },
+  { languages: { es: 'Tres', en: 'Three' } },
+]
+
+function getControlNextPreview() {
+  return document.querySelector('[data-testid="control-next-preview"]')
+}
+
+describe('Control next-line preview', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+  })
+
+  it('does not show preview before the first line is revealed (armed, not started)', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+    const preview = getControlNextPreview()
+    expect(preview).toBeNull()
+  })
+
+  it('shows next-line preview on performance control screen when there is a next lyric', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Hola')).toBeTruthy()
+    })
+    const preview = getControlNextPreview()
+    expect(preview).toBeTruthy()
+    expect(preview?.textContent?.trim()).toBe('Mundo')
+  })
+
+  it('does not show preview when there is no next lyric line', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(1)
+    setBlank(false)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Mundo')).toBeTruthy()
+    })
+    const preview = getControlNextPreview()
+    expect(preview).toBeTruthy()
+    expect(preview?.textContent?.trim()).toBe('')
+  })
+
+  it('skips section markers when computing the next lyric for preview', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(LINES_WITH_SECTION)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Primero')).toBeTruthy()
+    })
+    const preview = getControlNextPreview()
+    expect(preview).toBeTruthy()
+    expect(preview?.textContent?.trim()).toBe('Segundo')
+    expect(preview?.textContent).not.toMatch(/Chorus/)
+  })
+
+  it('updates the preview when advancing to the next phrase', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(THREE_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Uno')).toBeTruthy()
+    })
+    expect(getControlNextPreview()?.textContent?.trim()).toBe('Dos')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Dos')).toBeTruthy()
+    })
+    expect(getControlNextPreview()?.textContent?.trim()).toBe('Tres')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Tres')).toBeTruthy()
+    })
+    expect(getControlNextPreview()?.textContent?.trim()).toBe('')
+  })
+})
