@@ -1333,6 +1333,148 @@ describe('ControlView performer state flow', () => {
     })
   })
 
+  describe('Songs screen confirmation', () => {
+    const SONG_JSON = JSON.stringify({
+      title: 'Duelo',
+      lyrics: [
+        { es: 'Hola', en: 'Hello' },
+        { es: 'Mundo', en: 'World' },
+      ],
+    })
+
+    function openSongsScreen() {
+      clearStorage()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === '/duelo.json') {
+          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
+        }
+        return Promise.reject(new Error('Unexpected fetch'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App />)
+      return fetchMock
+    }
+
+    /** Opens Songs screen with no active song (selection not pre-filled). */
+    function openSongsScreenWithNoActiveSong() {
+      clearStorage()
+      setCurrentSongId('')
+      setSongLines([])
+      setSongIndex(-1)
+      setBlank(true)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === '/duelo.json') {
+          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
+        }
+        return Promise.reject(new Error('Unexpected fetch'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App />)
+      return fetchMock
+    }
+
+    it('when entering Songs screen with an active song, that song is already selected and Confirm is enabled', async () => {
+      openSongsScreen()
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      const dueloSongBtn = within(screen.getByRole('main')).getAllByRole('button', { name: /Duelo/ }).find((b) => b.classList.contains('songs-song-btn'))
+      expect(dueloSongBtn).toBeTruthy()
+      expect(dueloSongBtn!.classList.contains('ctrl-arm')).toBe(true)
+      expect(dueloSongBtn!.getAttribute('aria-pressed')).toBe('true')
+      const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
+      expect((confirmBtn as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('selecting a song does not immediately change active song or navigate away', async () => {
+      openSongsScreen()
+      setCurrentSongId('pimiento')
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
+      })
+      expect(getCurrentSongId()).toBe('pimiento')
+      expect(screen.getByRole('heading', { name: 'Songs' })).toBeTruthy()
+    })
+
+    it('selecting a song shows selection state and a primary confirm action', async () => {
+      openSongsScreenWithNoActiveSong()
+      const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
+      expect(confirmBtn).toBeTruthy()
+      expect((confirmBtn as HTMLButtonElement).disabled).toBe(true)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
+      })
+      const songButtons = within(screen.getByRole('main')).getAllByRole('button', { name: /Duelo/ })
+      const dueloSongBtn = songButtons.find((b) => b.classList.contains('songs-song-btn'))
+      expect(dueloSongBtn).toBeTruthy()
+      expect(dueloSongBtn!.classList.contains('ctrl-arm')).toBe(true)
+      expect(dueloSongBtn!.getAttribute('aria-pressed')).toBe('true')
+      expect((confirmBtn as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('confirming selection sets active song and returns to control view', async () => {
+      openSongsScreen()
+      setCurrentSongId('pimiento')
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('duelo')
+        expect(screen.getByRole('button', { name: 'Song' })).toBeTruthy()
+      }, { timeout: WAIT_TIMEOUT })
+    })
+
+    it('exiting Songs screen without confirming leaves active song unchanged', async () => {
+      openSongsScreen()
+      setCurrentSongId('pimiento')
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      expect(getCurrentSongId()).toBe('pimiento')
+    })
+  })
+
   describe('Performer journey (full integration)', () => {
     const SONG_JSON = JSON.stringify({
       title: 'Duelo',
@@ -1398,8 +1540,11 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
       })
 
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
       await waitFor(() => {
-        expect(screen.getByText('Duelo')).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Languages' })).toBeTruthy()
       }, { timeout: WAIT_TIMEOUT })
 
       await act(async () => {

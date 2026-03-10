@@ -323,6 +323,26 @@ html, body, #root {
   border-color: #3a3a3c;
 }
 
+/* Confirm button: clearly active when enabled, clearly disabled when disabled (Songs + Languages) */
+.ctrl-btn.languages-confirm:not(:disabled) {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.ctrl-btn.languages-confirm:not(:disabled):hover {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+.ctrl-btn.languages-confirm:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: #6e7a6e;
+  background: #1e261e;
+  border-color: #2a352a;
+}
+
 .ctrl-arm {
   background: #2d4a2d;
   border-color: #3d5c3d;
@@ -458,6 +478,43 @@ html, body, #root {
 
 .songs-song-btn:hover {
   background: #3a3a3c;
+}
+
+/* Selected song: persistent green (same as Arm), must win over base/hover above */
+.songs-song-btn.ctrl-arm {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.songs-song-btn.ctrl-arm:hover:not(:disabled) {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+/* Only apply neutral hover to non-selected song buttons */
+.songs-song-btn:not(.ctrl-arm):hover {
+  background: #3a3a3c;
+}
+
+/* Confirm at bottom, same pattern as Languages screen */
+.songs-screen .songs-confirm-wrap {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-bottom: 2rem;
+  padding-top: 0.5rem;
+}
+
+/* Confirm at bottom, same pattern as Languages screen */
+.songs-screen .songs-confirm-wrap {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-bottom: 2rem;
+  padding-top: 0.5rem;
 }
 
 /* ---- Languages screen ---- */
