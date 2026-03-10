@@ -1767,6 +1767,106 @@ describe('ControlView performer state flow', () => {
       const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
       expect((confirmBtn as HTMLButtonElement).disabled).toBe(true)
     })
+
+    it('after finishing song A, selecting song B, confirming and arming: performer starts in initial state (no stale lyric)', async () => {
+      const SONG_A_JSON = JSON.stringify({
+        title: 'Duelo',
+        lyrics: [
+          { es: 'Hola', en: 'Hello' },
+          { es: 'Mundo', en: 'World' },
+        ],
+      })
+      const SONG_B_JSON = JSON.stringify({
+        title: 'Luz y sal',
+        lyrics: [
+          { es: 'Primera', en: 'First' },
+          { es: 'Segunda', en: 'Second' },
+        ],
+      })
+      clearStorage()
+      addPlayedSong('duelo')
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(1)
+      setBlank(false)
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === '/duelo.json') return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_A_JSON) })
+        if (url === '/luz-y-sal.json') return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_B_JSON) })
+        return Promise.reject(new Error('Unexpected fetch'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App />)
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
+      })
+      window.location.hash = '#/songs'
+      window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Luz y sal' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Luz y sal' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
+      }, { timeout: WAIT_TIMEOUT })
+      // Simulate stale lyric state (e.g. from previous song or projection window): index out of bounds for new song.
+      setSongIndex(5)
+      setBlank(false)
+      window.location.hash = '#/songs'
+      window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Luz y sal' })).toBeTruthy()
+      })
+      window.location.hash = '#/'
+      window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      expect(screen.getByText('Press Next to reveal the first line')).toBeTruthy()
+      const lyricEl = document.querySelector('.control-lyric')
+      expect(lyricEl?.textContent?.trim()).toBe('')
+      expect(screen.queryByText('Hola')).toBeNull()
+      expect(screen.queryByText('Mundo')).toBeNull()
+      expect(screen.getByText(/Luz y sal/)).toBeTruthy()
+      expect(getControlNextPreview()).toBeNull()
+    })
   })
 
   describe('Performer journey (full integration)', () => {

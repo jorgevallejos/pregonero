@@ -17,6 +17,20 @@ import {
 import { computeNavigationState } from './navigationState'
 import { SONGS } from './songs'
 
+/** Read lines/index/blank from storage; if index is out of bounds for current lines, reset to initial song state. */
+function getSyncedLyricState(): { lines: SongItem[]; index: number; blank: boolean } {
+  const storedLines = getSongLines()
+  let index = getSongIndex()
+  let blank = getBlank()
+  if (storedLines.length > 0 && (index < -1 || index >= storedLines.length)) {
+    setSongIndex(-1)
+    setBlank(true)
+    index = -1
+    blank = true
+  }
+  return { lines: storedLines, index, blank }
+}
+
 export function useSongNavigation(): {
   lines: SongItem[]
   index: number
@@ -40,16 +54,18 @@ export function useSongNavigation(): {
 
   // Sync from storage only; do not auto-load a default song on startup
   useEffect(() => {
-    setLines(getSongLines())
-    setIndexState(getSongIndex())
-    setBlankState(getBlank())
+    const { lines: storedLines, index: storedIndex, blank: storedBlank } = getSyncedLyricState()
+    setLines(storedLines)
+    setIndexState(storedIndex)
+    setBlankState(storedBlank)
   }, [])
 
   useEffect(() => {
     const onStorage = () => {
-      setLines(getSongLines())
-      setIndexState(getSongIndex())
-      setBlankState(getBlank())
+      const { lines: storedLines, index: storedIndex, blank: storedBlank } = getSyncedLyricState()
+      setLines(storedLines)
+      setIndexState(storedIndex)
+      setBlankState(storedBlank)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -109,8 +125,10 @@ export function useSongNavigation(): {
   const loadLines = (items: SongItem[]) => {
     setSongLines(items)
     setSongIndex(-1)
+    setBlank(true)
     setLines(items)
     setIndexState(-1)
+    setBlankState(true)
     setLoadError(null)
   }
 
