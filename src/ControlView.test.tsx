@@ -20,6 +20,7 @@ import {
   getCurrentSongId,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
+import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
 
 function createStorage(): Storage {
@@ -1613,6 +1614,158 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }))
       })
       expect(getCurrentSongId()).toBe('pimiento')
+    })
+  })
+
+  describe('Played song indicator', () => {
+    it('when performer unarms at end-of-song, current song is marked as played', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      expect(getPlayedSongIds()).not.toContain('duelo')
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
+      })
+
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(getPlayedSongIds()).toContain('duelo')
+    })
+
+    it('when performer unarms before end-of-song (hold-to-confirm), song is NOT marked as played', async () => {
+      setupControlViewWithReadinessPassing()
+      setSongIndex(0)
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      }, { timeout: WAIT_TIMEOUT })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      })
+      expect(getPlayedSongIds()).not.toContain('duelo')
+
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.pointerDown(unarmBtn)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      await act(async () => {
+        fireEvent.pointerUp(unarmBtn)
+      })
+      vi.useRealTimers()
+
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(getPlayedSongIds()).not.toContain('duelo')
+    })
+
+    it('Setlist: played song is visually darkened (songs-song-btn-played) and shows checkmark', async () => {
+      addPlayedSong('duelo')
+      setCurrentSongId('luz-y-sal')
+      setSongLines(VALID_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/songs'
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App initialHash="#/songs" />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
+      })
+      const dueloBtn = within(screen.getByRole('main')).getAllByRole('button', { name: /Duelo/ }).find((b) => b.classList.contains('songs-song-btn'))
+      expect(dueloBtn).toBeTruthy()
+      expect(dueloBtn!.classList.contains('songs-song-btn-played')).toBe(true)
+      expect(dueloBtn!.querySelector('.song-played-icon')).toBeTruthy()
+      expect(dueloBtn!.textContent).toContain('Duelo')
+    })
+
+    it('Setlist: selected played song has same selected style (ctrl-arm) as other selected songs', async () => {
+      addPlayedSong('duelo')
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/songs'
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App initialHash="#/songs" />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Duelo/ }))
+      })
+      const dueloBtn = within(screen.getByRole('main')).getAllByRole('button', { name: /Duelo/ }).find((b) => b.classList.contains('songs-song-btn'))
+      expect(dueloBtn).toBeTruthy()
+      expect(dueloBtn!.classList.contains('songs-song-btn-played')).toBe(true)
+      expect(dueloBtn!.classList.contains('ctrl-arm')).toBe(true)
+    })
+
+    it('Setlist: reopening after finishing a song shows played indicator but no selection, Confirm disabled', async () => {
+      addPlayedSong('duelo')
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      window.location.hash = '#/songs'
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App initialHash="#/songs" />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
+      })
+      const dueloBtn = within(screen.getByRole('main')).getAllByRole('button', { name: /Duelo/ }).find((b) => b.classList.contains('songs-song-btn'))
+      expect(dueloBtn).toBeTruthy()
+      expect(dueloBtn!.classList.contains('songs-song-btn-played')).toBe(true)
+      expect(dueloBtn!.classList.contains('ctrl-arm')).toBe(false)
+      const confirmBtn = screen.getByRole('button', { name: 'Confirm' })
+      expect((confirmBtn as HTMLButtonElement).disabled).toBe(true)
     })
   })
 

@@ -497,6 +497,42 @@ html, body, #root {
   background: #3a3a3c;
 }
 
+/* Played song: darker text and checkmark only; do not change background. Selected (ctrl-arm) overrides. */
+.songs-song-btn-played {
+  color: #b8b8bc;
+}
+
+/* Styled checkmark icon (no emoji); vertically aligned with title. */
+.song-played-icon {
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: middle;
+  font-size: 0.9em;
+  color: #7bd88f;
+  line-height: 1;
+}
+
+.song-played-icon::before {
+  content: '\2713';
+  font-weight: 300;
+}
+
+.songs-song-btn-played.ctrl-arm .song-played-icon {
+  color: #7bd88f;
+}
+
+/* Selected played song: same green as any selected song (selected takes priority) */
+.songs-song-btn-played.ctrl-arm {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.songs-song-btn-played.ctrl-arm:hover:not(:disabled) {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
 /* Confirm at bottom, same pattern as Languages screen */
 .songs-screen .songs-confirm-wrap {
   grid-column: 1 / -1;
