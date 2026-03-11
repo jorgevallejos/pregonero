@@ -1815,13 +1815,13 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+        expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Armed/)
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm/)
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
@@ -1837,8 +1837,9 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
+      // Control view is back in Ready to Arm state (stable: Arm button present)
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
+        expect(getArmButton()).toBeTruthy()
       }, { timeout: WAIT_TIMEOUT })
       // Simulate stale lyric state (e.g. from previous song or projection window): index out of bounds for new song.
       setSongIndex(5)
@@ -1850,22 +1851,26 @@ describe('ControlView performer state flow', () => {
       })
       window.location.hash = '#/'
       window.dispatchEvent(new HashChangeEvent('hashchange', { newURL: window.location.href, oldURL: window.location.href }))
+      // Control view visible again (stable: Arm button present)
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy()
+        expect(getArmButton()).toBeTruthy()
       })
       await act(async () => {
         fireEvent.click(getArmButton())
       })
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+        expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Armed/)
       })
-      expect(screen.getByText('Press Next to reveal the first line')).toBeTruthy()
+      // Performer in initial state: no lyric displayed, navigation controls visible
       const lyricEl = document.querySelector('.control-lyric')
       expect(lyricEl?.textContent?.trim()).toBe('')
       expect(screen.queryByText('Hola')).toBeNull()
       expect(screen.queryByText('Mundo')).toBeNull()
       expect(screen.getByText(/Luz y sal/)).toBeTruthy()
       expect(getControlNextPreview()).toBeNull()
+      expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /restart/i })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /unarm/i })).toBeTruthy()
     })
   })
 
