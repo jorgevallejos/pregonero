@@ -15,7 +15,10 @@ type Nav = {
 }
 
 function getWsUrl(): string {
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+  const host =
+    typeof window !== 'undefined' && window.location.hostname
+      ? window.location.hostname
+      : 'localhost'
   return `ws://${host}:8765`
 }
 
