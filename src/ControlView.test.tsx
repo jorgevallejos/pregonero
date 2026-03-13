@@ -1493,7 +1493,7 @@ describe('ControlView performer state flow', () => {
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === '/duelo.json') {
+        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
           return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
         }
         return Promise.reject(new Error('Unexpected fetch'))
@@ -1520,7 +1520,7 @@ describe('ControlView performer state flow', () => {
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === '/duelo.json') {
+        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
           return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
         }
         return Promise.reject(new Error('Unexpected fetch'))
@@ -1795,8 +1795,8 @@ describe('ControlView performer state flow', () => {
       sessionStorage.removeItem('liveLyricPerformanceArmed')
       window.location.hash = '#/'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === '/duelo.json') return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_A_JSON) })
-        if (url === '/luz-y-sal.json') return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_B_JSON) })
+        if (url === 'duelo.json' || url.endsWith('/duelo.json')) return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_A_JSON) })
+        if (url === 'luz-y-sal.json' || url.endsWith('/luz-y-sal.json')) return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_B_JSON) })
         return Promise.reject(new Error('Unexpected fetch'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -1904,7 +1904,7 @@ describe('ControlView performer state flow', () => {
       clearStorage()
       window.location.hash = '#/'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === '/duelo.json') {
+        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
           return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
         }
         return Promise.reject(new Error('Unexpected fetch'))
