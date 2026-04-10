@@ -691,6 +691,7 @@ html, body, #root {
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
+  white-space: pre-line;
   padding: 1rem;
   transition: opacity 500ms ease;
 }

@@ -3,8 +3,10 @@
  * Projection screen: shows only the current translated lyric line.
  * It must NOT show a next-line preview (preview is on the performance control screen only).
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
-import { render, screen, waitFor, cleanup } from '@testing-library/react'
+import { act, render, screen, waitFor, cleanup } from '@testing-library/react'
 import App from './App'
 import {
   setSongLines,
@@ -54,6 +56,18 @@ const LINES_WITH_SECTION: SongItem[] = [
   { languages: { es: 'Primero', en: 'First' } },
   { type: 'section', label: 'Chorus' },
   { languages: { es: 'Segundo', en: 'Second' } },
+]
+
+/** Single phrase with embedded newlines (JSON `\n`) — must render as multiple lines on projection */
+const PHRASE_WITH_MANUAL_BREAKS: SongItem[] = [
+  {
+    languages: {
+      es: 'Primera línea\nSegunda línea',
+      en: 'First line\nSecond line',
+      fr: 'Première ligne\nDeuxième ligne',
+      nl: 'Eerste regel\nTweede regel',
+    },
+  },
 ]
 
 function setupProjectionStorage(lines: SongItem[], index: number, blank: boolean) {
@@ -110,5 +124,65 @@ describe('Projection screen', () => {
     })
 
     expect(getProjectionNextPreview()).toBeNull()
+  })
+
+  it('respects newline characters inside a single lyric phrase (manual line breaks)', async () => {
+    setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, 0, false)
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      const lyric = document.querySelector('.projection-lyric')
+      expect(lyric).toBeTruthy()
+      expect(lyric?.textContent).toBe('First line\nSecond line')
+    })
+  })
+
+  it('projection lyric rule uses pre-line so JSON newline characters break lines', () => {
+    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+    const block = css.match(/\.projection-screen\s+\.projection-lyric\s*\{([^}]*)\}/)
+    expect(block).toBeTruthy()
+    expect(block![1]).toMatch(/white-space:\s*pre-line/)
+  })
+
+  it('preserves multiple consecutive newlines inside one phrase', async () => {
+    setupProjectionStorage(
+      [{ languages: { en: 'Line one\n\nLine two' } }],
+      0,
+      false
+    )
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(document.querySelector('.projection-lyric')?.textContent).toBe('Line one\n\nLine two')
+    })
+  })
+
+  /** Full-opacity dwell before auto fade-out (must match ProjectionView AUTO_FADE_MS). */
+  const PHRASE_FULL_OPACITY_MS = 6000
+
+  it('keeps the current lyric at full opacity until the phrase display duration elapses, then starts fade-out', async () => {
+    vi.useFakeTimers()
+    try {
+      setupProjectionStorage(TWO_LINES, 0, false)
+      render(<App initialHash="#/projection" />)
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const lyric = screen.getByText('Hello')
+      expect(lyric.style.opacity).toBe('1')
+
+      await act(async () => {
+        vi.advanceTimersByTime(PHRASE_FULL_OPACITY_MS - 1)
+      })
+      expect(lyric.style.opacity).toBe('1')
+
+      await act(async () => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(lyric.style.opacity).toBe('0')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
