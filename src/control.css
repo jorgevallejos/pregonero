@@ -409,6 +409,12 @@ html, body, #root {
   color: #e5e5e5;
 }
 
+/* Setlist view: keep full-width grid with balanced screen-side spacing */
+.songs-screen:not(.languages-screen) {
+  padding-inline: 1.5rem;
+  box-sizing: border-box;
+}
+
 .songs-top-bar {
   position: relative;
   display: flex;
@@ -459,13 +465,15 @@ html, body, #root {
 /* Songs selection: responsive grid of song buttons (not used on Languages screen) */
 .songs-screen:not(.languages-screen) .songs-body {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 220px));
-  justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.5rem;
   justify-items: center;
   align-items: center;
-  max-width: 900px;
-  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0;
+  padding: 2em 0;
 }
 
 .songs-song-btn {
