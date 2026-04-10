@@ -185,4 +185,35 @@ describe('Projection screen', () => {
       vi.useRealTimers()
     }
   })
+
+  it('clears the displayed lyric after progression is reset (e.g. translation language change with index sent to pre-start)', async () => {
+    const LINES: SongItem[] = [
+      { languages: { es: 'Uno', en: 'One', fr: 'Un' } },
+      { languages: { es: 'Dos', en: 'Two', fr: 'Deux' } },
+    ]
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(LINES)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('One')).toBeTruthy()
+    })
+
+    setProjectionLanguage('fr')
+    setSongIndex(-1)
+    setBlank(true)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(
+      () => {
+        expect(document.querySelector('.projection-lyric')?.textContent).toBe('')
+      },
+      { timeout: 3000 }
+    )
+  })
 })

@@ -1038,7 +1038,213 @@ describe('ControlView performer state flow', () => {
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
     })
 
-    it('5. closing projection while armed causes readiness to fail', async () => {
+    it('5. after unarm mid-performance, changing projection language resets lyrics and sends setIndex to projection', async () => {
+      const sendSpy = vi.fn()
+      const WsConstructor = vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+        const instance = {
+          readyState: 1,
+          send: sendSpy,
+          close: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }
+        return instance
+      })
+      const StubWS = Object.assign(WsConstructor, { OPEN: 1 })
+      vi.stubGlobal('WebSocket', StubWS)
+
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setCurrentSongId('duelo')
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      window.location.hash = '#/'
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(0)
+      })
+
+      vi.useFakeTimers()
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      await act(async () => {
+        fireEvent.pointerDown(unarmBtn)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(getSongIndex()).toBe(0)
+
+      setProjectionLanguage('fr')
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(-1)
+        expect(getBlank()).toBe(true)
+      })
+
+      let lastCmd: {
+        type?: string
+        action?: string
+        value?: number
+        currentIndex?: number
+        blank?: boolean
+      } | null = null
+      for (let i = sendSpy.mock.calls.length - 1; i >= 0; i--) {
+        const msg = JSON.parse(sendSpy.mock.calls[i][0] as string) as typeof lastCmd & { type: string }
+        if (msg.type === 'command') {
+          lastCmd = msg
+          break
+        }
+      }
+      expect(lastCmd).not.toBeNull()
+      expect(lastCmd?.action).toBe('setIndex')
+      expect(lastCmd?.value).toBe(-1)
+      expect(lastCmd?.currentIndex).toBe(-1)
+      expect(lastCmd?.blank).toBe(true)
+    })
+
+    it('6. after unarm mid-performance, changing singing language resets lyrics', async () => {
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setCurrentSongId('duelo')
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      window.location.hash = '#/'
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(0)
+      })
+
+      vi.useFakeTimers()
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      await act(async () => {
+        fireEvent.pointerDown(unarmBtn)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      expect(getSongIndex()).toBe(0)
+
+      setSingingLanguage('fr')
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(-1)
+        expect(getBlank()).toBe(true)
+      })
+    })
+
+    it('7. after unarm mid-performance, changing song resets progression when the new song still has a valid prior index', async () => {
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      sessionStorage.removeItem('liveLyricPerformanceArmed')
+      setSongLines(VALID_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      setCurrentSongId('duelo')
+      setProjectionLanguage('en')
+      setSingingLanguage('es')
+      window.location.hash = '#/'
+      const mockApi = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+
+      render(<App initialHash="#/" />)
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /next/i }))
+      })
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(1)
+      })
+
+      vi.useFakeTimers()
+      const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+      await act(async () => {
+        fireEvent.pointerDown(unarmBtn)
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      vi.useRealTimers()
+
+      expect(getSongIndex()).toBe(1)
+
+      setCurrentSongId('other')
+      setSongLines(OTHER_LINES)
+      setSongIndex(1)
+      setBlank(false)
+      dispatchStorageEvent()
+
+      await waitFor(() => {
+        expect(getSongIndex()).toBe(-1)
+        expect(getBlank()).toBe(true)
+      })
+    })
+
+    it('8. closing projection while armed causes readiness to fail', async () => {
       const closeCallbacks: Array<() => void> = []
       setupControlViewWithReadinessPassing()
       const mockApi = {
@@ -1078,7 +1284,7 @@ describe('ControlView performer state flow', () => {
       expect((armBtn as HTMLButtonElement).disabled).toBe(true)
     })
 
-    it('6. closing projection while performing causes readiness to fail', async () => {
+    it('9. closing projection while performing causes readiness to fail', async () => {
       const closeCallbacks: Array<() => void> = []
       setupControlViewWithReadinessPassing()
       const mockApi = {
