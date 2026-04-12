@@ -496,4 +496,41 @@ describe('parseSongFile', () => {
     expect(result.items[3]).toEqual({ type: 'section', label: 'Chorus' })
     expect(result.items[4]).toEqual({ languages: { es: 'Tres', en: 'Three' } })
   })
+
+  it('optional "notes" string is parsed and trimmed', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      notes: '  Capo 2; mood: soft  ',
+      lyrics: [{ es: 'Hola', en: 'Hello' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.notes).toBe('Capo 2; mood: soft')
+    expect(result.title).toBe('S')
+    expect(result.items).toHaveLength(1)
+  })
+
+  it('when "notes" is omitted, result has no meaningful notes (backward compatible)', () => {
+    const json = '{"title":"Paso","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.notes).toBeUndefined()
+  })
+
+  it('when "notes" is only whitespace, it is treated as absent', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      notes: '   \n\t  ',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.notes).toBeUndefined()
+  })
+
+  it('when "notes" is present but not a string, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      notes: 42,
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
+  })
 })

@@ -74,13 +74,15 @@ function validateLyricsItem(item: unknown, index: number): SongItem {
 }
 
 /**
- * Parsed song file format: { title: string, lyrics: Array<LyricLineRaw | SectionMarker> }
+ * Parsed song file format: { title: string, lyrics: Array<LyricLineRaw | SectionMarker>, notes?: string }
  * Lyric line raw: { "es": "...", "en": "...", ... }
  * Section: { "type": "section", "label": "..." }
  */
 export interface ParsedSongFile {
   title: string
   items: SongItem[]
+  /** Free-text performance notes (capo, mood, cues). Omitted when not present in the file. */
+  notes?: string
 }
 
 export function parseSongFile(jsonString: string): ParsedSongFile {
@@ -98,7 +100,18 @@ export function parseSongFile(jsonString: string): ParsedSongFile {
   const items = (obj.lyrics as unknown[]).map((item, index) =>
     validateLyricsItem(item, index)
   )
-  return { title: obj.title.trim(), items }
+  const out: ParsedSongFile = { title: obj.title.trim(), items }
+  if (Object.prototype.hasOwnProperty.call(obj, 'notes')) {
+    const n = obj.notes
+    if (typeof n !== 'string') {
+      throw new Error('Song file "notes" must be a string when present')
+    }
+    const trimmed = n.trim()
+    if (trimmed.length > 0) {
+      out.notes = trimmed
+    }
+  }
+  return out
 }
 
 export function getSongLines(): SongItem[] {
