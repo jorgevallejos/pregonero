@@ -139,24 +139,23 @@ export interface ParsedSongFile {
   notes?: string
 }
 
-export function parseSongFile(jsonString: string): ParsedSongFile {
-  const raw = JSON.parse(jsonString)
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('JSON must be an object with "title" and "lyrics"')
-  }
-  const obj = raw as Record<string, unknown>
-  if (obj.title === undefined || obj.title === null || typeof obj.title !== 'string') {
+/**
+ * Validates a song JSON object (after `JSON.parse`): `title`, `lyrics`, optional `notes`.
+ * Used by `parseSongFile` and by the setlist import path.
+ */
+export function parseSongRecordFromUnknown(raw: Record<string, unknown>): ParsedSongFile {
+  if (raw.title === undefined || raw.title === null || typeof raw.title !== 'string') {
     throw new Error('Song file is missing "title"')
   }
-  if (obj.lyrics === undefined || obj.lyrics === null || !Array.isArray(obj.lyrics)) {
+  if (raw.lyrics === undefined || raw.lyrics === null || !Array.isArray(raw.lyrics)) {
     throw new Error('Song file is missing "lyrics"')
   }
-  const items = (obj.lyrics as unknown[]).map((item, index) =>
+  const items = (raw.lyrics as unknown[]).map((item, index) =>
     validateLyricsItem(item, index)
   )
-  const out: ParsedSongFile = { title: obj.title.trim(), items }
-  if (Object.prototype.hasOwnProperty.call(obj, 'notes')) {
-    const n = obj.notes
+  const out: ParsedSongFile = { title: raw.title.trim(), items }
+  if (Object.prototype.hasOwnProperty.call(raw, 'notes')) {
+    const n = raw.notes
     if (typeof n !== 'string') {
       throw new Error('Song file "notes" must be a string when present')
     }
@@ -166,6 +165,14 @@ export function parseSongFile(jsonString: string): ParsedSongFile {
     }
   }
   return out
+}
+
+export function parseSongFile(jsonString: string): ParsedSongFile {
+  const raw = JSON.parse(jsonString)
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('JSON must be an object with "title" and "lyrics"')
+  }
+  return parseSongRecordFromUnknown(raw as Record<string, unknown>)
 }
 
 export function getSongLines(): SongItem[] {

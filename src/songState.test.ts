@@ -17,6 +17,7 @@ import {
   getSongLines,
   nextIndex,
   parseSongFile,
+  parseSongRecordFromUnknown,
   prevIndex,
   resetLoadedSongState,
   tryParseSongItemsArray,
@@ -534,6 +535,17 @@ describe('parseSongFile', () => {
       lyrics: [{ es: 'A', en: 'B' }],
     })
     expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
+  })
+})
+
+describe('parseSongRecordFromUnknown', () => {
+  it('matches parseSongFile for an object (extra keys like id are ignored for song fields)', () => {
+    const obj = {
+      id: 'extra',
+      title: 'T',
+      lyrics: [{ es: 'a', en: 'b' }],
+    }
+    expect(parseSongRecordFromUnknown(obj)).toEqual(parseSongFile(JSON.stringify(obj)))
   })
 })
 

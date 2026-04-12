@@ -451,8 +451,31 @@ html, body, #root {
   color: #e5e5e5;
 }
 
-.songs-manage-setlists {
+.manage-setlists-top-actions {
   margin-left: auto;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.manage-setlists-import-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.songs-top-bar > .songs-manage-setlists {
+  margin-left: auto;
+}
+
+.songs-manage-setlists {
   z-index: 1;
   background: #2c2c2e;
   color: #e5e5e5;
@@ -662,9 +685,28 @@ html, body, #root {
 
 .manage-setlists-song-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.manage-setlists-icon-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.manage-setlists-icon-svg {
+  display: block;
   flex-shrink: 0;
 }
 

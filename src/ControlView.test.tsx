@@ -27,7 +27,9 @@ import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
   createInitialSnapshot,
+  createEmptySetlist,
   DEFAULT_SETLIST_ID,
+  ensureSongLibraryHydrated,
   getActiveSetlistId,
   loadSetlistStore,
   reorderSongsInSetlist,
@@ -2107,10 +2109,58 @@ describe('ControlView performer state flow', () => {
       })
       const topBar = document.querySelector('.songs-top-bar')
       expect(topBar).toBeTruthy()
+      expect(within(topBar as HTMLElement).getByRole('button', { name: 'Import song' })).toBeTruthy()
       expect(within(topBar as HTMLElement).getByRole('button', { name: 'New setlist' })).toBeTruthy()
       const footer = document.querySelector('.manage-setlists-footer')
       expect(footer).toBeTruthy()
       expect(within(footer as HTMLElement).getByRole('button', { name: 'Confirm' })).toBeTruthy()
+    })
+
+    it('Import song adds the file to the library and lists it under Add from library when editing', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+
+      const json = JSON.stringify({
+        id: 'ui-import',
+        title: 'From File',
+        lyrics: [{ es: 'a', en: 'b' }],
+      })
+      const file = new File([json], 'song.json', { type: 'application/json' })
+      const input = screen.getByTestId('import-song-input')
+
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [file] } })
+      })
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('Imported "From File".')
+      })
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Add From File to setlist New setlist' })
+        ).toBeTruthy()
+      })
+
+      alertSpy.mockRestore()
     })
 
     it('Confirm navigates to the Setlist screen without changing active setlist', async () => {
@@ -2481,6 +2531,91 @@ describe('ControlView performer state flow', () => {
       expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       expect(getCurrentSongId()).toBe('duelo')
       expect(getSongLines().length).toBeGreaterThan(0)
+    })
+
+    it('deleting a library song from Add from library removes it from the store and UI after confirm', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ })).toBeTruthy()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
+      })
+      expect(confirmSpy).toHaveBeenCalledWith(
+        'Delete this song from the app? This cannot be undone.'
+      )
+      await waitFor(() => {
+        expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(false)
+      })
+      expect(screen.queryByRole('button', { name: /Delete Vidas from library/ })).toBeNull()
+      const defaultSl = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!
+      expect(defaultSl.songIds).not.toContain('vidas')
+      confirmSpy.mockRestore()
+    })
+
+    it('dismissing delete confirmation leaves the library song in place', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
+      })
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(true)
+      expect(screen.getByRole('button', { name: /Delete Vidas from library/ })).toBeTruthy()
+      confirmSpy.mockRestore()
+    })
+
+    it('deleting the currently loaded song from the library resets session state safely', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('vidas')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('')
+        expect(getSongLines().length).toBe(0)
+        expect(getSongIndex()).toBe(-1)
+        expect(getBlank()).toBe(true)
+      })
+      confirmSpy.mockRestore()
     })
 
     it('Setlist screen shows active setlist songs in store order after reorder', async () => {

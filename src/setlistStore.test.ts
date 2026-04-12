@@ -24,6 +24,9 @@ import {
   removeSongFromSetlist,
   moveSongInSetlist,
   reorderSongsInSetlist,
+  addSongToLibrary,
+  importSongFromJsonText,
+  deleteSongFromLibrary,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -367,6 +370,127 @@ describe('setlistStore', () => {
     })
   })
 
+  describe('addSongToLibrary', () => {
+    it('appends a song and persists full items and optional notes', async () => {
+      await ensureSongLibraryHydrated()
+      const song: LibrarySong = {
+        id: 'imported-1',
+        title: 'Hello',
+        notes: 'Capo 2',
+        items: [LYRIC],
+      }
+      expect(addSongToLibrary(song)).toBe(true)
+      const loaded = loadSetlistStore()!.songLibrary.songs.find((s) => s.id === 'imported-1')
+      expect(loaded).toEqual(song)
+      expect(getLibrarySongs().map((s) => s.id)).toContain('imported-1')
+    })
+
+    it('returns false for duplicate id and leaves storage unchanged', async () => {
+      await ensureSongLibraryHydrated()
+      const a: LibrarySong = { id: 'same', title: 'First', items: [LYRIC] }
+      const b: LibrarySong = { id: 'same', title: 'Second', items: [LYRIC] }
+      expect(addSongToLibrary(a)).toBe(true)
+      const rawBefore = localStorage.getItem(SETLIST_STORE_KEY)
+      expect(addSongToLibrary(b)).toBe(false)
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(rawBefore)
+      expect(getLibrarySongs().find((s) => s.id === 'same')!.title).toBe('First')
+    })
+
+    it('returns false for invalid items shape', async () => {
+      await ensureSongLibraryHydrated()
+      const bad = { id: 'bad', title: 'T', items: [{}] } as unknown as LibrarySong
+      expect(addSongToLibrary(bad)).toBe(false)
+      expect(getLibrarySongs().some((s) => s.id === 'bad')).toBe(false)
+    })
+  })
+
+  describe('importSongFromJsonText', () => {
+    it('imports a valid file with explicit id and lyrics', async () => {
+      await ensureSongLibraryHydrated()
+      const json = JSON.stringify({
+        id: 'file-id',
+        title: 'My Song',
+        lyrics: [{ es: 'uno', en: 'one' }],
+        notes: 'Quiet',
+      })
+      const r = importSongFromJsonText(json)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.song).toEqual({
+        id: 'file-id',
+        title: 'My Song',
+        items: [{ languages: { es: 'uno', en: 'one' } }],
+        notes: 'Quiet',
+      })
+      expect(getLibrarySongs().find((s) => s.id === 'file-id')).toBeDefined()
+    })
+
+    it('imports without id by assigning a new id', async () => {
+      await ensureSongLibraryHydrated()
+      const json = JSON.stringify({
+        title: 'No id',
+        lyrics: [{ es: 'a', en: 'b' }],
+      })
+      const r = importSongFromJsonText(json)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.song.id.length).toBeGreaterThan(0)
+      expect(getLibrarySongs().some((s) => s.id === r.song.id)).toBe(true)
+    })
+
+    it('rejects invalid JSON', async () => {
+      await ensureSongLibraryHydrated()
+      const r = importSongFromJsonText('{')
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.error).toMatch(/not valid JSON/i)
+    })
+
+    it('rejects wrong top-level shape', async () => {
+      await ensureSongLibraryHydrated()
+      const r = importSongFromJsonText('[]')
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.error).toMatch(/JSON object/)
+    })
+
+    it('rejects invalid song shape with parseSongFile-style message', async () => {
+      await ensureSongLibraryHydrated()
+      const r = importSongFromJsonText(JSON.stringify({ title: 'X' }))
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.error).toMatch(/missing "lyrics"/)
+    })
+
+    it('rejects duplicate id', async () => {
+      await ensureSongLibraryHydrated()
+      const json = JSON.stringify({
+        id: 'dup',
+        title: 'One',
+        lyrics: [{ es: 'a', en: 'b' }],
+      })
+      expect(importSongFromJsonText(json).ok).toBe(true)
+      const second = importSongFromJsonText(json)
+      expect(second.ok).toBe(false)
+      if (second.ok) return
+      expect(second.error).toMatch(/already in your library/)
+    })
+
+    it('does not change existing library songs when import fails', async () => {
+      await ensureSongLibraryHydrated()
+      const okJson = JSON.stringify({
+        id: 'keep',
+        title: 'Kept',
+        lyrics: [{ es: 'x', en: 'y' }],
+      })
+      expect(importSongFromJsonText(okJson).ok).toBe(true)
+      const before = localStorage.getItem(SETLIST_STORE_KEY)
+      const bad = importSongFromJsonText('{')
+      expect(bad.ok).toBe(false)
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(before)
+    })
+  })
+
   describe('addSongToSetlist', () => {
     it('appends a library song and persists', () => {
       installTestStore()
@@ -397,6 +521,40 @@ describe('setlistStore', () => {
     it('returns false for song id not in library', () => {
       installTestStore()
       expect(addSongToSetlist(DEFAULT_SETLIST_ID, 'ghost')).toBe(false)
+    })
+  })
+
+  describe('deleteSongFromLibrary', () => {
+    it('removes the song from the library and from every setlist', () => {
+      installTestStore()
+      const otherId = 'other-setlist'
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [
+          ...base.setlists,
+          { id: otherId, name: 'Other', songIds: ['b', 'a'] },
+        ],
+      })
+      expect(deleteSongFromLibrary('a')).toBe(true)
+      const loaded = loadSetlistStore()!
+      expect(loaded.songLibrary.songs.map((s) => s.id)).toEqual(['b'])
+      expect(loaded.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(['b'])
+      expect(loaded.setlists.find((s) => s.id === otherId)?.songIds).toEqual(['b'])
+    })
+
+    it('returns false for an unknown song id without changing storage', () => {
+      installTestStore()
+      const rawBefore = localStorage.getItem(SETLIST_STORE_KEY)
+      expect(deleteSongFromLibrary('ghost')).toBe(false)
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(rawBefore)
+    })
+
+    it('returns false for empty id', () => {
+      installTestStore()
+      const rawBefore = localStorage.getItem(SETLIST_STORE_KEY)
+      expect(deleteSongFromLibrary('')).toBe(false)
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(rawBefore)
     })
   })
 

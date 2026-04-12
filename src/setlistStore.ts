@@ -1,4 +1,10 @@
-import { parseSongFile, tryParsePersistedSongItemsArray, type SongItem } from './songState'
+import {
+  parseSongFile,
+  parseSongRecordFromUnknown,
+  tryParsePersistedSongItemsArray,
+  type ParsedSongFile,
+  type SongItem,
+} from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
 /** v2: full song records (lyrics + optional notes) in the internal library. */
@@ -313,6 +319,13 @@ function newSetlistId(): string {
   return `setlist-${Date.now()}-${Math.floor(Math.random() * 1e9)}`
 }
 
+function newLibrarySongId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `song-${Date.now()}-${Math.floor(Math.random() * 1e9)}`
+}
+
 /** Appends an empty setlist, sets it active, and persists. */
 export function createEmptySetlist(): { id: string } {
   const snap = getSnapshot()
@@ -355,6 +368,93 @@ export function deleteSetlist(id: string): boolean {
 }
 
 /** Appends `songId` if it exists in the library and is not already in the setlist. */
+/**
+ * Appends one full library row if `song.id` is not already present. Persists on success.
+ * Duplicate detection: **by `id` string** (library is a map keyed by id).
+ */
+export function addSongToLibrary(song: LibrarySong): boolean {
+  if (!isLibrarySong(song)) return false
+  const snap = getSnapshot()
+  if (snap.songLibrary.songs.some((s) => s.id === song.id)) return false
+  const libSong: LibrarySong = {
+    id: song.id,
+    title: song.title,
+    items: song.items.map((item) =>
+      'type' in item && item.type === 'section'
+        ? { type: 'section' as const, label: item.label }
+        : { languages: { ...(item as { languages: Record<string, string> }).languages } }
+    ),
+    ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
+  }
+  const next = {
+    ...snap,
+    songLibrary: { songs: [...snap.songLibrary.songs, libSong] },
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
+export type ImportSongFromJsonResult =
+  | { ok: true; song: LibrarySong }
+  | { ok: false; error: string }
+
+/**
+ * Parses one song JSON file (`title`, `lyrics`, optional `notes`, optional `id`), validates with
+ * the same rules as `parseSongFile`, and appends to the persisted library.
+ *
+ * - **Invalid JSON** → `{ ok: false }` with a short message (no throw).
+ * - **Shape / lyric rules** → same validation errors as `parseSongFile` (as message text).
+ * - **`id`**: optional string; if omitted, a new id is generated. If present, must be non-empty.
+ * - **Duplicates**: rejected when `id` matches an existing library song (see `addSongToLibrary`).
+ */
+export function importSongFromJsonText(text: string): ImportSongFromJsonResult {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return { ok: false, error: 'The file is not valid JSON.' }
+  }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {
+      ok: false,
+      error: 'Song file must be a JSON object with "title" and "lyrics".',
+    }
+  }
+  const obj = raw as Record<string, unknown>
+  let id: string
+  if (Object.prototype.hasOwnProperty.call(obj, 'id')) {
+    const idVal = obj.id
+    if (typeof idVal !== 'string' || idVal.trim() === '') {
+      return {
+        ok: false,
+        error: 'Song file "id" must be a non-empty string when present.',
+      }
+    }
+    id = idVal.trim()
+  } else {
+    id = newLibrarySongId()
+  }
+  let parsed: ParsedSongFile
+  try {
+    parsed = parseSongRecordFromUnknown(obj)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Invalid song file.'
+    return { ok: false, error: msg }
+  }
+  const title = parsed.title.trim() || 'Untitled'
+  const song: LibrarySong = { id, title, items: parsed.items }
+  if (parsed.notes !== undefined) {
+    song.notes = parsed.notes
+  }
+  if (!addSongToLibrary(song)) {
+    return {
+      ok: false,
+      error: 'A song with this id is already in your library.',
+    }
+  }
+  return { ok: true, song }
+}
+
 export function addSongToSetlist(setlistId: string, songId: string): boolean {
   if (!setlistId || !songId) return false
   const snap = getSnapshot()
@@ -385,6 +485,28 @@ export function removeSongFromSetlist(setlistId: string, songId: string): boolea
     setlists: snap.setlists.map((s) =>
       s.id === setlistId ? { ...s, songIds: s.songIds.filter((id) => id !== songId) } : s
     ),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
+/**
+ * Removes a library song by id and drops that id from every setlist.
+ * Returns false when the id is missing or empty.
+ */
+export function deleteSongFromLibrary(songId: string): boolean {
+  if (!songId) return false
+  const snap = getSnapshot()
+  if (!snap.songLibrary.songs.some((s) => s.id === songId)) return false
+  const next = {
+    ...snap,
+    songLibrary: {
+      songs: snap.songLibrary.songs.filter((s) => s.id !== songId),
+    },
+    setlists: snap.setlists.map((sl) => ({
+      ...sl,
+      songIds: sl.songIds.filter((id) => id !== songId),
+    })),
   }
   writeRaw(repairSnapshot(next))
   return true
