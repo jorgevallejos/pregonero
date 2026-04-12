@@ -1,6 +1,7 @@
 /**
- * Built-in catalog used only for first-time bootstrap and v1→v2 migration (fetching `path`).
- * Runtime song data lives in the persisted internal library after `ensureSongLibraryHydrated`.
+ * Optional reference catalog (e.g. tests or tooling). The app does not bootstrap the persisted
+ * library from this file; first launch uses an empty v2 snapshot until songs are imported or added.
+ * v1→v2 migration still resolves each legacy row’s `path` via `fetch`.
  */
 export type SongSeedEntry = { readonly id: string; readonly title: string; readonly path: string }
 

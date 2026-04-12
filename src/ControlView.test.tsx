@@ -19,6 +19,7 @@ import {
   getBlank,
   getCurrentSongId,
   getSongLines,
+  parseSongFile,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
@@ -27,7 +28,6 @@ import { SONGS } from './songs'
 import {
   createInitialSnapshot,
   DEFAULT_SETLIST_ID,
-  ensureSongLibraryHydrated,
   getActiveSetlistId,
   loadSetlistStore,
   reorderSongsInSetlist,
@@ -138,18 +138,20 @@ function installProductionLikeLibrary(): void {
   saveSetlistStore(createInitialSnapshot(songs))
 }
 
-/** Builds the persisted v2 library via the same path as production (for tests that clear storage). */
-async function hydrateSongLibraryWithFileOverrides(overrides: Record<string, string>): Promise<void> {
-  await ensureSongLibraryHydrated({
-    fetchSongJson: async (path: string) => {
-      if (overrides[path]) return overrides[path]
-      const entry = SONGS.find((s) => s.path === path)
-      return JSON.stringify({
-        title: entry?.title ?? 'Song',
-        lyrics: [{ es: 'x', en: 'y' }],
-      })
-    },
+/** Installs a v2 library from inline JSON (same shape as public *.json files). */
+function installLibraryFromJsonFiles(files: Record<string, string>): void {
+  const songs = Object.entries(files).map(([path, json]) => {
+    const parsed = parseSongFile(json)
+    const id = path.replace(/\.json$/i, '')
+    const title = parsed.title.trim() || id
+    return {
+      id,
+      title,
+      items: parsed.items,
+      ...(parsed.notes !== undefined && parsed.notes.length > 0 ? { notes: parsed.notes } : {}),
+    }
   })
+  saveSetlistStore(createInitialSnapshot(songs))
 }
 
 /** Trigger storage listeners so hooks re-read from localStorage (simulates another tab changing config). */
@@ -181,6 +183,40 @@ function setupControlViewInitial() {
   ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
   return mockApi
 }
+
+describe('First launch (empty persisted library)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('Setlist screen shows the setlist selection prompt after hydration', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+      isProjectionOpen: vi.fn().mockResolvedValue(false),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    window.location.hash = '#/songs'
+    render(<App initialHash="#/songs" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+  })
+})
 
 describe('v0.5 control screen state machine integration', () => {
   beforeEach(() => {
@@ -2721,11 +2757,9 @@ describe('ControlView performer state flow', () => {
         ],
       })
       clearStorage()
-      await act(async () => {
-        await hydrateSongLibraryWithFileOverrides({
-          'duelo.json': SONG_A_JSON,
-          'luz-y-sal.json': SONG_B_JSON,
-        })
+      installLibraryFromJsonFiles({
+        'duelo.json': SONG_A_JSON,
+        'luz-y-sal.json': SONG_B_JSON,
       })
       addPlayedSong('duelo')
       setCurrentSongId('duelo')
@@ -2843,9 +2877,7 @@ describe('ControlView performer state flow', () => {
       // Steps: 1 load song, 2 open projection, 3 choose language, 4 reach Ready to Arm,
       // 5 Arm, 6 Next, 7 Performing, 8 restart, 9 close projection.
       clearStorage()
-      await act(async () => {
-        await hydrateSongLibraryWithFileOverrides({ 'duelo.json': SONG_JSON })
-      })
+      installLibraryFromJsonFiles({ 'duelo.json': SONG_JSON })
       window.location.hash = '#/'
       vi.stubGlobal(
         'fetch',

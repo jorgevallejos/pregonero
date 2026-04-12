@@ -5,6 +5,7 @@ import {
   SETLIST_STORE_VERSION,
   SETLIST_STORE_VERSION_LEGACY,
   DEFAULT_SETLIST_ID,
+  createEmptyV2Snapshot,
   createInitialSnapshot,
   ensureSongLibraryHydrated,
   loadSetlistStore,
@@ -26,7 +27,6 @@ import {
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
-  type SongSeedEntry,
 } from './setlistStore'
 
 function createStorage(): Storage {
@@ -60,29 +60,6 @@ function installTestStore(): void {
   saveSetlistStore(createInitialSnapshot(SEED))
 }
 
-const SEED_CATALOG: SongSeedEntry[] = [
-  { id: 'a', title: 'Alpha', path: 'a.json' },
-  { id: 'b', title: 'Bravo', path: 'b.json' },
-]
-
-function mockFetchForCatalog(
-  notesForA?: string
-): (path: string) => Promise<string> {
-  return async (path: string) => {
-    if (path === 'a.json') {
-      return JSON.stringify({
-        title: 'Alpha',
-        lyrics: [{ es: 'A1', en: 'B1' }],
-        ...(notesForA !== undefined ? { notes: notesForA } : {}),
-      })
-    }
-    if (path === 'b.json') {
-      return JSON.stringify({ title: 'Bravo', lyrics: [{ es: 'A2', en: 'B2' }] })
-    }
-    throw new Error(`unexpected path ${path}`)
-  }
-}
-
 describe('setlistStore', () => {
   beforeAll(() => {
     if (
@@ -98,49 +75,56 @@ describe('setlistStore', () => {
   })
 
   describe('first-time initialization', () => {
-    it('hydration persists a v2 snapshot with full song content when storage is empty', async () => {
+    it('hydration persists an empty v2 snapshot when storage is missing', async () => {
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBeNull()
 
-      const snap = await ensureSongLibraryHydrated({
-        catalog: SEED_CATALOG,
-        fetchSongJson: mockFetchForCatalog('Capo 2'),
+      const fetchSongJson = vi.fn(async () => {
+        throw new Error('fetch should not run for empty init')
       })
+      const snap = await ensureSongLibraryHydrated({ fetchSongJson })
 
-      expect(snap.version).toBe(SETLIST_STORE_VERSION)
-      expect(snap.songLibrary.songs).toHaveLength(2)
-      expect(snap.songLibrary.songs[0]).toMatchObject({
-        id: 'a',
-        title: 'Alpha',
-        notes: 'Capo 2',
-      })
-      expect(snap.songLibrary.songs[0].items).toEqual([{ languages: { es: 'A1', en: 'B1' } }])
+      expect(fetchSongJson).not.toHaveBeenCalled()
+      expect(snap).toEqual(createEmptyV2Snapshot())
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBeTruthy()
 
       const loaded = loadSetlistStore()
       expect(loaded).not.toBeNull()
-      expect(loaded!.songLibrary.songs[0].notes).toBe('Capo 2')
+      expect(loaded!.songLibrary.songs).toEqual([])
+      expect(loaded!.setlists).toEqual([])
+      expect(loaded!.activeSetlistId).toBe('')
     })
 
     it('does not overwrite an existing valid store on second hydration', async () => {
-      const fetchSongJson = vi.fn(mockFetchForCatalog())
-      await ensureSongLibraryHydrated({ catalog: SEED_CATALOG, fetchSongJson })
-      expect(fetchSongJson).toHaveBeenCalledTimes(2)
+      const fetchSongJson = vi.fn(async () => {
+        throw new Error('fetch should not run')
+      })
+      await ensureSongLibraryHydrated({ fetchSongJson })
+      expect(fetchSongJson).not.toHaveBeenCalled()
 
       const first = loadSetlistStore()!
       const modified: SetlistStoreSnapshot = {
         ...first,
-        activeSetlistId: first.setlists[0]!.id,
-        setlists: first.setlists.map((s) =>
-          s.id === DEFAULT_SETLIST_ID ? { ...s, name: 'Renamed default' } : s
-        ),
+        songLibrary: { songs: [{ id: 'x', title: 'X', items: [LYRIC] }] },
+        setlists: [{ id: 'sl1', name: 'Main', songIds: ['x'] }],
+        activeSetlistId: 'sl1',
       }
       saveSetlistStore(modified)
+      const serialized = localStorage.getItem(SETLIST_STORE_KEY)
 
-      await ensureSongLibraryHydrated({ catalog: SEED_CATALOG, fetchSongJson })
-      expect(fetchSongJson).toHaveBeenCalledTimes(2)
+      await ensureSongLibraryHydrated({ fetchSongJson })
+      expect(fetchSongJson).not.toHaveBeenCalled()
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(serialized)
 
       const second = loadSetlistStore()!
-      expect(second.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Renamed default')
+      expect(second.setlists.find((s) => s.id === 'sl1')?.name).toBe('Main')
+      expect(second.songLibrary.songs[0]!.id).toBe('x')
+    })
+
+    it('leaves a valid persisted v2 snapshot byte-identical after hydration', async () => {
+      installTestStore()
+      const before = localStorage.getItem(SETLIST_STORE_KEY)
+      await ensureSongLibraryHydrated()
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(before)
     })
   })
 
@@ -165,7 +149,6 @@ describe('setlistStore', () => {
       )
 
       const snap = await ensureSongLibraryHydrated({
-        catalog: SEED_CATALOG,
         fetchSongJson,
       })
 
@@ -179,17 +162,17 @@ describe('setlistStore', () => {
   })
 
   describe('invalid or missing store recovery', () => {
-    it('re-seeds from the catalog when v2 JSON is invalid', async () => {
+    it('recovers to an empty v2 snapshot when stored JSON is invalid', async () => {
       localStorage.setItem(SETLIST_STORE_KEY, '{ not json')
-      const snap = await ensureSongLibraryHydrated({
-        catalog: SEED_CATALOG,
-        fetchSongJson: mockFetchForCatalog(),
+      const fetchSongJson = vi.fn(async () => {
+        throw new Error('fetch should not run')
       })
-      expect(snap.version).toBe(SETLIST_STORE_VERSION)
-      expect(snap.songLibrary.songs.map((s) => s.id)).toEqual(['a', 'b'])
+      const snap = await ensureSongLibraryHydrated({ fetchSongJson })
+      expect(fetchSongJson).not.toHaveBeenCalled()
+      expect(snap).toEqual(createEmptyV2Snapshot())
     })
 
-    it('re-seeds when v2 shape is invalid (missing items)', async () => {
+    it('recovers to an empty v2 snapshot when v2 shape is invalid (missing items)', async () => {
       localStorage.setItem(
         SETLIST_STORE_KEY,
         JSON.stringify({
@@ -199,11 +182,14 @@ describe('setlistStore', () => {
           activeSetlistId: '',
         })
       )
-      const snap = await ensureSongLibraryHydrated({
-        catalog: SEED_CATALOG,
-        fetchSongJson: mockFetchForCatalog(),
+      const fetchSongJson = vi.fn(async () => {
+        throw new Error('fetch should not run')
       })
-      expect(snap.songLibrary.songs.map((s) => s.id)).toEqual(['a', 'b'])
+      const snap = await ensureSongLibraryHydrated({ fetchSongJson })
+      expect(fetchSongJson).not.toHaveBeenCalled()
+      expect(snap.songLibrary.songs).toEqual([])
+      expect(snap.setlists).toEqual([])
+      expect(snap.activeSetlistId).toBe('')
     })
   })
 

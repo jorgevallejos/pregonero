@@ -1,4 +1,3 @@
-import { SONGS, type SongSeedEntry } from './songs'
 import { parseSongFile, tryParsePersistedSongItemsArray, type SongItem } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
@@ -8,7 +7,8 @@ export const SETLIST_STORE_VERSION = 2
 export const SETLIST_STORE_VERSION_LEGACY = 1
 export const DEFAULT_SETLIST_ID = 'default-setlist'
 
-export type { SongSeedEntry }
+/** Catalog entry shape (e.g. for tests or future import); runtime library is persisted v2 only. */
+export type SongSeedEntry = { readonly id: string; readonly title: string; readonly path: string }
 
 /** One row in the persisted internal song library (source of truth after hydration). */
 export type LibrarySong = {
@@ -129,6 +129,16 @@ function repairSnapshot(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
   return { ...snap, setlists, activeSetlistId }
 }
 
+/** Fresh install or corrupt-store recovery: empty library, no setlists, no active setlist. */
+export function createEmptyV2Snapshot(): SetlistStoreSnapshot {
+  return {
+    version: SETLIST_STORE_VERSION,
+    songLibrary: { songs: [] },
+    setlists: [],
+    activeSetlistId: '',
+  }
+}
+
 export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStoreSnapshot {
   const songs = seed.map((s) => ({
     id: s.id,
@@ -176,24 +186,6 @@ export async function defaultFetchSongJson(path: string): Promise<string> {
   return res.text()
 }
 
-async function librarySongsFromSeedCatalog(
-  catalog: readonly SongSeedEntry[],
-  fetchSongJson: FetchSongJson
-): Promise<LibrarySong[]> {
-  const songs: LibrarySong[] = []
-  for (const entry of catalog) {
-    const text = await fetchSongJson(entry.path)
-    const parsed = parseSongFile(text)
-    const title = parsed.title.trim() || entry.title
-    const row: LibrarySong = { id: entry.id, title, items: parsed.items }
-    if (parsed.notes !== undefined) {
-      row.notes = parsed.notes
-    }
-    songs.push(row)
-  }
-  return songs
-}
-
 async function migrateV1ToV2(
   snap: SetlistStoreSnapshot,
   fetchSongJson: FetchSongJson
@@ -221,31 +213,20 @@ async function migrateV1ToV2(
   return repaired
 }
 
-async function createFreshFromSeed(
-  catalog: readonly SongSeedEntry[],
-  fetchSongJson: FetchSongJson
-): Promise<SetlistStoreSnapshot> {
-  const songs = await librarySongsFromSeedCatalog(catalog, fetchSongJson)
-  const initial = createInitialSnapshot(songs)
-  writeRaw(initial)
-  return initial
-}
-
 export type EnsureSongLibraryOptions = {
-  catalog?: readonly SongSeedEntry[]
+  /** Used only when migrating a v1 snapshot (fetches each legacy `path`). */
   fetchSongJson?: FetchSongJson
 }
 
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
 
 /**
- * Loads v2 from storage, migrates v1, or builds a new library from the seed catalog.
+ * Loads v2 from storage, migrates v1, or persists an empty v2 snapshot (no bundled seed).
  * Safe to call multiple times; concurrent calls share one in-flight migration.
  */
 export function ensureSongLibraryHydrated(
   options: EnsureSongLibraryOptions = {}
 ): Promise<SetlistStoreSnapshot> {
-  const catalog = options.catalog ?? SONGS
   const fetchSongJson = options.fetchSongJson ?? defaultFetchSongJson
 
   const existingV2 = loadSetlistStore()
@@ -262,7 +243,9 @@ export function ensureSongLibraryHydrated(
           return migrateV1ToV2(v1, fetchSongJson)
         }
       }
-      return createFreshFromSeed(catalog, fetchSongJson)
+      const empty = repairSnapshot(createEmptyV2Snapshot())
+      writeRaw(empty)
+      return empty
     })().finally(() => {
       hydrationInFlight = null
     })
