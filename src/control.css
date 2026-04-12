@@ -518,14 +518,18 @@ html, body, #root {
 
 .manage-setlists-item-inner {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .manage-setlists-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   gap: 0.35rem;
+  align-items: center;
   justify-content: flex-end;
 }
 
@@ -558,7 +562,6 @@ html, body, #root {
 }
 
 .manage-setlists-row {
-  width: 100%;
   text-align: left;
   background: #2c2c2e;
   color: #e5e5e5;
@@ -570,23 +573,32 @@ html, body, #root {
   font-weight: 500;
 }
 
-.manage-setlists-row:hover {
+.manage-setlists-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selected setlist row: persistent green; must win over .manage-setlists-row base (same issue as .songs-song-btn) */
+.manage-setlists-row.ctrl-arm {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.manage-setlists-row.ctrl-arm:hover:not(:disabled) {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+/* Only apply neutral hover to non-selected row buttons */
+.manage-setlists-row:not(.ctrl-arm):hover {
   background: #3a3a3c;
 }
 
-.manage-setlists-row-active {
-  border-color: #0a84ff;
-}
-
-.manage-setlists-rename-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  width: 100%;
-}
-
 .manage-setlists-rename-input {
-  width: 100%;
   box-sizing: border-box;
   padding: 0.55em 0.75em;
   font-size: 1em;
@@ -596,11 +608,10 @@ html, body, #root {
   color: #e5e5e5;
 }
 
-.manage-setlists-rename-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  justify-content: flex-end;
+.manage-setlists-rename-input-inline {
+  flex: 1;
+  min-width: 0;
+  width: 0;
 }
 
 .manage-setlists-footer {

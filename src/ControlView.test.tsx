@@ -32,8 +32,10 @@ import {
   ensureSongLibraryHydrated,
   getActiveSetlistId,
   loadSetlistStore,
-  reorderSongsInSetlist,
+  reorderSongsInSetlistInSnapshot,
   saveSetlistStore,
+  setActiveSetlistId,
+  type SetlistStoreSnapshot,
 } from './setlistStore'
 
 function createStorage(): Storage {
@@ -1972,7 +1974,10 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
@@ -2014,7 +2019,10 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
@@ -2092,8 +2100,235 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
       })
-      expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
+      const tonightNameBtn = screen.getByRole('button', { name: 'Active setlist Tonight' })
+      expect(tonightNameBtn).toBeTruthy()
+      expect(tonightNameBtn.classList.contains('ctrl-arm')).toBe(true)
+      expect(window.getComputedStyle(tonightNameBtn).borderColor).not.toMatch(/rgb\(10,\s*132,\s*255\)/i)
+    })
+
+    it('each setlist uses one compact row (name + edit + delete icon actions)', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`manage-setlists-setlist-row-${TONIGHT_ID}`)).toBeTruthy()
+      })
+      const row = screen.getByTestId(`manage-setlists-setlist-row-${TONIGHT_ID}`)
+      const actions = within(row).getByRole('button', { name: /Edit songs in setlist Tonight/ })
+        .parentElement
+      expect(actions?.classList.contains('manage-setlists-actions')).toBe(true)
+      expect(within(row).getByRole('button', { name: 'Delete setlist Tonight' })).toBeTruthy()
+    })
+
+    it('does not show a separate Rename text button on setlist rows', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      expect(screen.queryByRole('button', { name: /^Rename$/ })).toBeNull()
+    })
+
+    it('Escape cancels inline setlist rename', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Should Not Stick' } })
+      })
+      await act(async () => {
+        fireEvent.keyDown(nameInput, { key: 'Escape', code: 'Escape' })
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+    })
+
+    it('clicking the active setlist name does not start rename or open the song editor', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Active setlist Tonight' }))
+      })
+      expect(screen.queryByLabelText('Setlist name')).toBeNull()
+      expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+    })
+
+    it('blurring the rename input does not commit the draft name', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Blur Should Not Save' } })
+      })
+      await act(async () => {
+        fireEvent.blur(nameInput)
+      })
+      expect(screen.getByLabelText('Setlist name')).toBeTruthy()
+      expect((nameInput as HTMLInputElement).value).toBe('Blur Should Not Save')
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+    })
+
+    it('pointer down outside the row closes edit mode and cancels an in-progress rename', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Setlist name'), {
+          target: { value: 'Outside Click Cancel' },
+        })
+      })
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('heading', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+      })
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+    })
+
+    it('second pencil click on the same setlist closes edit mode and ends rename', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      const pencil = screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })
+      await act(async () => {
+        fireEvent.click(pencil)
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Setlist name'), {
+          target: { value: 'Toggle Off Cancel' },
+        })
+      })
+      await act(async () => {
+        fireEvent.click(pencil)
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+      })
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+    })
+
+    it('Confirm commits a pending inline rename without Enter', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Setlist name'), {
+          target: { value: 'Saved On Confirm' },
+        })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe(
+          'Saved On Confirm'
+        )
+      })
+    })
+
+    it('selecting another setlist ends an in-progress rename without committing', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Setlist name'), {
+          target: { value: 'Switch Away Cancel' },
+        })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Active setlist Default' })).toBeTruthy()
+      })
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
     })
 
     it('shows New setlist in the top bar and Confirm at the bottom', async () => {
@@ -2109,14 +2344,14 @@ describe('ControlView performer state flow', () => {
       })
       const topBar = document.querySelector('.songs-top-bar')
       expect(topBar).toBeTruthy()
-      expect(within(topBar as HTMLElement).getByRole('button', { name: 'Import song' })).toBeTruthy()
+      expect(within(topBar as HTMLElement).getByRole('button', { name: 'New song' })).toBeTruthy()
       expect(within(topBar as HTMLElement).getByRole('button', { name: 'New setlist' })).toBeTruthy()
       const footer = document.querySelector('.manage-setlists-footer')
       expect(footer).toBeTruthy()
       expect(within(footer as HTMLElement).getByRole('button', { name: 'Confirm' })).toBeTruthy()
     })
 
-    it('Import song adds the file to the library and lists it under Add from library when editing', async () => {
+    it('New song import adds the file to the library and lists it under Songs in app when editing', async () => {
       clearStorage()
       await act(async () => {
         await ensureSongLibraryHydrated()
@@ -2163,6 +2398,53 @@ describe('ControlView performer state flow', () => {
       alertSpy.mockRestore()
     })
 
+    it('importing a new song updates the draft but does not persist until Confirm', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Edit songs in setlist New setlist' }))
+      })
+
+      const json = JSON.stringify({
+        id: 'draft-import-only',
+        title: 'Draft Only',
+        lyrics: [{ es: 'a', en: 'b' }],
+      })
+      const file = new File([json], 'song.json', { type: 'application/json' })
+      const input = screen.getByTestId('import-song-input')
+
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [file] } })
+      })
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('Imported "Draft Only".')
+      })
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
+        false
+      )
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
+          true
+        )
+      })
+      alertSpy.mockRestore()
+    })
+
     it('Confirm navigates to the Setlist screen without changing active setlist', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
@@ -2194,10 +2476,16 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
       })
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      expect(window.location.hash).toBe('#/songs/manage-setlists')
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
@@ -2227,6 +2515,11 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'New setlist' }))
       })
+      expect(window.location.hash).toBe('#/songs/manage-setlists')
+      expect(loadSetlistStore()!.setlists.length).toBe(countBefore)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
       })
@@ -2254,10 +2547,14 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      expect(getCurrentSongId()).toBe('duelo')
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('')
@@ -2274,16 +2571,20 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Default' }))
+      })
+      expect(loadSetlistStore()!.setlists.some((s) => s.id === DEFAULT_SETLIST_ID)).toBe(true)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(loadSetlistStore()!.setlists.some((s) => s.id === DEFAULT_SETLIST_ID)).toBe(false)
         expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       })
-      expect(screen.queryByRole('button', { name: 'Default' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Select setlist Default' })).toBeNull()
       confirmSpy.mockRestore()
     })
 
@@ -2297,10 +2598,14 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Tonight' }))
+      })
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
@@ -2323,14 +2628,14 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
       })
       const before = loadSetlistStore()!.setlists.length
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Default' }))
       })
       expect(loadSetlistStore()!.setlists.length).toBe(before)
-      expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
       confirmSpy.mockRestore()
     })
 
@@ -2343,20 +2648,20 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Tonight' }))
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
       const nameInput = screen.getByLabelText('Setlist name')
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'Late Show' } })
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+        fireEvent.keyDown(nameInput, { key: 'Enter', code: 'Enter' })
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Setlist: Late Show' })).toBeTruthy()
@@ -2365,30 +2670,46 @@ describe('ControlView performer state flow', () => {
       })
     })
 
-    it('renaming a non-active setlist updates the store and the manage list', async () => {
+    it('renaming a setlist via inline edit updates the store and the manage list', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
+      setActiveSetlistId(DEFAULT_SETLIST_ID)
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs/manage-setlists'
       stubFetchForSongsScreens()
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Active setlist Default' })).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Default' }))
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
       })
       const nameInput = screen.getByLabelText('Setlist name')
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'Brunch Set' } })
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+        fireEvent.blur(nameInput)
       })
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Brunch Set' })).toBeTruthy()
-        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+        expect(screen.getByLabelText('Setlist name')).toBeTruthy()
+        expect((screen.getByLabelText('Setlist name') as HTMLInputElement).value).toBe('Brunch Set')
+        expect(getActiveSetlistId()).toBe(DEFAULT_SETLIST_ID)
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
+          'Default'
+        )
+      })
+      await act(async () => {
+        fireEvent.keyDown(nameInput, { key: 'Enter', code: 'Enter' })
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Active setlist Brunch Set' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
         expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
           'Brunch Set'
         )
@@ -2398,16 +2719,17 @@ describe('ControlView performer state flow', () => {
     it('renamed setlist name is still correct after remount (reread from store)', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
+      setActiveSetlistId(DEFAULT_SETLIST_ID)
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs/manage-setlists'
       stubFetchForSongsScreens()
       const { unmount } = render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Active setlist Default' })).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Default' }))
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
       })
       await act(async () => {
         fireEvent.change(screen.getByLabelText('Setlist name'), {
@@ -2415,7 +2737,15 @@ describe('ControlView performer state flow', () => {
         })
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+        fireEvent.keyDown(screen.getByLabelText('Setlist name'), { key: 'Enter', code: 'Enter' })
+      })
+      await waitFor(() => {
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
+          'Default'
+        )
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
@@ -2423,9 +2753,12 @@ describe('ControlView performer state flow', () => {
         )
       })
       unmount()
+      window.location.hash = '#/songs/manage-setlists'
       render(<App />)
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Persisted After Reload' })).toBeTruthy()
+        expect(
+          screen.getByRole('button', { name: 'Active setlist Persisted After Reload' })
+        ).toBeTruthy()
       })
     })
 
@@ -2447,9 +2780,227 @@ describe('ControlView performer state flow', () => {
       expect(within(inList).getByText('Duelo')).toBeTruthy()
       expect(within(inList).getByText('Pimiento')).toBeTruthy()
       expect(screen.getByRole('list', { name: 'Library songs not in this setlist' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Songs in app' })).toBeTruthy()
       expect(
         screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ })
       ).toBeTruthy()
+    })
+
+    it('does not show a Done control when editing songs (toggle is icon-only)', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Done editing songs/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Done$/ })).toBeNull()
+    })
+
+    it('closes the song editor on pointer down outside the editing setlist row', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+      await act(async () => {
+        fireEvent.keyDown(screen.getByLabelText('Setlist name'), { key: 'Enter', code: 'Enter' })
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+      })
+
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+      })
+    })
+
+    it('pencil opens inline rename and keeps the song editor visible', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByLabelText('Setlist name')).toBeTruthy()
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+    })
+
+    it('pencil opens rename and expands the song editor when it was collapsed', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByLabelText('Setlist name')).toBeTruthy()
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+    })
+
+    it('Enter confirms rename while the song editor stays open until closed elsewhere', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Main Stage' } })
+      })
+      await act(async () => {
+        fireEvent.keyDown(nameInput, { key: 'Enter', code: 'Enter' })
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Active setlist Main Stage' })).toBeTruthy()
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+    })
+
+    it('Escape cancels rename but leaves the song editor open when opened via pencil', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Bad Name' } })
+      })
+      await act(async () => {
+        fireEvent.keyDown(nameInput, { key: 'Escape', code: 'Escape' })
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+        expect(screen.getByRole('button', { name: 'Active setlist Tonight' })).toBeTruthy()
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Tonight')
+    })
+
+    it('closing the song editor by clicking outside does not change setlist data', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const before = JSON.stringify(loadSetlistStore())
+      await act(async () => {
+        fireEvent.keyDown(screen.getByLabelText('Setlist name'), { key: 'Enter', code: 'Enter' })
+      })
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Setlist name')).toBeNull()
+      })
+
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('heading', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+      })
+      expect(JSON.stringify(loadSetlistStore())).toBe(before)
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+    })
+
+    it('selecting another setlist leaves the song editor closed when returning to manage', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(screen.getByTestId('manage-setlists-song-editor')).toBeTruthy()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs/manage-setlists')
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+        expect(screen.queryByTestId('manage-setlists-song-editor')).toBeNull()
+      })
     })
 
     it('adding a library song to a setlist persists and the Setlist screen lists it for the active setlist', async () => {
@@ -2469,9 +3020,13 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ }))
       })
-      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toContain('vidas')
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).not.toContain('vidas')
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toContain('vidas')
       })
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Setlist: Tonight' })).toBeTruthy()
@@ -2500,6 +3055,10 @@ describe('ControlView performer state flow', () => {
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Remove Duelo from setlist Tonight/ }))
+      })
+      expect(getCurrentSongId()).toBe('duelo')
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('')
@@ -2533,7 +3092,7 @@ describe('ControlView performer state flow', () => {
       expect(getSongLines().length).toBeGreaterThan(0)
     })
 
-    it('deleting a library song from Add from library removes it from the store and UI after confirm', async () => {
+    it('deleting a library song from Songs in app removes it from the store and UI after confirm', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       sessionStorage.setItem('liveLyricLaunched', '1')
@@ -2555,6 +3114,10 @@ describe('ControlView performer state flow', () => {
       expect(confirmSpy).toHaveBeenCalledWith(
         'Delete this song from the app? This cannot be undone.'
       )
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(true)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
       await waitFor(() => {
         expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(false)
       })
@@ -2609,6 +3172,10 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
       })
+      expect(getCurrentSongId()).toBe('vidas')
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('')
         expect(getSongLines().length).toBe(0)
@@ -2632,18 +3199,27 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
+      await waitFor(() => {
+        expect(window.__patchManageSetlistsDraft).toBeDefined()
+      })
       await act(async () => {
-        reorderSongsInSetlist(TONIGHT_ID, 0, 1)
+        window.__patchManageSetlistsDraft!((d: SetlistStoreSnapshot) =>
+          reorderSongsInSetlistInSnapshot(d, TONIGHT_ID, 0, 1) ?? d
+        )
       })
       expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toEqual([
-        'pimiento',
         'duelo',
+        'pimiento',
       ])
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toEqual([
+          'pimiento',
+          'duelo',
+        ])
       })
       const titles = [...document.querySelectorAll('.songs-song-btn')].map((el) => el.textContent?.trim() ?? '')
       expect(titles).toEqual(['Pimiento', 'Duelo'])
@@ -2689,8 +3265,13 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
+      await waitFor(() => {
+        expect(window.__patchManageSetlistsDraft).toBeDefined()
+      })
       await act(async () => {
-        reorderSongsInSetlist(TONIGHT_ID, 0, 1)
+        window.__patchManageSetlistsDraft!((d: SetlistStoreSnapshot) =>
+          reorderSongsInSetlistInSnapshot(d, TONIGHT_ID, 0, 1) ?? d
+        )
       })
       expect(getCurrentSongId()).toBe('duelo')
       expect(getSongLines()).toEqual(VALID_LINES)
@@ -2716,12 +3297,40 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
       })
+      await waitFor(() => {
+        expect(window.__patchManageSetlistsDraft).toBeDefined()
+      })
       await act(async () => {
-        reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 1)
+        window.__patchManageSetlistsDraft!((d: SetlistStoreSnapshot) =>
+          reorderSongsInSetlistInSnapshot(d, DEFAULT_SETLIST_ID, 0, 1) ?? d
+        )
       })
       expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       expect(getCurrentSongId()).toBe('duelo')
       expect(getSongLines()).toEqual(VALID_LINES)
+    })
+
+    it('Back discards draft setlist selection without persisting activeSetlistId', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select setlist Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      })
     })
   })
 
