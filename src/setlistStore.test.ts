@@ -12,6 +12,8 @@ import {
   getSetlists,
   hasValidActiveSetlist,
   createEmptySetlist,
+  renameSetlist,
+  deleteSetlist,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -186,6 +188,65 @@ describe('setlistStore', () => {
       expect(created!.songIds).toEqual([])
       expect(getActiveSetlistId()).toBe(id)
       expect(after.activeSetlistId).toBe(id)
+    })
+  })
+
+  describe('renameSetlist', () => {
+    it('updates the setlist name in persisted storage', () => {
+      bootstrapSetlistStore(SEED)
+      expect(renameSetlist(DEFAULT_SETLIST_ID, '  Main  ')).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Main')
+      expect(getSetlists().find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Main')
+    })
+
+    it('returns false for empty name after trim and does not persist a change', () => {
+      bootstrapSetlistStore(SEED)
+      const before = loadSetlistStore()!
+      expect(renameSetlist(DEFAULT_SETLIST_ID, '   ')).toBe(false)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
+        before.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.name
+      )
+    })
+
+    it('returns false for unknown id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(renameSetlist('missing', 'X')).toBe(false)
+    })
+  })
+
+  describe('deleteSetlist', () => {
+    it('removes a non-active setlist and leaves activeSetlistId unchanged', () => {
+      bootstrapSetlistStore(SEED)
+      const otherId = 'other-setlist'
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [...base.setlists, { id: otherId, name: 'Other', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      })
+      expect(deleteSetlist(otherId)).toBe(true)
+      const after = loadSetlistStore()!
+      expect(after.setlists.some((s) => s.id === otherId)).toBe(false)
+      expect(getActiveSetlistId()).toBe(DEFAULT_SETLIST_ID)
+    })
+
+    it('removes the active setlist and clears activeSetlistId', () => {
+      bootstrapSetlistStore(SEED)
+      const otherId = 'other-setlist'
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [...base.setlists, { id: otherId, name: 'Other', songIds: ['a'] }],
+        activeSetlistId: otherId,
+      })
+      expect(deleteSetlist(otherId)).toBe(true)
+      expect(getActiveSetlistId()).toBe('')
+      expect(loadSetlistStore()!.activeSetlistId).toBe('')
+    })
+
+    it('returns false for unknown id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(deleteSetlist('nope')).toBe(false)
     })
   })
 })

@@ -178,6 +178,34 @@ export function createEmptySetlist(): { id: string } {
   return { id }
 }
 
+/** Updates a setlist display name (trimmed). Returns false if id is unknown or name is empty after trim. */
+export function renameSetlist(id: string, name: string): boolean {
+  const trimmed = typeof name === 'string' ? name.trim() : ''
+  if (!trimmed) return false
+  const snap = getSnapshot()
+  if (!snap.setlists.some((s) => s.id === id)) return false
+  const next = {
+    ...snap,
+    setlists: snap.setlists.map((s) => (s.id === id ? { ...s, name: trimmed } : s)),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
+/** Removes a setlist. Clears activeSetlistId when the active setlist is deleted. Returns false if id is unknown. */
+export function deleteSetlist(id: string): boolean {
+  const snap = getSnapshot()
+  if (!snap.setlists.some((s) => s.id === id)) return false
+  const nextSetlists = snap.setlists.filter((s) => s.id !== id)
+  let activeSetlistId = snap.activeSetlistId
+  if (activeSetlistId === id) {
+    activeSetlistId = ''
+  }
+  const next = { ...snap, setlists: nextSetlists, activeSetlistId }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
   const byId = new Map(snap.songLibrary.songs.map((s) => [s.id, s]))

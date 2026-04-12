@@ -2092,6 +2092,101 @@ describe('ControlView performer state flow', () => {
         expect(getCurrentSongId()).toBe('')
       })
     })
+
+    it('deleting a non-active setlist removes it and keeps activeSetlistId unchanged', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Default' }))
+      })
+      await waitFor(() => {
+        expect(loadSetlistStore()!.setlists.some((s) => s.id === DEFAULT_SETLIST_ID)).toBe(false)
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      })
+      expect(screen.queryByRole('button', { name: 'Default' })).toBeNull()
+      confirmSpy.mockRestore()
+    })
+
+    it('deleting the active setlist clears activeSetlistId and shows the setlist-selection prompt on Setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Tonight' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getActiveSetlistId()).toBe('')
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      })
+      expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
+      confirmSpy.mockRestore()
+    })
+
+    it('cancelling delete confirmation leaves the setlist in the store', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      const before = loadSetlistStore()!.setlists.length
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Delete setlist Default' }))
+      })
+      expect(loadSetlistStore()!.setlists.length).toBe(before)
+      expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      confirmSpy.mockRestore()
+    })
+
+    it('renaming the active setlist updates the label on the Setlist screen', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Late Show')
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Tonight' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Late Show' })).toBeTruthy()
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Late Show')
+      })
+      promptSpy.mockRestore()
+    })
   })
 
   describe('Played song indicator', () => {

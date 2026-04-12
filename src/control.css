@@ -489,6 +489,42 @@ html, body, #root {
   gap: 0.5rem;
 }
 
+.manage-setlists-item-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.manage-setlists-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.manage-setlists-action-btn {
+  background: #3a3a3c;
+  color: #e5e5e5;
+  border: 1px solid #48484a;
+  padding: 0.35em 0.65em;
+  font-size: 0.85em;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.manage-setlists-action-btn:hover {
+  background: #48484a;
+}
+
+.manage-setlists-delete-btn {
+  border-color: #8b3a3a;
+}
+
+.manage-setlists-delete-btn:hover {
+  background: #5c2a2a;
+}
+
 .manage-setlists-row {
   width: 100%;
   text-align: left;
