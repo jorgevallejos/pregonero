@@ -262,6 +262,36 @@ export function removeSongFromSetlist(setlistId: string, songId: string): boolea
 export type MoveSongDirection = 'up' | 'down'
 
 /**
+ * Moves the song at `fromIndex` to `toIndex` in the setlist’s `songIds` (same semantics as
+ * @dnd-kit arrayMove: remove at `fromIndex`, then insert at `toIndex` in the shortened array).
+ * Returns false when the setlist is missing or indices are invalid.
+ */
+export function reorderSongsInSetlist(
+  setlistId: string,
+  fromIndex: number,
+  toIndex: number
+): boolean {
+  if (!setlistId) return false
+  if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) return false
+  const snap = getSnapshot()
+  const setlist = snap.setlists.find((s) => s.id === setlistId)
+  if (!setlist) return false
+  const n = setlist.songIds.length
+  if (fromIndex < 0 || fromIndex >= n) return false
+  if (toIndex < 0 || toIndex >= n) return false
+  if (fromIndex === toIndex) return true
+  const nextIds = [...setlist.songIds]
+  const [removed] = nextIds.splice(fromIndex, 1)
+  nextIds.splice(toIndex, 0, removed!)
+  const next = {
+    ...snap,
+    setlists: snap.setlists.map((s) => (s.id === setlistId ? { ...s, songIds: nextIds } : s)),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
+/**
  * Swaps `songId` with its neighbor in the setlist order. Returns false when the setlist or song is
  * missing, or when the move would go past the first/last position.
  */
@@ -278,14 +308,7 @@ export function moveSongInSetlist(
   if (idx < 0) return false
   const j = direction === 'up' ? idx - 1 : idx + 1
   if (j < 0 || j >= setlist.songIds.length) return false
-  const nextIds = [...setlist.songIds]
-  ;[nextIds[idx], nextIds[j]] = [nextIds[j]!, nextIds[idx]!]
-  const next = {
-    ...snap,
-    setlists: snap.setlists.map((s) => (s.id === setlistId ? { ...s, songIds: nextIds } : s)),
-  }
-  writeRaw(repairSnapshot(next))
-  return true
+  return reorderSongsInSetlist(setlistId, idx, j)
 }
 
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {

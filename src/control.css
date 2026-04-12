@@ -628,6 +628,29 @@ html, body, #root {
   gap: 0.5rem;
 }
 
+.manage-setlists-drag-handle {
+  flex-shrink: 0;
+  width: 2rem;
+  padding: 0.2rem 0.15rem;
+  border: 1px solid #3a3a3c;
+  border-radius: 6px;
+  background: #2c2c2e;
+  color: #98989d;
+  font-size: 0.85em;
+  line-height: 1.2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.manage-setlists-drag-handle:hover {
+  color: #e5e5e5;
+  border-color: #48484a;
+}
+
+.manage-setlists-drag-handle:active {
+  cursor: grabbing;
+}
+
 .manage-setlists-song-title {
   color: #e5e5e5;
   font-size: 0.95em;

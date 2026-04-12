@@ -19,6 +19,7 @@ import {
   addSongToSetlist,
   removeSongFromSetlist,
   moveSongInSetlist,
+  reorderSongsInSetlist,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -323,6 +324,70 @@ describe('setlistStore', () => {
     it('returns false for unknown setlist id', () => {
       bootstrapSetlistStore(SEED)
       expect(removeSongFromSetlist('nope', 'a')).toBe(false)
+    })
+  })
+
+  describe('reorderSongsInSetlist', () => {
+    it('moves a song from first to last index and persists', () => {
+      bootstrapSetlistStore(SEED)
+      const three: LibrarySong[] = [
+        ...SEED,
+        { id: 'c', title: 'Charlie', path: 'c.json' },
+      ]
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        songLibrary: { songs: three },
+        setlists: base.setlists.map((s) =>
+          s.id === DEFAULT_SETLIST_ID ? { ...s, songIds: ['a', 'b', 'c'] } : s
+        ),
+      })
+      expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 2)).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual([
+        'b',
+        'c',
+        'a',
+      ])
+    })
+
+    it('moves a song from last to first index and persists', () => {
+      bootstrapSetlistStore(SEED)
+      const three: LibrarySong[] = [
+        ...SEED,
+        { id: 'c', title: 'Charlie', path: 'c.json' },
+      ]
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        songLibrary: { songs: three },
+        setlists: base.setlists.map((s) =>
+          s.id === DEFAULT_SETLIST_ID ? { ...s, songIds: ['a', 'b', 'c'] } : s
+        ),
+      })
+      expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 2, 0)).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual([
+        'c',
+        'a',
+        'b',
+      ])
+    })
+
+    it('returns true without changing storage when from and to are the same', () => {
+      bootstrapSetlistStore(SEED)
+      const rawBefore = localStorage.getItem(SETLIST_STORE_KEY)
+      expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 0)).toBe(true)
+      expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(rawBefore)
+    })
+
+    it('returns false for out-of-range indices', () => {
+      bootstrapSetlistStore(SEED)
+      expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, -1, 0)).toBe(false)
+      expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 99)).toBe(false)
+    })
+
+    it('returns false for unknown setlist id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(reorderSongsInSetlist('missing', 0, 1)).toBe(false)
     })
   })
 

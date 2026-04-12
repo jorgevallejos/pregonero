@@ -27,8 +27,8 @@ import {
   bootstrapSetlistStore,
   DEFAULT_SETLIST_ID,
   getActiveSetlistId,
-  getOrderedSongsForSetlist,
   loadSetlistStore,
+  reorderSongsInSetlist,
   saveSetlistStore,
 } from './setlistStore'
 
@@ -2447,7 +2447,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }))
+        reorderSongsInSetlist(TONIGHT_ID, 0, 1)
       })
       expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toEqual([
         'pimiento',
@@ -2463,7 +2463,7 @@ describe('ControlView performer state flow', () => {
       expect(titles).toEqual(['Pimiento', 'Duelo'])
     })
 
-    it('disables move up for the first song and move down for the last song in the editor', async () => {
+    it('shows drag handles for reordering each song in the setlist editor', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       sessionStorage.setItem('liveLyricLaunched', '1')
@@ -2478,21 +2478,11 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
       expect(
-        (screen.getByRole('button', { name: /Move Duelo up in setlist Tonight/ }) as HTMLButtonElement)
-          .disabled
-      ).toBe(true)
+        screen.getByRole('button', { name: /Drag to reorder Duelo in setlist Tonight/ })
+      ).toBeTruthy()
       expect(
-        (screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }) as HTMLButtonElement)
-          .disabled
-      ).toBe(false)
-      expect(
-        (screen.getByRole('button', { name: /Move Pimiento up in setlist Tonight/ }) as HTMLButtonElement)
-          .disabled
-      ).toBe(false)
-      expect(
-        (screen.getByRole('button', { name: /Move Pimiento down in setlist Tonight/ }) as HTMLButtonElement)
-          .disabled
-      ).toBe(true)
+        screen.getByRole('button', { name: /Drag to reorder Pimiento in setlist Tonight/ })
+      ).toBeTruthy()
     })
 
     it('reordering the active setlist does not clear loaded song state when that song remains in the setlist', async () => {
@@ -2514,7 +2504,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
       })
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }))
+        reorderSongsInSetlist(TONIGHT_ID, 0, 1)
       })
       expect(getCurrentSongId()).toBe('duelo')
       expect(getSongLines()).toEqual(VALID_LINES)
@@ -2540,13 +2530,8 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
       })
-      const firstInDefault = getOrderedSongsForSetlist(DEFAULT_SETLIST_ID)[0]!
       await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', {
-            name: `Move ${firstInDefault.title} down in setlist Default`,
-          })
-        )
+        reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 1)
       })
       expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       expect(getCurrentSongId()).toBe('duelo')
