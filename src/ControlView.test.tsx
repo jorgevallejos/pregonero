@@ -2386,7 +2386,7 @@ describe('ControlView performer state flow', () => {
       })
 
       await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('Imported "From File".')
+        expect(alertSpy).toHaveBeenCalledWith('1 song imported.')
       })
 
       await waitFor(() => {
@@ -2429,7 +2429,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.change(input, { target: { files: [file] } })
       })
       await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('Imported "Draft Only".')
+        expect(alertSpy).toHaveBeenCalledWith('1 song imported.')
       })
       expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
         false
@@ -2441,6 +2441,300 @@ describe('ControlView performer state flow', () => {
         expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
           true
         )
+      })
+      alertSpy.mockRestore()
+    })
+
+    it('multi-file New song import adds each valid song to the draft and lists them under Songs in app', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+
+      const f1 = new File(
+        [
+          JSON.stringify({
+            id: 'batch-a',
+            title: 'Batch A',
+            lyrics: [{ es: 'a', en: 'b' }],
+          }),
+        ],
+        'a.json',
+        { type: 'application/json' }
+      )
+      const f2 = new File(
+        [
+          JSON.stringify({
+            id: 'batch-b',
+            title: 'Batch B',
+            lyrics: [{ es: 'c', en: 'd' }],
+          }),
+        ],
+        'b.json',
+        { type: 'application/json' }
+      )
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: { files: [f1, f2] },
+        })
+      })
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+      })
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Add Batch A to setlist New setlist' })
+        ).toBeTruthy()
+        expect(
+          screen.getByRole('button', { name: 'Add Batch B to setlist New setlist' })
+        ).toBeTruthy()
+      })
+      alertSpy.mockRestore()
+    })
+
+    it('multi-file import skips duplicates and invalid JSON and summarizes counts', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+
+      const ok = new File(
+        [JSON.stringify({ id: 'mix-ok', title: 'Mix Ok', lyrics: [{ es: 'a', en: 'b' }] })],
+        'ok.json',
+        { type: 'application/json' }
+      )
+      const dup = new File(
+        [JSON.stringify({ id: 'mix-ok', title: 'Dup', lyrics: [{ es: 'x', en: 'y' }] })],
+        'dup.json',
+        { type: 'application/json' }
+      )
+      const bad = new File(['{'], 'bad.json', { type: 'application/json' })
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: { files: [ok, dup, bad] },
+        })
+      })
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith(
+          '1 song imported.\n1 duplicate skipped.\n1 invalid file skipped.'
+        )
+      })
+      alertSpy.mockRestore()
+    })
+
+    it('multi-file import skips invalid song-shape JSON alongside valid files', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+
+      const ok = new File(
+        [JSON.stringify({ id: 'shape-ok', title: 'Shape Ok', lyrics: [{ es: 'a', en: 'b' }] })],
+        'ok.json',
+        { type: 'application/json' }
+      )
+      const badShape = new File(
+        [JSON.stringify({ title: 'Missing lyrics' })],
+        'bad.json',
+        { type: 'application/json' }
+      )
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: { files: [ok, badShape] },
+        })
+      })
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('1 song imported.\n1 invalid file skipped.')
+      })
+      alertSpy.mockRestore()
+    })
+
+    it('Back after multi-file import discards drafts without persisting songs', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+      const f1 = new File(
+        [
+          JSON.stringify({
+            id: 'discard-a',
+            title: 'Discard A',
+            lyrics: [{ es: 'a', en: 'b' }],
+          }),
+        ],
+        'a.json',
+        { type: 'application/json' }
+      )
+      const f2 = new File(
+        [
+          JSON.stringify({
+            id: 'discard-b',
+            title: 'Discard B',
+            lyrics: [{ es: 'c', en: 'd' }],
+          }),
+        ],
+        'b.json',
+        { type: 'application/json' }
+      )
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: { files: [f1, f2] },
+        })
+      })
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+      })
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-a')).toBe(false)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+      })
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-a')).toBe(false)
+      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-b')).toBe(false)
+
+      window.location.hash = '#/songs/manage-setlists'
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+      expect(screen.queryByRole('button', { name: 'Add Discard A to setlist New setlist' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Add Discard B to setlist New setlist' })).toBeNull()
+
+      alertSpy.mockRestore()
+    })
+
+    it('Confirm after multi-file import persists all imported songs', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: {
+            files: [
+              new File(
+                [
+                  JSON.stringify({
+                    id: 'persist-a',
+                    title: 'Persist A',
+                    lyrics: [{ es: 'a', en: 'b' }],
+                  }),
+                ],
+                'a.json',
+                { type: 'application/json' }
+              ),
+              new File(
+                [
+                  JSON.stringify({
+                    id: 'persist-b',
+                    title: 'Persist B',
+                    lyrics: [{ es: 'c', en: 'd' }],
+                  }),
+                ],
+                'b.json',
+                { type: 'application/json' }
+              ),
+            ],
+          },
+        })
+      })
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        const lib = loadSetlistStore()!.songLibrary.songs
+        expect(lib.some((s) => s.id === 'persist-a')).toBe(true)
+        expect(lib.some((s) => s.id === 'persist-b')).toBe(true)
       })
       alertSpy.mockRestore()
     })

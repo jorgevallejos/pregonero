@@ -27,6 +27,8 @@ import {
   addSongToLibrary,
   importSongFromJsonText,
   deleteSongFromLibrary,
+  applySequentialSongImportsFromJsonTexts,
+  createInitialSnapshot,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -488,6 +490,54 @@ describe('setlistStore', () => {
       const bad = importSongFromJsonText('{')
       expect(bad.ok).toBe(false)
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(before)
+    })
+  })
+
+  describe('applySequentialSongImportsFromJsonTexts', () => {
+    const valid = (id: string, title: string) =>
+      JSON.stringify({ id, title, lyrics: [{ es: 'a', en: 'b' }] })
+
+    it('imports multiple valid JSON texts in order', () => {
+      const snap = createInitialSnapshot([])
+      const r = applySequentialSongImportsFromJsonTexts(snap, [
+        valid('s1', 'One'),
+        valid('s2', 'Two'),
+      ])
+      expect(r.importedCount).toBe(2)
+      expect(r.duplicatesSkipped).toBe(0)
+      expect(r.invalidSkipped).toBe(0)
+      expect(r.snapshot.songLibrary.songs.map((s) => s.id)).toEqual(['s1', 's2'])
+    })
+
+    it('counts duplicate ids against the evolving snapshot (library and same batch)', () => {
+      const snap = createInitialSnapshot([
+        { id: 'existing', title: 'Old', items: [LYRIC] },
+      ])
+      const dupLibrary = valid('existing', 'Dup Lib')
+      const firstNew = valid('n1', 'New one')
+      const dupBatch = valid('n1', 'Dup batch')
+      const r = applySequentialSongImportsFromJsonTexts(snap, [
+        dupLibrary,
+        firstNew,
+        dupBatch,
+        valid('n2', 'New two'),
+      ])
+      expect(r.importedCount).toBe(2)
+      expect(r.duplicatesSkipped).toBe(2)
+      expect(r.invalidSkipped).toBe(0)
+      expect(r.snapshot.songLibrary.songs.map((s) => s.id)).toEqual([
+        'existing',
+        'n1',
+        'n2',
+      ])
+    })
+
+    it('counts invalid JSON and invalid song shape as invalidSkipped', () => {
+      const snap = createInitialSnapshot([])
+      const r = applySequentialSongImportsFromJsonTexts(snap, ['{', JSON.stringify({ title: 'X' })])
+      expect(r.importedCount).toBe(0)
+      expect(r.duplicatesSkipped).toBe(0)
+      expect(r.invalidSkipped).toBe(2)
     })
   })
 

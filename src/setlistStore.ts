@@ -618,6 +618,10 @@ export type AppendImportedSongToSnapshotResult =
   | { ok: true; song: LibrarySong; snapshot: SetlistStoreSnapshot }
   | { ok: false; error: string }
 
+/** Message returned by {@link tryAppendImportedSongFromJsonText} when `id` is already in the library. */
+export const LIBRARY_DUPLICATE_SONG_IMPORT_ERROR =
+  'A song with this id is already in your library.' as const
+
 /** Parses JSON and appends to the given snapshot’s library (no persistence). */
 export function tryAppendImportedSongFromJsonText(
   snap: SetlistStoreSnapshot,
@@ -629,10 +633,43 @@ export function tryAppendImportedSongFromJsonText(
   if (!next) {
     return {
       ok: false,
-      error: 'A song with this id is already in your library.',
+      error: LIBRARY_DUPLICATE_SONG_IMPORT_ERROR,
     }
   }
   return { ok: true, song: parsed.song, snapshot: next }
+}
+
+export type ApplySequentialSongImportsResult = {
+  snapshot: SetlistStoreSnapshot
+  importedCount: number
+  duplicatesSkipped: number
+  invalidSkipped: number
+}
+
+/**
+ * Applies multiple song JSON payloads in order, reusing {@link tryAppendImportedSongFromJsonText}
+ * for each. Invalid entries are skipped; duplicate ids count toward `duplicatesSkipped`.
+ */
+export function applySequentialSongImportsFromJsonTexts(
+  snap: SetlistStoreSnapshot,
+  texts: readonly string[]
+): ApplySequentialSongImportsResult {
+  let current = snap
+  let importedCount = 0
+  let duplicatesSkipped = 0
+  let invalidSkipped = 0
+  for (const text of texts) {
+    const r = tryAppendImportedSongFromJsonText(current, text)
+    if (r.ok) {
+      current = r.snapshot
+      importedCount++
+    } else if (r.error === LIBRARY_DUPLICATE_SONG_IMPORT_ERROR) {
+      duplicatesSkipped++
+    } else {
+      invalidSkipped++
+    }
+  }
+  return { snapshot: current, importedCount, duplicatesSkipped, invalidSkipped }
 }
 
 /**
