@@ -189,6 +189,23 @@ export function cloneSetlistStoreSnapshot(snap: SetlistStoreSnapshot): SetlistSt
   return JSON.parse(JSON.stringify(snap)) as SetlistStoreSnapshot
 }
 
+/** Structural equality for draft vs entry snapshot (JSON-serializable). */
+export function areSetlistStoreSnapshotsEqual(
+  a: SetlistStoreSnapshot,
+  b: SetlistStoreSnapshot
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** Setlist display names that include `songId` in the snapshot’s draft order. */
+export function getSetlistNamesContainingSongInSnapshot(
+  snap: SetlistStoreSnapshot,
+  songId: string
+): string[] {
+  if (!songId) return []
+  return snap.setlists.filter((sl) => sl.songIds.includes(songId)).map((sl) => sl.name)
+}
+
 export type FetchSongJson = (path: string) => Promise<string>
 
 export async function defaultFetchSongJson(path: string): Promise<string> {

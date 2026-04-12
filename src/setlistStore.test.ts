@@ -28,7 +28,9 @@ import {
   importSongFromJsonText,
   deleteSongFromLibrary,
   applySequentialSongImportsFromJsonTexts,
-  createInitialSnapshot,
+  areSetlistStoreSnapshotsEqual,
+  cloneSetlistStoreSnapshot,
+  getSetlistNamesContainingSongInSnapshot,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -751,6 +753,41 @@ describe('setlistStore', () => {
     it('returns false for song not in setlist', () => {
       installTestStore()
       expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'ghost', 'down')).toBe(false)
+    })
+  })
+
+  describe('areSetlistStoreSnapshotsEqual and getSetlistNamesContainingSongInSnapshot', () => {
+    it('detects equal snapshots after clone', () => {
+      installTestStore()
+      const snap = loadSetlistStore()!
+      expect(areSetlistStoreSnapshotsEqual(snap, cloneSetlistStoreSnapshot(snap))).toBe(true)
+    })
+
+    it('detects inequality when a setlist changes', () => {
+      installTestStore()
+      const snap = loadSetlistStore()!
+      const other: SetlistStoreSnapshot = {
+        ...snap,
+        setlists: snap.setlists.map((s) =>
+          s.id === DEFAULT_SETLIST_ID ? { ...s, songIds: ['b', 'a'] } : s
+        ),
+      }
+      expect(areSetlistStoreSnapshotsEqual(snap, other)).toBe(false)
+    })
+
+    it('lists setlist names that reference a song id', () => {
+      installTestStore()
+      const base = loadSetlistStore()!
+      const snap: SetlistStoreSnapshot = {
+        ...base,
+        setlists: [
+          { id: 'x', name: 'First', songIds: ['a'] },
+          { id: 'y', name: 'Second', songIds: ['a', 'b'] },
+        ],
+      }
+      expect(getSetlistNamesContainingSongInSnapshot(snap, 'a')).toEqual(['First', 'Second'])
+      expect(getSetlistNamesContainingSongInSnapshot(snap, 'b')).toEqual(['Second'])
+      expect(getSetlistNamesContainingSongInSnapshot(snap, 'ghost')).toEqual([])
     })
   })
 })
