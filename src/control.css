@@ -577,6 +577,57 @@ html, body, #root {
   justify-content: center;
 }
 
+.manage-setlists-song-editor {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.5rem 0.35rem;
+  border: 1px solid #3a3a3c;
+  border-radius: 8px;
+  background: #1c1c1e;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manage-setlists-song-editor-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #98989d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.manage-setlists-song-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.manage-setlists-song-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.manage-setlists-song-title {
+  color: #e5e5e5;
+  font-size: 0.95em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manage-setlists-song-empty {
+  color: #8e8e93;
+  font-size: 0.9em;
+  margin: 0;
+  padding: 0.15rem 0;
+}
+
 .songs-body {
   flex: 1;
   padding: 2em;

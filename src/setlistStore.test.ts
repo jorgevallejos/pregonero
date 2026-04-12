@@ -14,6 +14,10 @@ import {
   createEmptySetlist,
   renameSetlist,
   deleteSetlist,
+  getLibrarySongs,
+  getOrderedSongsForSetlist,
+  addSongToSetlist,
+  removeSongFromSetlist,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -247,6 +251,77 @@ describe('setlistStore', () => {
     it('returns false for unknown id', () => {
       bootstrapSetlistStore(SEED)
       expect(deleteSetlist('nope')).toBe(false)
+    })
+  })
+
+  describe('getLibrarySongs and getOrderedSongsForSetlist', () => {
+    it('getLibrarySongs returns the persisted library', () => {
+      bootstrapSetlistStore(SEED)
+      expect(getLibrarySongs().map((s) => s.id)).toEqual(['a', 'b'])
+    })
+
+    it('getOrderedSongsForSetlist resolves song ids to library entries in order', () => {
+      bootstrapSetlistStore(SEED)
+      const otherId = 'other-setlist'
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [...base.setlists, { id: otherId, name: 'Other', songIds: ['b', 'a'] }],
+      })
+      expect(getOrderedSongsForSetlist(otherId).map((s) => s.id)).toEqual(['b', 'a'])
+    })
+  })
+
+  describe('addSongToSetlist', () => {
+    it('appends a library song and persists', () => {
+      bootstrapSetlistStore(SEED)
+      const emptyId = 'empty-sl'
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [...base.setlists, { id: emptyId, name: 'Empty', songIds: [] }],
+      })
+      expect(addSongToSetlist(emptyId, 'a')).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === emptyId)?.songIds).toEqual(['a'])
+    })
+
+    it('returns false for duplicate id without changing storage', () => {
+      bootstrapSetlistStore(SEED)
+      expect(addSongToSetlist(DEFAULT_SETLIST_ID, 'a')).toBe(false)
+      const snap = loadSetlistStore()!
+      expect(snap.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds.filter((id) => id === 'a').length).toBe(
+        1
+      )
+    })
+
+    it('returns false for unknown setlist id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(addSongToSetlist('missing', 'a')).toBe(false)
+    })
+
+    it('returns false for song id not in library', () => {
+      bootstrapSetlistStore(SEED)
+      expect(addSongToSetlist(DEFAULT_SETLIST_ID, 'ghost')).toBe(false)
+    })
+  })
+
+  describe('removeSongFromSetlist', () => {
+    it('removes a song id and persists', () => {
+      bootstrapSetlistStore(SEED)
+      expect(removeSongFromSetlist(DEFAULT_SETLIST_ID, 'a')).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(['b'])
+    })
+
+    it('returns false when song is not in setlist', () => {
+      bootstrapSetlistStore(SEED)
+      const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
+      expect(removeSongFromSetlist(DEFAULT_SETLIST_ID, 'ghost')).toBe(false)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(before)
+    })
+
+    it('returns false for unknown setlist id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(removeSongFromSetlist('nope', 'a')).toBe(false)
     })
   })
 })

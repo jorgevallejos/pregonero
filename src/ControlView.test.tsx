@@ -18,6 +18,7 @@ import {
   getSongIndex,
   getBlank,
   getCurrentSongId,
+  getSongLines,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
@@ -2255,6 +2256,110 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Persisted After Reload' })).toBeTruthy()
       })
+    })
+
+    it('Edit songs shows setlist songs and library songs not yet in the setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      const inList = screen.getByRole('list', { name: 'Songs in setlist' })
+      expect(within(inList).getByText('Duelo')).toBeTruthy()
+      expect(within(inList).getByText('Pimiento')).toBeTruthy()
+      expect(screen.getByRole('list', { name: 'Library songs not in this setlist' })).toBeTruthy()
+      expect(
+        screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ })
+      ).toBeTruthy()
+    })
+
+    it('adding a library song to a setlist persists and the Setlist screen lists it for the active setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ }))
+      })
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toContain('vidas')
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+      })
+      expect(screen.getByRole('button', { name: 'Vidas' })).toBeTruthy()
+      expect(document.querySelectorAll('.songs-song-btn').length).toBe(3)
+    })
+
+    it('removing the loaded song from the active setlist clears current song id and loaded lines', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Remove Duelo from setlist Tonight/ }))
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('')
+        expect(getSongLines().length).toBe(0)
+      })
+    })
+
+    it('removing a song from a non-active setlist does not clear the loaded current song', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Default/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Remove Vidas from setlist Default/ }))
+      })
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      expect(getCurrentSongId()).toBe('duelo')
+      expect(getSongLines().length).toBeGreaterThan(0)
     })
   })
 

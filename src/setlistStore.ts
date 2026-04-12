@@ -140,6 +140,23 @@ export function getSetlists(): Setlist[] {
   return [...getSnapshot().setlists]
 }
 
+export function getLibrarySongs(): LibrarySong[] {
+  return [...getSnapshot().songLibrary.songs]
+}
+
+function orderedSongsForSetlistId(snap: SetlistStoreSnapshot, setlistId: string): LibrarySong[] {
+  const byId = new Map(snap.songLibrary.songs.map((s) => [s.id, s]))
+  if (!setlistId) return []
+  const list = snap.setlists.find((s) => s.id === setlistId)
+  if (!list) return []
+  return list.songIds.map((id) => byId.get(id)).filter((s): s is LibrarySong => s !== undefined)
+}
+
+/** Resolves a setlist’s `songIds` to library rows in list order (unknown ids omitted). */
+export function getOrderedSongsForSetlist(setlistId: string): LibrarySong[] {
+  return orderedSongsForSetlistId(getSnapshot(), setlistId)
+}
+
 export function hasValidActiveSetlist(): boolean {
   const snap = getSnapshot()
   const id = snap.activeSetlistId
@@ -206,13 +223,46 @@ export function deleteSetlist(id: string): boolean {
   return true
 }
 
+/** Appends `songId` if it exists in the library and is not already in the setlist. */
+export function addSongToSetlist(setlistId: string, songId: string): boolean {
+  if (!setlistId || !songId) return false
+  const snap = getSnapshot()
+  const setlist = snap.setlists.find((s) => s.id === setlistId)
+  if (!setlist) return false
+  const known = new Set(snap.songLibrary.songs.map((s) => s.id))
+  if (!known.has(songId)) return false
+  if (setlist.songIds.includes(songId)) return false
+  const next = {
+    ...snap,
+    setlists: snap.setlists.map((s) =>
+      s.id === setlistId ? { ...s, songIds: [...s.songIds, songId] } : s
+    ),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
+/** Removes `songId` from the setlist’s ordered ids. Returns false if the setlist or id is missing. */
+export function removeSongFromSetlist(setlistId: string, songId: string): boolean {
+  if (!setlistId || !songId) return false
+  const snap = getSnapshot()
+  const setlist = snap.setlists.find((s) => s.id === setlistId)
+  if (!setlist) return false
+  if (!setlist.songIds.includes(songId)) return false
+  const next = {
+    ...snap,
+    setlists: snap.setlists.map((s) =>
+      s.id === setlistId ? { ...s, songIds: s.songIds.filter((id) => id !== songId) } : s
+    ),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
-  const byId = new Map(snap.songLibrary.songs.map((s) => [s.id, s]))
   if (!snap.activeSetlistId) return []
-  const list = snap.setlists.find((s) => s.id === snap.activeSetlistId)
-  if (!list) return []
-  return list.songIds.map((id) => byId.get(id)).filter((s): s is LibrarySong => s !== undefined)
+  return orderedSongsForSetlistId(snap, snap.activeSetlistId)
 }
 
 export function getLibrarySongById(id: string): LibrarySong | undefined {
