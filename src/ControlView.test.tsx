@@ -1774,7 +1774,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Duelo' }))
       })
       expect(getCurrentSongId()).toBe('pimiento')
-      expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
     })
 
     it('selecting a song shows selection state and a primary confirm action', async () => {
@@ -1831,7 +1831,7 @@ describe('ControlView performer state flow', () => {
     })
   })
 
-  describe('Setlist screen: performance setlist selection', () => {
+  describe('Setlist screen: active setlist label', () => {
     const TONIGHT_ID = 'tonight-setlist'
 
     function seedTwoSetlistsTonightActive() {
@@ -1859,7 +1859,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App initialHash="#/songs" />)
+      render(<App />)
     }
 
     it('shows only songs from the active setlist', async () => {
@@ -1875,6 +1875,10 @@ describe('ControlView performer state flow', () => {
       expect(screen.queryByRole('button', { name: 'Vidas' })).toBeNull()
       const songBtns = document.querySelectorAll('.songs-song-btn')
       expect(songBtns.length).toBe(2)
+      expect(screen.getByRole('heading', { name: 'Setlist: Tonight' })).toBeTruthy()
+      expect(screen.getByTestId('active-setlist-name').textContent).toBe('Tonight')
+      expect(document.querySelector('.setlist-picker-bar')).toBeNull()
+      expect(document.querySelectorAll('.setlist-name-btn').length).toBe(0)
     })
 
     it('when active setlist is missing, shows prompt instead of song grid', async () => {
@@ -1890,9 +1894,12 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
       })
       expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
+      expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+      expect(screen.queryByTestId('active-setlist-name')).toBeNull()
+      expect(document.querySelector('.setlist-picker-bar')).toBeNull()
     })
 
-    it('choosing a setlist after prompt reveals the song grid', async () => {
+    it('choosing a setlist from Manage setlists after prompt reveals the song grid', async () => {
       clearStorage()
       bootstrapSetlistStore()
       const base = loadSetlistStore()!
@@ -1905,17 +1912,25 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
       })
       await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Default' }))
       })
       await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
         expect(screen.queryByTestId('setlist-selection-prompt')).toBeNull()
       })
       await waitFor(() => {
         expect(document.querySelectorAll('.songs-song-btn').length).toBeGreaterThan(0)
       })
+      expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
     })
 
-    it('switching active setlist clears selected song and current song id', async () => {
+    it('switching active setlist from Manage setlists clears selected song and current song id', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       setCurrentSongId('duelo')
@@ -1927,7 +1942,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Tonight' })).toBeTruthy()
+        expect(screen.getByRole('heading', { name: 'Setlist: Tonight' })).toBeTruthy()
       })
       const pimientoSong = within(screen.getByRole('main'))
         .getAllByRole('button', { name: /Pimiento/ })
@@ -1939,10 +1954,20 @@ describe('ControlView performer state flow', () => {
       expect(pimientoSong!.classList.contains('ctrl-arm')).toBe(true)
 
       await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Default' }))
       })
       await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
         expect(getCurrentSongId()).toBe('')
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
       })
       const pimientoAfter = within(screen.getByRole('main'))
         .getAllByRole('button', { name: /Pimiento/ })
@@ -2017,6 +2042,47 @@ describe('ControlView performer state flow', () => {
       expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
     })
 
+    it('shows New setlist in the top bar and Confirm at the bottom', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      const topBar = document.querySelector('.songs-top-bar')
+      expect(topBar).toBeTruthy()
+      expect(within(topBar as HTMLElement).getByRole('button', { name: 'New setlist' })).toBeTruthy()
+      const footer = document.querySelector('.manage-setlists-footer')
+      expect(footer).toBeTruthy()
+      expect(within(footer as HTMLElement).getByRole('button', { name: 'Confirm' })).toBeTruthy()
+    })
+
+    it('Confirm navigates to the Setlist screen without changing active setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy()
+      })
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+        expect(screen.getByRole('heading', { name: 'Setlist: Tonight' })).toBeTruthy()
+      })
+    })
+
     it('selecting a setlist updates activeSetlistId and returns to Setlist with correct songs', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
@@ -2036,7 +2102,7 @@ describe('ControlView performer state flow', () => {
         expect(getActiveSetlistId()).toBe(DEFAULT_SETLIST_ID)
       })
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+        expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
       })
       expect(screen.getByRole('button', { name: 'Vidas' })).toBeTruthy()
       expect(document.querySelectorAll('.songs-song-btn').length).toBeGreaterThan(2)
@@ -2051,7 +2117,9 @@ describe('ControlView performer state flow', () => {
       render(<App />)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'New setlist' })).toBeTruthy()
+        const bar = document.querySelector('.songs-top-bar')
+        expect(bar).toBeTruthy()
+        expect(within(bar as HTMLElement).getByRole('button', { name: 'New setlist' })).toBeTruthy()
       })
       const countBefore = loadSetlistStore()!.setlists.length
       await act(async () => {
@@ -2066,7 +2134,7 @@ describe('ControlView performer state flow', () => {
       expect(created).toBeDefined()
       expect(getActiveSetlistId()).toBe(created!.id)
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+        expect(screen.getByRole('heading', { name: 'Setlist: New setlist' })).toBeTruthy()
       })
       expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
     })
@@ -2189,7 +2257,8 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }))
       })
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Late Show' })).toBeTruthy()
+        expect(screen.getByRole('heading', { name: 'Setlist: Late Show' })).toBeTruthy()
+        expect(screen.getByTestId('active-setlist-name').textContent).toBe('Late Show')
         expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Late Show')
       })
     })
@@ -2303,7 +2372,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }))
       })
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+        expect(screen.getByRole('heading', { name: 'Setlist: Tonight' })).toBeTruthy()
       })
       expect(screen.getByRole('button', { name: 'Vidas' })).toBeTruthy()
       expect(document.querySelectorAll('.songs-song-btn').length).toBe(3)

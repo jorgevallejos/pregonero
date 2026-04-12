@@ -473,6 +473,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
   max-width: 480px;
   margin: 0 auto;
   width: 100%;
@@ -487,6 +489,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .manage-setlists-item-inner {
@@ -572,9 +576,15 @@ html, body, #root {
 }
 
 .manage-setlists-footer {
-  margin-top: 1.5rem;
+  margin-top: auto;
+  padding-top: 1.5rem;
   display: flex;
   justify-content: center;
+}
+
+.manage-setlists-footer .ctrl-btn.languages-confirm {
+  width: 100%;
+  max-width: 280px;
 }
 
 .manage-setlists-song-editor {
@@ -651,45 +661,6 @@ html, body, #root {
   max-width: none;
   margin: 0;
   padding: 2em 0;
-}
-
-.setlist-picker-bar {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
-  align-items: center;
-  padding-bottom: 1rem;
-  margin-bottom: 0.25rem;
-  border-bottom: 1px solid #2c2c2e;
-}
-
-.setlist-name-btn {
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
-  padding: 0.45em 0.85em;
-  font-size: 0.95em;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.setlist-name-btn:hover {
-  background: #3a3a3c;
-}
-
-.setlist-name-btn-active {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
-}
-
-.setlist-name-btn-active:hover {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
 }
 
 .setlist-prompt {
