@@ -1,10 +1,23 @@
-import { SONGS } from './songs'
+import { SONGS, type SongSeedEntry } from './songs'
+import { parseSongFile, tryParsePersistedSongItemsArray, type SongItem } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
-export const SETLIST_STORE_VERSION = 1
+/** v2: full song records (lyrics + optional notes) in the internal library. */
+export const SETLIST_STORE_VERSION = 2
+/** v1 snapshots (metadata + path only) are migrated on load. */
+export const SETLIST_STORE_VERSION_LEGACY = 1
 export const DEFAULT_SETLIST_ID = 'default-setlist'
 
-export type LibrarySong = { id: string; title: string; path: string }
+export type { SongSeedEntry }
+
+/** One row in the persisted internal song library (source of truth after hydration). */
+export type LibrarySong = {
+  id: string
+  title: string
+  items: SongItem[]
+  /** Performance notes (capo, cues); omitted when absent. */
+  notes?: string
+}
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
 export type SongLibrary = { songs: LibrarySong[] }
@@ -18,14 +31,25 @@ export type SetlistStoreSnapshot = {
   activeSetlistId: string
 }
 
+type LegacyLibrarySong = { id: string; title: string; path: string }
+
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
+}
+
+function isLegacyLibrarySong(v: unknown): v is LegacyLibrarySong {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  return isNonEmptyString(o.id) && isNonEmptyString(o.title) && isNonEmptyString(o.path)
 }
 
 function isLibrarySong(v: unknown): v is LibrarySong {
   if (v === null || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
-  return isNonEmptyString(o.id) && isNonEmptyString(o.title) && isNonEmptyString(o.path)
+  if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
+  if (tryParsePersistedSongItemsArray(o.items) === null) return false
+  if (o.notes !== undefined && typeof o.notes !== 'string') return false
+  return true
 }
 
 function isSetlist(v: unknown): v is Setlist {
@@ -36,7 +60,7 @@ function isSetlist(v: unknown): v is Setlist {
   return o.songIds.every((id) => isNonEmptyString(id))
 }
 
-function parseSnapshot(raw: unknown): SetlistStoreSnapshot | null {
+function parseSnapshotV2(raw: unknown): SetlistStoreSnapshot | null {
   if (raw === null || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
   if (o.version !== SETLIST_STORE_VERSION) return null
@@ -48,6 +72,24 @@ function parseSnapshot(raw: unknown): SetlistStoreSnapshot | null {
   return {
     version: SETLIST_STORE_VERSION,
     songLibrary: { songs: lib.songs as LibrarySong[] },
+    setlists: o.setlists as Setlist[],
+    activeSetlistId: o.activeSetlistId,
+  }
+}
+
+/** Parses a v1 snapshot for migration (metadata + path only). */
+function parseSnapshotV1(raw: unknown): SetlistStoreSnapshot | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (o.version !== SETLIST_STORE_VERSION_LEGACY) return null
+  if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
+  const lib = o.songLibrary as Record<string, unknown>
+  if (!Array.isArray(lib.songs) || !lib.songs.every(isLegacyLibrarySong)) return null
+  if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
+  return {
+    version: SETLIST_STORE_VERSION_LEGACY,
+    songLibrary: { songs: lib.songs as unknown as LibrarySong[] },
     setlists: o.setlists as Setlist[],
     activeSetlistId: o.activeSetlistId,
   }
@@ -88,7 +130,16 @@ function repairSnapshot(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
 }
 
 export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStoreSnapshot {
-  const songs = seed.map((s) => ({ ...s }))
+  const songs = seed.map((s) => ({
+    id: s.id,
+    title: s.title,
+    items: s.items.map((item) =>
+      'type' in item && item.type === 'section'
+        ? { type: 'section' as const, label: item.label }
+        : { languages: { ...(item as { languages: Record<string, string> }).languages } }
+    ),
+    ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
+  }))
   return {
     version: SETLIST_STORE_VERSION,
     songLibrary: { songs },
@@ -104,32 +155,129 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
 }
 
 export function loadSetlistStore(): SetlistStoreSnapshot | null {
-  const parsed = parseSnapshot(readRaw())
+  const parsed = parseSnapshotV2(readRaw())
   if (!parsed) return null
   return repairSnapshot(parsed)
 }
 
 export function saveSetlistStore(snapshot: SetlistStoreSnapshot): void {
+  if (snapshot.version !== SETLIST_STORE_VERSION) return
   const repaired = repairSnapshot(snapshot)
   writeRaw(repaired)
 }
 
-/**
- * Ensures local storage has a setlist snapshot: loads a valid one or seeds from `seed`.
- * Idempotent when storage already holds a valid snapshot.
- */
-export function bootstrapSetlistStore(
-  seed: readonly LibrarySong[] = SONGS
-): SetlistStoreSnapshot {
-  const existing = loadSetlistStore()
-  if (existing) return existing
-  const initial = createInitialSnapshot(seed)
+export type FetchSongJson = (path: string) => Promise<string>
+
+export async function defaultFetchSongJson(path: string): Promise<string> {
+  const res = await fetch(path)
+  if (!res.ok) {
+    throw new Error(`Failed to load song file: ${path} (${res.status})`)
+  }
+  return res.text()
+}
+
+async function librarySongsFromSeedCatalog(
+  catalog: readonly SongSeedEntry[],
+  fetchSongJson: FetchSongJson
+): Promise<LibrarySong[]> {
+  const songs: LibrarySong[] = []
+  for (const entry of catalog) {
+    const text = await fetchSongJson(entry.path)
+    const parsed = parseSongFile(text)
+    const title = parsed.title.trim() || entry.title
+    const row: LibrarySong = { id: entry.id, title, items: parsed.items }
+    if (parsed.notes !== undefined) {
+      row.notes = parsed.notes
+    }
+    songs.push(row)
+  }
+  return songs
+}
+
+async function migrateV1ToV2(
+  snap: SetlistStoreSnapshot,
+  fetchSongJson: FetchSongJson
+): Promise<SetlistStoreSnapshot> {
+  const legacy = snap.songLibrary.songs as unknown as LegacyLibrarySong[]
+  const songs: LibrarySong[] = []
+  for (const row of legacy) {
+    const text = await fetchSongJson(row.path)
+    const parsed = parseSongFile(text)
+    const title = parsed.title.trim() || row.title
+    const lib: LibrarySong = { id: row.id, title, items: parsed.items }
+    if (parsed.notes !== undefined) {
+      lib.notes = parsed.notes
+    }
+    songs.push(lib)
+  }
+  const next: SetlistStoreSnapshot = {
+    version: SETLIST_STORE_VERSION,
+    songLibrary: { songs },
+    setlists: snap.setlists,
+    activeSetlistId: snap.activeSetlistId,
+  }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
+}
+
+async function createFreshFromSeed(
+  catalog: readonly SongSeedEntry[],
+  fetchSongJson: FetchSongJson
+): Promise<SetlistStoreSnapshot> {
+  const songs = await librarySongsFromSeedCatalog(catalog, fetchSongJson)
+  const initial = createInitialSnapshot(songs)
   writeRaw(initial)
   return initial
 }
 
+export type EnsureSongLibraryOptions = {
+  catalog?: readonly SongSeedEntry[]
+  fetchSongJson?: FetchSongJson
+}
+
+let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
+
+/**
+ * Loads v2 from storage, migrates v1, or builds a new library from the seed catalog.
+ * Safe to call multiple times; concurrent calls share one in-flight migration.
+ */
+export function ensureSongLibraryHydrated(
+  options: EnsureSongLibraryOptions = {}
+): Promise<SetlistStoreSnapshot> {
+  const catalog = options.catalog ?? SONGS
+  const fetchSongJson = options.fetchSongJson ?? defaultFetchSongJson
+
+  const existingV2 = loadSetlistStore()
+  if (existingV2) {
+    return Promise.resolve(existingV2)
+  }
+
+  if (!hydrationInFlight) {
+    hydrationInFlight = (async () => {
+      const raw = readRaw()
+      if (raw !== null && typeof raw === 'object') {
+        const v1 = parseSnapshotV1(raw)
+        if (v1) {
+          return migrateV1ToV2(v1, fetchSongJson)
+        }
+      }
+      return createFreshFromSeed(catalog, fetchSongJson)
+    })().finally(() => {
+      hydrationInFlight = null
+    })
+  }
+  return hydrationInFlight
+}
+
 function getSnapshot(): SetlistStoreSnapshot {
-  return bootstrapSetlistStore(SONGS)
+  const snap = loadSetlistStore()
+  if (!snap) {
+    throw new Error(
+      'Song library is not ready. Await ensureSongLibraryHydrated() before using the setlist store.'
+    )
+  }
+  return snap
 }
 
 export function getActiveSetlistId(): string {
@@ -319,5 +467,7 @@ export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
 
 export function getLibrarySongById(id: string): LibrarySong | undefined {
   if (!id) return undefined
-  return getSnapshot().songLibrary.songs.find((s) => s.id === id)
+  const snap = loadSetlistStore()
+  if (!snap) return undefined
+  return snap.songLibrary.songs.find((s) => s.id === id)
 }

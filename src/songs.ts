@@ -1,3 +1,9 @@
+/**
+ * Built-in catalog used only for first-time bootstrap and v1→v2 migration (fetching `path`).
+ * Runtime song data lives in the persisted internal library after `ensureSongLibraryHydrated`.
+ */
+export type SongSeedEntry = { readonly id: string; readonly title: string; readonly path: string }
+
 export const SONGS = [
   { id: 'vidas', title: 'Vidas', path: 'vidas.json' },
   { id: 'libertad', title: 'Libertad', path: 'libertad.json' },
@@ -10,6 +16,6 @@ export const SONGS = [
   { id: 'pimiento', title: 'Pimiento', path: 'pimiento.json' },
   { id: 'tragedia-de-cerdo-asado', title: 'Tragedia de cerdo asado', path: 'tragedia-de-cerdo-asado.json' },
   { id: 'don-bonifacio', title: 'Don Bonifacio', path: 'don-bonifacio.json' },
-] as const
+] as const satisfies readonly SongSeedEntry[]
 
 export type SongId = (typeof SONGS)[number]['id']

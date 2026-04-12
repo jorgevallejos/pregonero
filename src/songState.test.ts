@@ -19,6 +19,8 @@ import {
   parseSongFile,
   prevIndex,
   resetLoadedSongState,
+  tryParseSongItemsArray,
+  tryParsePersistedSongItemsArray,
   setCurrentSongId,
   setCurrentSongTitle,
   setProjectionLanguage,
@@ -532,5 +534,40 @@ describe('parseSongFile', () => {
       lyrics: [{ es: 'A', en: 'B' }],
     })
     expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
+  })
+})
+
+describe('tryParsePersistedSongItemsArray', () => {
+  it('accepts canonical persisted lyric lines with nested languages', () => {
+    const items = [{ languages: { es: 'A', en: 'B' } }]
+    expect(tryParsePersistedSongItemsArray(items)).toEqual([
+      { languages: { es: 'A', en: 'B' } },
+    ])
+  })
+
+  it('still accepts flat file-style lyric objects', () => {
+    const items = [{ es: 'A', en: 'B' }]
+    expect(tryParsePersistedSongItemsArray(items)).toEqual([
+      { languages: { es: 'A', en: 'B' } },
+    ])
+  })
+})
+
+describe('tryParseSongItemsArray', () => {
+  it('returns parsed items for a valid lyrics-shaped array', () => {
+    const items = [{ es: 'A', en: 'B' }, { type: 'section', label: 'X' }]
+    expect(tryParseSongItemsArray(items)).toEqual([
+      { languages: { es: 'A', en: 'B' } },
+      { type: 'section', label: 'X' },
+    ])
+  })
+
+  it('returns null when not an array', () => {
+    expect(tryParseSongItemsArray({})).toBeNull()
+    expect(tryParseSongItemsArray('x')).toBeNull()
+  })
+
+  it('returns null when an element is invalid', () => {
+    expect(tryParseSongItemsArray([{ es: 1 }])).toBeNull()
   })
 })

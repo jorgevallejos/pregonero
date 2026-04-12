@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
+import type { SongItem } from './songState'
 import {
   SETLIST_STORE_KEY,
   SETLIST_STORE_VERSION,
+  SETLIST_STORE_VERSION_LEGACY,
   DEFAULT_SETLIST_ID,
-  bootstrapSetlistStore,
+  createInitialSnapshot,
+  ensureSongLibraryHydrated,
   loadSetlistStore,
   saveSetlistStore,
   getActiveSetlistId,
@@ -23,6 +26,7 @@ import {
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
+  type SongSeedEntry,
 } from './setlistStore'
 
 function createStorage(): Storage {
@@ -45,10 +49,39 @@ function createStorage(): Storage {
   }
 }
 
+const LYRIC: SongItem = { languages: { es: 'la', en: 'lb' } }
+
 const SEED: LibrarySong[] = [
+  { id: 'a', title: 'Alpha', items: [LYRIC] },
+  { id: 'b', title: 'Bravo', items: [LYRIC] },
+]
+
+function installTestStore(): void {
+  saveSetlistStore(createInitialSnapshot(SEED))
+}
+
+const SEED_CATALOG: SongSeedEntry[] = [
   { id: 'a', title: 'Alpha', path: 'a.json' },
   { id: 'b', title: 'Bravo', path: 'b.json' },
 ]
+
+function mockFetchForCatalog(
+  notesForA?: string
+): (path: string) => Promise<string> {
+  return async (path: string) => {
+    if (path === 'a.json') {
+      return JSON.stringify({
+        title: 'Alpha',
+        lyrics: [{ es: 'A1', en: 'B1' }],
+        ...(notesForA !== undefined ? { notes: notesForA } : {}),
+      })
+    }
+    if (path === 'b.json') {
+      return JSON.stringify({ title: 'Bravo', lyrics: [{ es: 'A2', en: 'B2' }] })
+    }
+    throw new Error(`unexpected path ${path}`)
+  }
+}
 
 describe('setlistStore', () => {
   beforeAll(() => {
@@ -65,24 +98,35 @@ describe('setlistStore', () => {
   })
 
   describe('first-time initialization', () => {
-    it('persists a valid snapshot when storage is empty', () => {
+    it('hydration persists a v2 snapshot with full song content when storage is empty', async () => {
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBeNull()
 
-      const snap = bootstrapSetlistStore(SEED)
+      const snap = await ensureSongLibraryHydrated({
+        catalog: SEED_CATALOG,
+        fetchSongJson: mockFetchForCatalog('Capo 2'),
+      })
 
       expect(snap.version).toBe(SETLIST_STORE_VERSION)
-      expect(snap.songLibrary.songs).toEqual(SEED)
+      expect(snap.songLibrary.songs).toHaveLength(2)
+      expect(snap.songLibrary.songs[0]).toMatchObject({
+        id: 'a',
+        title: 'Alpha',
+        notes: 'Capo 2',
+      })
+      expect(snap.songLibrary.songs[0].items).toEqual([{ languages: { es: 'A1', en: 'B1' } }])
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBeTruthy()
 
       const loaded = loadSetlistStore()
       expect(loaded).not.toBeNull()
-      expect(loaded!.songLibrary.songs).toEqual(SEED)
+      expect(loaded!.songLibrary.songs[0].notes).toBe('Capo 2')
     })
 
-    it('does not overwrite an existing valid store on second bootstrap', () => {
-      bootstrapSetlistStore(SEED)
-      const first = loadSetlistStore()!
+    it('does not overwrite an existing valid store on second hydration', async () => {
+      const fetchSongJson = vi.fn(mockFetchForCatalog())
+      await ensureSongLibraryHydrated({ catalog: SEED_CATALOG, fetchSongJson })
+      expect(fetchSongJson).toHaveBeenCalledTimes(2)
 
+      const first = loadSetlistStore()!
       const modified: SetlistStoreSnapshot = {
         ...first,
         activeSetlistId: first.setlists[0]!.id,
@@ -92,17 +136,80 @@ describe('setlistStore', () => {
       }
       saveSetlistStore(modified)
 
-      bootstrapSetlistStore(SEED)
-      const second = loadSetlistStore()!
+      await ensureSongLibraryHydrated({ catalog: SEED_CATALOG, fetchSongJson })
+      expect(fetchSongJson).toHaveBeenCalledTimes(2)
 
+      const second = loadSetlistStore()!
       expect(second.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Renamed default')
+    })
+  })
+
+  describe('v1 migration', () => {
+    it('migrates v1 metadata-only rows to v2 with lyrics and notes from fetched files', async () => {
+      const v1 = {
+        version: SETLIST_STORE_VERSION_LEGACY,
+        songLibrary: {
+          songs: [{ id: 'a', title: 'Alpha', path: 'a.json' }],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v1))
+
+      const fetchSongJson = vi.fn(async () =>
+        JSON.stringify({
+          title: 'Alpha',
+          lyrics: [{ es: 'm1', en: 'm2' }],
+          notes: 'Bridge loud',
+        })
+      )
+
+      const snap = await ensureSongLibraryHydrated({
+        catalog: SEED_CATALOG,
+        fetchSongJson,
+      })
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs).toHaveLength(1)
+      expect(snap.songLibrary.songs[0].items).toEqual([{ languages: { es: 'm1', en: 'm2' } }])
+      expect(snap.songLibrary.songs[0].notes).toBe('Bridge loud')
+      expect(snap.setlists[0].songIds).toEqual(['a'])
+      expect(loadSetlistStore()!.version).toBe(SETLIST_STORE_VERSION)
+    })
+  })
+
+  describe('invalid or missing store recovery', () => {
+    it('re-seeds from the catalog when v2 JSON is invalid', async () => {
+      localStorage.setItem(SETLIST_STORE_KEY, '{ not json')
+      const snap = await ensureSongLibraryHydrated({
+        catalog: SEED_CATALOG,
+        fetchSongJson: mockFetchForCatalog(),
+      })
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs.map((s) => s.id)).toEqual(['a', 'b'])
+    })
+
+    it('re-seeds when v2 shape is invalid (missing items)', async () => {
+      localStorage.setItem(
+        SETLIST_STORE_KEY,
+        JSON.stringify({
+          version: SETLIST_STORE_VERSION,
+          songLibrary: { songs: [{ id: 'x', title: 'Only meta' }] },
+          setlists: [],
+          activeSetlistId: '',
+        })
+      )
+      const snap = await ensureSongLibraryHydrated({
+        catalog: SEED_CATALOG,
+        fetchSongJson: mockFetchForCatalog(),
+      })
+      expect(snap.songLibrary.songs.map((s) => s.id)).toEqual(['a', 'b'])
     })
   })
 
   describe('default setlist creation', () => {
     it('creates a default setlist with all seed songs in order', () => {
-      const snap = bootstrapSetlistStore(SEED)
-
+      const snap = createInitialSnapshot(SEED)
       expect(snap.setlists).toHaveLength(1)
       const def = snap.setlists[0]!
       expect(def.id).toBe(DEFAULT_SETLIST_ID)
@@ -113,7 +220,7 @@ describe('setlistStore', () => {
 
   describe('active setlist persistence', () => {
     it('persists activeSetlistId across save and load', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
 
       const otherId = 'other-setlist'
       const base = loadSetlistStore()!
@@ -136,7 +243,7 @@ describe('setlistStore', () => {
     })
 
     it('getOrderedSongsForActiveSetlist reflects the active setlist order', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const otherId = 'other-setlist'
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -154,7 +261,7 @@ describe('setlistStore', () => {
 
   describe('active setlist validity', () => {
     it('repair clears activeSetlistId when it does not match any setlist', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const base = loadSetlistStore()!
       saveSetlistStore({ ...base, activeSetlistId: 'missing-id' })
       const repaired = loadSetlistStore()
@@ -162,7 +269,7 @@ describe('setlistStore', () => {
     })
 
     it('hasValidActiveSetlist is false when active is empty', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const base = loadSetlistStore()!
       saveSetlistStore({ ...base, activeSetlistId: '' })
       expect(hasValidActiveSetlist()).toBe(false)
@@ -170,7 +277,7 @@ describe('setlistStore', () => {
     })
 
     it('getSetlists returns persisted setlists', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const base = loadSetlistStore()!
       const extra: Setlist = { id: 'x', name: 'Extra', songIds: ['a'] }
       saveSetlistStore({ ...base, setlists: [...base.setlists, extra] })
@@ -180,7 +287,7 @@ describe('setlistStore', () => {
 
   describe('createEmptySetlist', () => {
     it('appends an empty setlist with default name and makes it active', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const before = loadSetlistStore()!
       const beforeCount = before.setlists.length
 
@@ -199,14 +306,14 @@ describe('setlistStore', () => {
 
   describe('renameSetlist', () => {
     it('updates the setlist name in persisted storage', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(renameSetlist(DEFAULT_SETLIST_ID, '  Main  ')).toBe(true)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Main')
       expect(getSetlists().find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe('Main')
     })
 
     it('returns false for empty name after trim and does not persist a change', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const before = loadSetlistStore()!
       expect(renameSetlist(DEFAULT_SETLIST_ID, '   ')).toBe(false)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
@@ -215,14 +322,14 @@ describe('setlistStore', () => {
     })
 
     it('returns false for unknown id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(renameSetlist('missing', 'X')).toBe(false)
     })
   })
 
   describe('deleteSetlist', () => {
     it('removes a non-active setlist and leaves activeSetlistId unchanged', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const otherId = 'other-setlist'
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -237,7 +344,7 @@ describe('setlistStore', () => {
     })
 
     it('removes the active setlist and clears activeSetlistId', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const otherId = 'other-setlist'
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -251,19 +358,19 @@ describe('setlistStore', () => {
     })
 
     it('returns false for unknown id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(deleteSetlist('nope')).toBe(false)
     })
   })
 
   describe('getLibrarySongs and getOrderedSongsForSetlist', () => {
     it('getLibrarySongs returns the persisted library', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(getLibrarySongs().map((s) => s.id)).toEqual(['a', 'b'])
     })
 
     it('getOrderedSongsForSetlist resolves song ids to library entries in order', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const otherId = 'other-setlist'
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -276,7 +383,7 @@ describe('setlistStore', () => {
 
   describe('addSongToSetlist', () => {
     it('appends a library song and persists', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const emptyId = 'empty-sl'
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -288,7 +395,7 @@ describe('setlistStore', () => {
     })
 
     it('returns false for duplicate id without changing storage', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(addSongToSetlist(DEFAULT_SETLIST_ID, 'a')).toBe(false)
       const snap = loadSetlistStore()!
       expect(snap.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds.filter((id) => id === 'a').length).toBe(
@@ -297,42 +404,42 @@ describe('setlistStore', () => {
     })
 
     it('returns false for unknown setlist id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(addSongToSetlist('missing', 'a')).toBe(false)
     })
 
     it('returns false for song id not in library', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(addSongToSetlist(DEFAULT_SETLIST_ID, 'ghost')).toBe(false)
     })
   })
 
   describe('removeSongFromSetlist', () => {
     it('removes a song id and persists', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(removeSongFromSetlist(DEFAULT_SETLIST_ID, 'a')).toBe(true)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(['b'])
     })
 
     it('returns false when song is not in setlist', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
       expect(removeSongFromSetlist(DEFAULT_SETLIST_ID, 'ghost')).toBe(false)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(before)
     })
 
     it('returns false for unknown setlist id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(removeSongFromSetlist('nope', 'a')).toBe(false)
     })
   })
 
   describe('reorderSongsInSetlist', () => {
     it('moves a song from first to last index and persists', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const three: LibrarySong[] = [
         ...SEED,
-        { id: 'c', title: 'Charlie', path: 'c.json' },
+        { id: 'c', title: 'Charlie', items: [LYRIC] },
       ]
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -351,10 +458,10 @@ describe('setlistStore', () => {
     })
 
     it('moves a song from last to first index and persists', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const three: LibrarySong[] = [
         ...SEED,
-        { id: 'c', title: 'Charlie', path: 'c.json' },
+        { id: 'c', title: 'Charlie', items: [LYRIC] },
       ]
       const base = loadSetlistStore()!
       saveSetlistStore({
@@ -373,27 +480,27 @@ describe('setlistStore', () => {
     })
 
     it('returns true without changing storage when from and to are the same', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const rawBefore = localStorage.getItem(SETLIST_STORE_KEY)
       expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 0)).toBe(true)
       expect(localStorage.getItem(SETLIST_STORE_KEY)).toBe(rawBefore)
     })
 
     it('returns false for out-of-range indices', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, -1, 0)).toBe(false)
       expect(reorderSongsInSetlist(DEFAULT_SETLIST_ID, 0, 99)).toBe(false)
     })
 
     it('returns false for unknown setlist id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(reorderSongsInSetlist('missing', 0, 1)).toBe(false)
     })
   })
 
   describe('moveSongInSetlist', () => {
     it('moving a song down persists the new order', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'down')).toBe(true)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual([
         'b',
@@ -403,7 +510,7 @@ describe('setlistStore', () => {
     })
 
     it('moving a song up persists the new order', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const base = loadSetlistStore()!
       saveSetlistStore({
         ...base,
@@ -419,7 +526,7 @@ describe('setlistStore', () => {
     })
 
     it('returns false when moving the first song up (no persist change)', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
       expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'up')).toBe(false)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(
@@ -428,7 +535,7 @@ describe('setlistStore', () => {
     })
 
     it('returns false when moving the last song down (no persist change)', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
       expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'b', 'down')).toBe(false)
       expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(
@@ -437,18 +544,18 @@ describe('setlistStore', () => {
     })
 
     it('getOrderedSongsForActiveSetlist reflects order after reorder on the active setlist', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'down')
       expect(getOrderedSongsForActiveSetlist().map((s) => s.id)).toEqual(['b', 'a'])
     })
 
     it('returns false for unknown setlist id', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(moveSongInSetlist('missing', 'a', 'down')).toBe(false)
     })
 
     it('returns false for song not in setlist', () => {
-      bootstrapSetlistStore(SEED)
+      installTestStore()
       expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'ghost', 'down')).toBe(false)
     })
   })

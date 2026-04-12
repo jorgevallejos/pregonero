@@ -23,9 +23,11 @@ import {
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
+import { SONGS } from './songs'
 import {
-  bootstrapSetlistStore,
+  createInitialSnapshot,
   DEFAULT_SETLIST_ID,
+  ensureSongLibraryHydrated,
   getActiveSetlistId,
   loadSetlistStore,
   reorderSongsInSetlist,
@@ -125,6 +127,31 @@ function clearStorage() {
   localStorage.clear()
 }
 
+/** Full v2 library with one line per bundled song id (matches `SONGS` catalog). */
+function installProductionLikeLibrary(): void {
+  const line: SongItem = { languages: { es: 't', en: 't' } }
+  const songs = SONGS.map((s) => ({
+    id: s.id,
+    title: s.title,
+    items: [line],
+  }))
+  saveSetlistStore(createInitialSnapshot(songs))
+}
+
+/** Builds the persisted v2 library via the same path as production (for tests that clear storage). */
+async function hydrateSongLibraryWithFileOverrides(overrides: Record<string, string>): Promise<void> {
+  await ensureSongLibraryHydrated({
+    fetchSongJson: async (path: string) => {
+      if (overrides[path]) return overrides[path]
+      const entry = SONGS.find((s) => s.path === path)
+      return JSON.stringify({
+        title: entry?.title ?? 'Song',
+        lyrics: [{ es: 'x', en: 'y' }],
+      })
+    },
+  })
+}
+
 /** Trigger storage listeners so hooks re-read from localStorage (simulates another tab changing config). */
 function dispatchStorageEvent() {
   window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
@@ -159,6 +186,7 @@ describe('v0.5 control screen state machine integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearStorage()
+    installProductionLikeLibrary()
   })
 
   afterEach(() => {
@@ -767,6 +795,7 @@ describe('ControlView performer state flow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearStorage()
+    installProductionLikeLibrary()
   })
 
   afterEach(() => {
@@ -1691,29 +1720,19 @@ describe('ControlView performer state flow', () => {
   })
 
   describe('Songs screen confirmation', () => {
-    const SONG_JSON = JSON.stringify({
-      title: 'Duelo',
-      lyrics: [
-        { es: 'Hola', en: 'Hello' },
-        { es: 'Mundo', en: 'World' },
-      ],
-    })
-
     function openSongsScreen() {
       clearStorage()
+      installProductionLikeLibrary()
       setCurrentSongId('duelo')
       setSongLines(VALID_LINES)
       setSongIndex(-1)
       setBlank(true)
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs'
-      const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
-          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
-        }
-        return Promise.reject(new Error('Unexpected fetch'))
-      })
-      vi.stubGlobal('fetch', fetchMock)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
         isProjectionOpen: vi.fn().mockResolvedValue(true),
         onProjectionOpened: vi.fn(() => vi.fn()),
@@ -1722,25 +1741,22 @@ describe('ControlView performer state flow', () => {
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
       render(<App />)
-      return fetchMock
     }
 
     /** Opens Songs screen with no active song (selection not pre-filled). */
     function openSongsScreenWithNoActiveSong() {
       clearStorage()
+      installProductionLikeLibrary()
       setCurrentSongId('')
       setSongLines([])
       setSongIndex(-1)
       setBlank(true)
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs'
-      const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
-          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
-        }
-        return Promise.reject(new Error('Unexpected fetch'))
-      })
-      vi.stubGlobal('fetch', fetchMock)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
         isProjectionOpen: vi.fn().mockResolvedValue(true),
         onProjectionOpened: vi.fn(() => vi.fn()),
@@ -1749,7 +1765,6 @@ describe('ControlView performer state flow', () => {
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
       render(<App />)
-      return fetchMock
     }
 
     it('when entering Songs screen with an active song, that song is already selected and Confirm is enabled', async () => {
@@ -1836,7 +1851,7 @@ describe('ControlView performer state flow', () => {
     const TONIGHT_ID = 'tonight-setlist'
 
     function seedTwoSetlistsTonightActive() {
-      bootstrapSetlistStore()
+      installProductionLikeLibrary()
       const base = loadSetlistStore()!
       saveSetlistStore({
         ...base,
@@ -1884,7 +1899,7 @@ describe('ControlView performer state flow', () => {
 
     it('when active setlist is missing, shows prompt instead of song grid', async () => {
       clearStorage()
-      bootstrapSetlistStore()
+      installProductionLikeLibrary()
       const base = loadSetlistStore()!
       saveSetlistStore({ ...base, activeSetlistId: '' })
       sessionStorage.setItem('liveLyricLaunched', '1')
@@ -1902,7 +1917,7 @@ describe('ControlView performer state flow', () => {
 
     it('choosing a setlist from Manage setlists after prompt reveals the song grid', async () => {
       clearStorage()
-      bootstrapSetlistStore()
+      installProductionLikeLibrary()
       const base = loadSetlistStore()!
       saveSetlistStore({ ...base, activeSetlistId: '' })
       sessionStorage.setItem('liveLyricLaunched', '1')
@@ -1982,7 +1997,7 @@ describe('ControlView performer state flow', () => {
     const TONIGHT_ID = 'tonight-setlist'
 
     function seedTwoSetlistsTonightActive() {
-      bootstrapSetlistStore()
+      installProductionLikeLibrary()
       const base = loadSetlistStore()!
       saveSetlistStore({
         ...base,
@@ -2706,6 +2721,12 @@ describe('ControlView performer state flow', () => {
         ],
       })
       clearStorage()
+      await act(async () => {
+        await hydrateSongLibraryWithFileOverrides({
+          'duelo.json': SONG_A_JSON,
+          'luz-y-sal.json': SONG_B_JSON,
+        })
+      })
       addPlayedSong('duelo')
       setCurrentSongId('duelo')
       setSongLines(VALID_LINES)
@@ -2716,12 +2737,10 @@ describe('ControlView performer state flow', () => {
       sessionStorage.setItem('liveLyricLaunched', '1')
       sessionStorage.removeItem('liveLyricPerformanceArmed')
       window.location.hash = '#/'
-      const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === 'duelo.json' || url.endsWith('/duelo.json')) return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_A_JSON) })
-        if (url === 'luz-y-sal.json' || url.endsWith('/luz-y-sal.json')) return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_B_JSON) })
-        return Promise.reject(new Error('Unexpected fetch'))
-      })
-      vi.stubGlobal('fetch', fetchMock)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
         isProjectionOpen: vi.fn().mockResolvedValue(true),
         onProjectionOpened: vi.fn(() => vi.fn()),
@@ -2824,14 +2843,14 @@ describe('ControlView performer state flow', () => {
       // Steps: 1 load song, 2 open projection, 3 choose language, 4 reach Ready to Arm,
       // 5 Arm, 6 Next, 7 Performing, 8 restart, 9 close projection.
       clearStorage()
-      window.location.hash = '#/'
-      const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === 'duelo.json' || url.endsWith('/duelo.json')) {
-          return Promise.resolve({ ok: true, text: () => Promise.resolve(SONG_JSON) })
-        }
-        return Promise.reject(new Error('Unexpected fetch'))
+      await act(async () => {
+        await hydrateSongLibraryWithFileOverrides({ 'duelo.json': SONG_JSON })
       })
-      vi.stubGlobal('fetch', fetchMock)
+      window.location.hash = '#/'
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
 
       const mockApi = {
         isProjectionOpen: vi.fn().mockResolvedValue(false),
@@ -2960,6 +2979,7 @@ describe('Control next-line preview', () => {
     cleanup()
     localStorage.clear()
     sessionStorage.clear()
+    installProductionLikeLibrary()
     window.location.hash = '#/'
     const mockApi = {
       isProjectionOpen: vi.fn().mockResolvedValue(true),

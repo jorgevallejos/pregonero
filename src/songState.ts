@@ -74,6 +74,60 @@ function validateLyricsItem(item: unknown, index: number): SongItem {
 }
 
 /**
+ * Validates a persisted lyric `items` array (same shape as parsed song `lyrics`).
+ * Returns null if the value is not an array or any element fails validation.
+ */
+export function tryParseSongItemsArray(items: unknown): SongItem[] | null {
+  if (!Array.isArray(items)) return null
+  try {
+    return (items as unknown[]).map((item, index) => validateLyricsItem(item, index))
+  } catch {
+    return null
+  }
+}
+
+function tryParsePersistedLyricsItem(item: unknown, index: number): SongItem | null {
+  if (item === null || typeof item !== 'object') return null
+  const obj = item as Record<string, unknown>
+  if (obj.type === 'section') {
+    if (typeof obj.label !== 'string') return null
+    return { type: 'section', label: obj.label }
+  }
+  if (
+    'languages' in obj &&
+    obj.languages !== null &&
+    typeof obj.languages === 'object' &&
+    !Array.isArray(obj.languages)
+  ) {
+    try {
+      return validateLyricLine(obj.languages as Record<string, unknown>, index)
+    } catch {
+      return null
+    }
+  }
+  try {
+    return validateLyricLine(obj, index)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Validates persisted `items` as canonical `SongItem[]` (lyric lines use `{ languages: { … } }`).
+ * Also accepts flat `{ "es": "…" }` objects for forward compatibility.
+ */
+export function tryParsePersistedSongItemsArray(items: unknown): SongItem[] | null {
+  if (!Array.isArray(items)) return null
+  const out: SongItem[] = []
+  for (let i = 0; i < items.length; i++) {
+    const one = tryParsePersistedLyricsItem(items[i], i)
+    if (one === null) return null
+    out.push(one)
+  }
+  return out
+}
+
+/**
  * Parsed song file format: { title: string, lyrics: Array<LyricLineRaw | SectionMarker>, notes?: string }
  * Lyric line raw: { "es": "...", "en": "...", ... }
  * Section: { "type": "section", "label": "..." }
