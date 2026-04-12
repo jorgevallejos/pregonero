@@ -15,7 +15,7 @@ import {
   isLyricLine,
 } from './songState'
 import { computeNavigationState } from './navigationState'
-import { SONGS } from './songs'
+import { getLibrarySongById } from './setlistStore'
 
 /** Read lines/index/blank from storage; if index is out of bounds for current lines, reset to initial song state. */
 function getSyncedLyricState(): { lines: SongItem[]; index: number; blank: boolean } {
@@ -155,7 +155,7 @@ export function useSongNavigation(): {
       const fromStorage = getCurrentSongTitle()
       if (fromStorage) return fromStorage
       const id = getCurrentSongId()
-      return id ? SONGS.find((s) => s.id === id)?.title ?? '—' : 'No song selected'
+      return id ? getLibrarySongById(id)?.title ?? '—' : 'No song selected'
     })(),
     applyRemoteState,
     applyCommand,
