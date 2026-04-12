@@ -517,15 +517,20 @@ html, body, #root {
   font-weight: 500;
 }
 
-.manage-setlists-action-btn:hover {
+.manage-setlists-action-btn:hover:not(:disabled) {
   background: #48484a;
+}
+
+.manage-setlists-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .manage-setlists-delete-btn {
   border-color: #8b3a3a;
 }
 
-.manage-setlists-delete-btn:hover {
+.manage-setlists-delete-btn:hover:not(:disabled) {
   background: #5c2a2a;
 }
 
@@ -627,8 +632,17 @@ html, body, #root {
   color: #e5e5e5;
   font-size: 0.95em;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.manage-setlists-song-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .manage-setlists-song-empty {

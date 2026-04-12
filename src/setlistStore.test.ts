@@ -18,6 +18,7 @@ import {
   getOrderedSongsForSetlist,
   addSongToSetlist,
   removeSongFromSetlist,
+  moveSongInSetlist,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -322,6 +323,68 @@ describe('setlistStore', () => {
     it('returns false for unknown setlist id', () => {
       bootstrapSetlistStore(SEED)
       expect(removeSongFromSetlist('nope', 'a')).toBe(false)
+    })
+  })
+
+  describe('moveSongInSetlist', () => {
+    it('moving a song down persists the new order', () => {
+      bootstrapSetlistStore(SEED)
+      expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'down')).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual([
+        'b',
+        'a',
+      ])
+      expect(getOrderedSongsForSetlist(DEFAULT_SETLIST_ID).map((s) => s.id)).toEqual(['b', 'a'])
+    })
+
+    it('moving a song up persists the new order', () => {
+      bootstrapSetlistStore(SEED)
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: base.setlists.map((s) =>
+          s.id === DEFAULT_SETLIST_ID ? { ...s, songIds: ['b', 'a'] } : s
+        ),
+      })
+      expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'up')).toBe(true)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual([
+        'a',
+        'b',
+      ])
+    })
+
+    it('returns false when moving the first song up (no persist change)', () => {
+      bootstrapSetlistStore(SEED)
+      const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
+      expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'up')).toBe(false)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(
+        before
+      )
+    })
+
+    it('returns false when moving the last song down (no persist change)', () => {
+      bootstrapSetlistStore(SEED)
+      const before = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!.songIds
+      expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'b', 'down')).toBe(false)
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.songIds).toEqual(
+        before
+      )
+    })
+
+    it('getOrderedSongsForActiveSetlist reflects order after reorder on the active setlist', () => {
+      bootstrapSetlistStore(SEED)
+      moveSongInSetlist(DEFAULT_SETLIST_ID, 'a', 'down')
+      expect(getOrderedSongsForActiveSetlist().map((s) => s.id)).toEqual(['b', 'a'])
+    })
+
+    it('returns false for unknown setlist id', () => {
+      bootstrapSetlistStore(SEED)
+      expect(moveSongInSetlist('missing', 'a', 'down')).toBe(false)
+    })
+
+    it('returns false for song not in setlist', () => {
+      bootstrapSetlistStore(SEED)
+      expect(moveSongInSetlist(DEFAULT_SETLIST_ID, 'ghost', 'down')).toBe(false)
     })
   })
 })

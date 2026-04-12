@@ -27,6 +27,7 @@ import {
   bootstrapSetlistStore,
   DEFAULT_SETLIST_ID,
   getActiveSetlistId,
+  getOrderedSongsForSetlist,
   loadSetlistStore,
   saveSetlistStore,
 } from './setlistStore'
@@ -2429,6 +2430,127 @@ describe('ControlView performer state flow', () => {
       expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       expect(getCurrentSongId()).toBe('duelo')
       expect(getSongLines().length).toBeGreaterThan(0)
+    })
+
+    it('Setlist screen shows active setlist songs in store order after reorder', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }))
+      })
+      expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.songIds).toEqual([
+        'pimiento',
+        'duelo',
+      ])
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+      })
+      const titles = [...document.querySelectorAll('.songs-song-btn')].map((el) => el.textContent?.trim() ?? '')
+      expect(titles).toEqual(['Pimiento', 'Duelo'])
+    })
+
+    it('disables move up for the first song and move down for the last song in the editor', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      expect(
+        (screen.getByRole('button', { name: /Move Duelo up in setlist Tonight/ }) as HTMLButtonElement)
+          .disabled
+      ).toBe(true)
+      expect(
+        (screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }) as HTMLButtonElement)
+          .disabled
+      ).toBe(false)
+      expect(
+        (screen.getByRole('button', { name: /Move Pimiento up in setlist Tonight/ }) as HTMLButtonElement)
+          .disabled
+      ).toBe(false)
+      expect(
+        (screen.getByRole('button', { name: /Move Pimiento down in setlist Tonight/ }) as HTMLButtonElement)
+          .disabled
+      ).toBe(true)
+    })
+
+    it('reordering the active setlist does not clear loaded song state when that song remains in the setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Move Duelo down in setlist Tonight/ }))
+      })
+      expect(getCurrentSongId()).toBe('duelo')
+      expect(getSongLines()).toEqual(VALID_LINES)
+      expect(getSongIndex()).toBe(0)
+      expect(getBlank()).toBe(false)
+    })
+
+    it('reordering a non-active setlist does not change loaded song state', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Edit songs in setlist Default/ })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
+      })
+      const firstInDefault = getOrderedSongsForSetlist(DEFAULT_SETLIST_ID)[0]!
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: `Move ${firstInDefault.title} down in setlist Default`,
+          })
+        )
+      })
+      expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+      expect(getCurrentSongId()).toBe('duelo')
+      expect(getSongLines()).toEqual(VALID_LINES)
     })
   })
 

@@ -259,6 +259,35 @@ export function removeSongFromSetlist(setlistId: string, songId: string): boolea
   return true
 }
 
+export type MoveSongDirection = 'up' | 'down'
+
+/**
+ * Swaps `songId` with its neighbor in the setlist order. Returns false when the setlist or song is
+ * missing, or when the move would go past the first/last position.
+ */
+export function moveSongInSetlist(
+  setlistId: string,
+  songId: string,
+  direction: MoveSongDirection
+): boolean {
+  if (!setlistId || !songId) return false
+  const snap = getSnapshot()
+  const setlist = snap.setlists.find((s) => s.id === setlistId)
+  if (!setlist) return false
+  const idx = setlist.songIds.indexOf(songId)
+  if (idx < 0) return false
+  const j = direction === 'up' ? idx - 1 : idx + 1
+  if (j < 0 || j >= setlist.songIds.length) return false
+  const nextIds = [...setlist.songIds]
+  ;[nextIds[idx], nextIds[j]] = [nextIds[j]!, nextIds[idx]!]
+  const next = {
+    ...snap,
+    setlists: snap.setlists.map((s) => (s.id === setlistId ? { ...s, songIds: nextIds } : s)),
+  }
+  writeRaw(repairSnapshot(next))
+  return true
+}
+
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
   if (!snap.activeSetlistId) return []
