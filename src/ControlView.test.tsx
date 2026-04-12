@@ -2169,7 +2169,6 @@ describe('ControlView performer state flow', () => {
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs/manage-setlists'
       stubFetchForSongsScreens()
-      const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Late Show')
       render(<App />)
 
       await waitFor(() => {
@@ -2178,6 +2177,13 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Tonight' }))
       })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Late Show' } })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+      })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }))
       })
@@ -2185,7 +2191,70 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByRole('button', { name: 'Late Show' })).toBeTruthy()
         expect(loadSetlistStore()!.setlists.find((s) => s.id === TONIGHT_ID)?.name).toBe('Late Show')
       })
-      promptSpy.mockRestore()
+    })
+
+    it('renaming a non-active setlist updates the store and the manage list', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Default' }))
+      })
+      const nameInput = screen.getByLabelText('Setlist name')
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Brunch Set' } })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Brunch Set' })).toBeTruthy()
+        expect(getActiveSetlistId()).toBe(TONIGHT_ID)
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
+          'Brunch Set'
+        )
+      })
+    })
+
+    it('renamed setlist name is still correct after remount (reread from store)', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const { unmount } = render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Rename setlist Default' }))
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Setlist name'), {
+          target: { value: 'Persisted After Reload' },
+        })
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save setlist name' }))
+      })
+      await waitFor(() => {
+        expect(loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)?.name).toBe(
+          'Persisted After Reload'
+        )
+      })
+      unmount()
+      render(<App />)
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Persisted After Reload' })).toBeTruthy()
+      })
     })
   })
 

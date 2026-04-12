@@ -546,6 +546,31 @@ html, body, #root {
   border-color: #0a84ff;
 }
 
+.manage-setlists-rename-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.manage-setlists-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55em 0.75em;
+  font-size: 1em;
+  border-radius: 8px;
+  border: 1px solid #48484a;
+  background: #1c1c1e;
+  color: #e5e5e5;
+}
+
+.manage-setlists-rename-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
 .manage-setlists-footer {
   margin-top: 1.5rem;
   display: flex;
