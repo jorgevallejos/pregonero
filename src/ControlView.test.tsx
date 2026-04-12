@@ -4,6 +4,7 @@
  * Renders App with hash #/ so ControlView is shown; drives state via storage and DOM.
  */
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
+import { StrictMode } from 'react'
 import { render, screen, act, waitFor, within, cleanup } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import App from './App'
@@ -2505,6 +2506,66 @@ describe('ControlView performer state flow', () => {
           screen.getByRole('button', { name: 'Add Batch B to setlist New setlist' })
         ).toBeTruthy()
       })
+      alertSpy.mockRestore()
+    })
+
+    it('multi-file import shows the result alert exactly once under Strict Mode', async () => {
+      clearStorage()
+      await act(async () => {
+        await ensureSongLibraryHydrated()
+      })
+      createEmptySetlist()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      render(
+        <StrictMode>
+          <App />
+        </StrictMode>
+      )
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
+        )
+      })
+
+      const f1 = new File(
+        [
+          JSON.stringify({
+            id: 'strict-a',
+            title: 'Strict A',
+            lyrics: [{ es: 'a', en: 'b' }],
+          }),
+        ],
+        'a.json',
+        { type: 'application/json' }
+      )
+      const f2 = new File(
+        [
+          JSON.stringify({
+            id: 'strict-b',
+            title: 'Strict B',
+            lyrics: [{ es: 'c', en: 'd' }],
+          }),
+        ],
+        'b.json',
+        { type: 'application/json' }
+      )
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('import-song-input'), {
+          target: { files: [f1, f2] },
+        })
+      })
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+      })
+      expect(alertSpy).toHaveBeenCalledTimes(1)
       alertSpy.mockRestore()
     })
 
