@@ -22,6 +22,13 @@ import {
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
+import {
+  bootstrapSetlistStore,
+  DEFAULT_SETLIST_ID,
+  getActiveSetlistId,
+  loadSetlistStore,
+  saveSetlistStore,
+} from './setlistStore'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -1820,6 +1827,270 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Back' }))
       })
       expect(getCurrentSongId()).toBe('pimiento')
+    })
+  })
+
+  describe('Setlist screen: performance setlist selection', () => {
+    const TONIGHT_ID = 'tonight-setlist'
+
+    function seedTwoSetlistsTonightActive() {
+      bootstrapSetlistStore()
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [
+          base.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!,
+          { id: TONIGHT_ID, name: 'Tonight', songIds: ['duelo', 'pimiento'] },
+        ],
+        activeSetlistId: TONIGHT_ID,
+      })
+    }
+
+    function renderSetlistScreen() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+      render(<App initialHash="#/songs" />)
+    }
+
+    it('shows only songs from the active setlist', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      expect(screen.queryByRole('button', { name: 'Vidas' })).toBeNull()
+      const songBtns = document.querySelectorAll('.songs-song-btn')
+      expect(songBtns.length).toBe(2)
+    })
+
+    it('when active setlist is missing, shows prompt instead of song grid', async () => {
+      clearStorage()
+      bootstrapSetlistStore()
+      const base = loadSetlistStore()!
+      saveSetlistStore({ ...base, activeSetlistId: '' })
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      })
+      expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
+    })
+
+    it('choosing a setlist after prompt reveals the song grid', async () => {
+      clearStorage()
+      bootstrapSetlistStore()
+      const base = loadSetlistStore()!
+      saveSetlistStore({ ...base, activeSetlistId: '' })
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('setlist-selection-prompt')).toBeNull()
+      })
+      await waitFor(() => {
+        expect(document.querySelectorAll('.songs-song-btn').length).toBeGreaterThan(0)
+      })
+    })
+
+    it('switching active setlist clears selected song and current song id', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Tonight' })).toBeTruthy()
+      })
+      const pimientoSong = within(screen.getByRole('main'))
+        .getAllByRole('button', { name: /Pimiento/ })
+        .find((b) => b.classList.contains('songs-song-btn'))
+      expect(pimientoSong).toBeTruthy()
+      await act(async () => {
+        fireEvent.click(pimientoSong!)
+      })
+      expect(pimientoSong!.classList.contains('ctrl-arm')).toBe(true)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('')
+      })
+      const pimientoAfter = within(screen.getByRole('main'))
+        .getAllByRole('button', { name: /Pimiento/ })
+        .find((b) => b.classList.contains('songs-song-btn'))
+      expect(pimientoAfter).toBeTruthy()
+      expect(pimientoAfter!.classList.contains('ctrl-arm')).toBe(false)
+    })
+  })
+
+  describe('Manage setlists screen', () => {
+    const TONIGHT_ID = 'tonight-setlist'
+
+    function seedTwoSetlistsTonightActive() {
+      bootstrapSetlistStore()
+      const base = loadSetlistStore()!
+      saveSetlistStore({
+        ...base,
+        setlists: [
+          base.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!,
+          { id: TONIGHT_ID, name: 'Tonight', songIds: ['duelo', 'pimiento'] },
+        ],
+        activeSetlistId: TONIGHT_ID,
+      })
+    }
+
+    function stubFetchForSongsScreens() {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.reject(new Error('Unexpected fetch')))
+      )
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(true),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+      }
+    }
+
+    it('opens manage setlists screen from Setlist via button', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Duelo' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs/manage-setlists')
+        expect(screen.getByRole('heading', { name: 'Manage setlists' })).toBeTruthy()
+      })
+    })
+
+    it('lists setlists and indicates which is active', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Tonight (active)' })).toBeTruthy()
+    })
+
+    it('selecting a setlist updates activeSetlistId and returns to Setlist with correct songs', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getActiveSetlistId()).toBe(DEFAULT_SETLIST_ID)
+      })
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+      })
+      expect(screen.getByRole('button', { name: 'Vidas' })).toBeTruthy()
+      expect(document.querySelectorAll('.songs-song-btn').length).toBeGreaterThan(2)
+    })
+
+    it('creating a new setlist adds it, sets it active, and Setlist shows no songs', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'New setlist' })).toBeTruthy()
+      })
+      const countBefore = loadSetlistStore()!.setlists.length
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'New setlist' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+      })
+      const snap = loadSetlistStore()!
+      expect(snap.setlists).toHaveLength(countBefore + 1)
+      const created = snap.setlists.find((s) => s.songIds.length === 0 && s.name === 'New setlist')
+      expect(created).toBeDefined()
+      expect(getActiveSetlistId()).toBe(created!.id)
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
+      })
+      expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
+    })
+
+    it('selecting a setlist from manage clears loaded song state', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Default' })).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('')
+      })
     })
   })
 

@@ -44,7 +44,7 @@ function parseSnapshot(raw: unknown): SetlistStoreSnapshot | null {
   const lib = o.songLibrary as Record<string, unknown>
   if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySong)) return null
   if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
-  if (!isNonEmptyString(o.activeSetlistId)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
   return {
     version: SETLIST_STORE_VERSION,
     songLibrary: { songs: lib.songs as LibrarySong[] },
@@ -71,16 +71,18 @@ function writeRaw(snapshot: SetlistStoreSnapshot): void {
   localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(snapshot))
 }
 
-/** Drop unknown song ids; ensure active setlist id exists. */
+/** Drop unknown song ids; clear active setlist when it does not reference a real setlist (caller must pick). */
 function repairSnapshot(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
   const known = new Set(snap.songLibrary.songs.map((s) => s.id))
   const setlists = snap.setlists.map((sl) => ({
     ...sl,
     songIds: sl.songIds.filter((id) => known.has(id)),
   }))
-  let activeSetlistId = snap.activeSetlistId
-  if (!setlists.some((s) => s.id === activeSetlistId)) {
-    activeSetlistId = setlists[0]?.id ?? DEFAULT_SETLIST_ID
+  let activeSetlistId = typeof snap.activeSetlistId === 'string' ? snap.activeSetlistId : ''
+  if (setlists.length === 0) {
+    activeSetlistId = ''
+  } else if (activeSetlistId !== '' && !setlists.some((s) => s.id === activeSetlistId)) {
+    activeSetlistId = ''
   }
   return { ...snap, setlists, activeSetlistId }
 }
@@ -134,6 +136,17 @@ export function getActiveSetlistId(): string {
   return getSnapshot().activeSetlistId
 }
 
+export function getSetlists(): Setlist[] {
+  return [...getSnapshot().setlists]
+}
+
+export function hasValidActiveSetlist(): boolean {
+  const snap = getSnapshot()
+  const id = snap.activeSetlistId
+  if (!id) return false
+  return snap.setlists.some((s) => s.id === id)
+}
+
 export function setActiveSetlistId(id: string): boolean {
   const snap = getSnapshot()
   if (!snap.setlists.some((s) => s.id === id)) return false
@@ -143,9 +156,32 @@ export function setActiveSetlistId(id: string): boolean {
   return true
 }
 
+const NEW_SETLIST_DEFAULT_NAME = 'New setlist'
+
+function newSetlistId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `setlist-${Date.now()}-${Math.floor(Math.random() * 1e9)}`
+}
+
+/** Appends an empty setlist, sets it active, and persists. */
+export function createEmptySetlist(): { id: string } {
+  const snap = getSnapshot()
+  const id = newSetlistId()
+  const next = repairSnapshot({
+    ...snap,
+    setlists: [...snap.setlists, { id, name: NEW_SETLIST_DEFAULT_NAME, songIds: [] }],
+    activeSetlistId: id,
+  })
+  writeRaw(next)
+  return { id }
+}
+
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
   const byId = new Map(snap.songLibrary.songs.map((s) => [s.id, s]))
+  if (!snap.activeSetlistId) return []
   const list = snap.setlists.find((s) => s.id === snap.activeSetlistId)
   if (!list) return []
   return list.songIds.map((id) => byId.get(id)).filter((s): s is LibrarySong => s !== undefined)

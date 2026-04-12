@@ -4,17 +4,27 @@ import type { LyricLine, SectionMarker, SongItem } from './songState'
 import {
   getAvailableLanguages,
   getAvailableSingingLanguages,
+  getBlank,
   getCurrentItem,
+  getCurrentSongId,
   getEffectiveProjectionLanguage,
   getEffectiveSingingLanguage,
   getLastLyricIndex,
   getNextLyricIndex,
+  getProjectionLanguage,
   getSingingLanguage,
+  getSongIndex,
+  getSongLines,
   nextIndex,
   parseSongFile,
   prevIndex,
+  resetLoadedSongState,
+  setCurrentSongId,
+  setCurrentSongTitle,
   setProjectionLanguage,
   setSingingLanguage,
+  setSongLines,
+  setSongIndex,
 } from './songState'
 
 const lyric = (languages: Record<string, string>): LyricLine => ({ languages })
@@ -365,6 +375,56 @@ describe('getEffectiveProjectionLanguage', () => {
       lyric({ es: 'Hola', fr: 'Bonjour' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('')
+  })
+})
+
+describe('resetLoadedSongState', () => {
+  let storage: Record<string, string>
+
+  beforeEach(() => {
+    storage = {}
+    globalThis.localStorage = {
+      getItem: (k: string) => storage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        storage[k] = v
+      },
+      removeItem: (k: string) => {
+        delete storage[k]
+      },
+      clear: () => {
+        for (const k of Object.keys(storage)) delete storage[k]
+      },
+      get length() {
+        return Object.keys(storage).length
+      },
+      key: () => null,
+    }
+  })
+
+  it('clears song id, title, lines, index, and blank state', () => {
+    setCurrentSongId('duelo')
+    setCurrentSongTitle('Duelo')
+    setSongLines([lyric({ es: 'Hola', en: 'Hello' })])
+    setSongIndex(0)
+
+    resetLoadedSongState()
+
+    expect(getCurrentSongId()).toBe('')
+    expect(getSongLines()).toEqual([])
+    expect(getSongIndex()).toBe(-1)
+    expect(getBlank()).toBe(true)
+  })
+
+  it('does not clear stored projection or singing language preferences', () => {
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    setCurrentSongId('duelo')
+    setSongLines([lyric({ es: 'Hola', en: 'Hello' })])
+
+    resetLoadedSongState()
+
+    expect(getProjectionLanguage()).toBe('en')
+    expect(getSingingLanguage()).toBe('es')
   })
 })
 

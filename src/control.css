@@ -451,6 +451,71 @@ html, body, #root {
   color: #e5e5e5;
 }
 
+.songs-manage-setlists {
+  margin-left: auto;
+  z-index: 1;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  border: 1px solid #48484a;
+  padding: 0.45em 0.75em;
+  font-size: 0.9em;
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.songs-manage-setlists:hover {
+  background: #3a3a3c;
+}
+
+/* Manage setlists: single column, not song grid */
+.songs-screen.manage-setlists-screen .songs-body.manage-setlists-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 2em 1.25rem;
+  box-sizing: border-box;
+}
+
+.manage-setlists-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manage-setlists-row {
+  width: 100%;
+  text-align: left;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  border: 1px solid #48484a;
+  padding: 0.65em 1em;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.manage-setlists-row:hover {
+  background: #3a3a3c;
+}
+
+.manage-setlists-row-active {
+  border-color: #0a84ff;
+}
+
+.manage-setlists-footer {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
 .songs-body {
   flex: 1;
   padding: 2em;
@@ -474,6 +539,54 @@ html, body, #root {
   max-width: none;
   margin: 0;
   padding: 2em 0;
+}
+
+.setlist-picker-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 1rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid #2c2c2e;
+}
+
+.setlist-name-btn {
+  background: #2c2c2e;
+  color: #e5e5e5;
+  border: 1px solid #48484a;
+  padding: 0.45em 0.85em;
+  font-size: 0.95em;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.setlist-name-btn:hover {
+  background: #3a3a3c;
+}
+
+.setlist-name-btn-active {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.setlist-name-btn-active:hover {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+.setlist-prompt {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #8e8e93;
+  font-size: 1.05em;
+  line-height: 1.4;
+  margin: 0.5rem 0 1rem;
 }
 
 .songs-song-btn {

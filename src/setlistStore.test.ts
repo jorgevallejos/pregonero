@@ -9,6 +9,9 @@ import {
   getActiveSetlistId,
   setActiveSetlistId,
   getOrderedSongsForActiveSetlist,
+  getSetlists,
+  hasValidActiveSetlist,
+  createEmptySetlist,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -138,6 +141,51 @@ describe('setlistStore', () => {
       setActiveSetlistId(otherId)
 
       expect(getOrderedSongsForActiveSetlist().map((s) => s.id)).toEqual(['b', 'a'])
+    })
+  })
+
+  describe('active setlist validity', () => {
+    it('repair clears activeSetlistId when it does not match any setlist', () => {
+      bootstrapSetlistStore(SEED)
+      const base = loadSetlistStore()!
+      saveSetlistStore({ ...base, activeSetlistId: 'missing-id' })
+      const repaired = loadSetlistStore()
+      expect(repaired?.activeSetlistId).toBe('')
+    })
+
+    it('hasValidActiveSetlist is false when active is empty', () => {
+      bootstrapSetlistStore(SEED)
+      const base = loadSetlistStore()!
+      saveSetlistStore({ ...base, activeSetlistId: '' })
+      expect(hasValidActiveSetlist()).toBe(false)
+      expect(getOrderedSongsForActiveSetlist()).toEqual([])
+    })
+
+    it('getSetlists returns persisted setlists', () => {
+      bootstrapSetlistStore(SEED)
+      const base = loadSetlistStore()!
+      const extra: Setlist = { id: 'x', name: 'Extra', songIds: ['a'] }
+      saveSetlistStore({ ...base, setlists: [...base.setlists, extra] })
+      expect(getSetlists().map((s) => s.name)).toContain('Extra')
+    })
+  })
+
+  describe('createEmptySetlist', () => {
+    it('appends an empty setlist with default name and makes it active', () => {
+      bootstrapSetlistStore(SEED)
+      const before = loadSetlistStore()!
+      const beforeCount = before.setlists.length
+
+      const { id } = createEmptySetlist()
+
+      const after = loadSetlistStore()!
+      expect(after.setlists).toHaveLength(beforeCount + 1)
+      const created = after.setlists.find((s) => s.id === id)
+      expect(created).toBeDefined()
+      expect(created!.name).toBe('New setlist')
+      expect(created!.songIds).toEqual([])
+      expect(getActiveSetlistId()).toBe(id)
+      expect(after.activeSetlistId).toBe(id)
     })
   })
 })

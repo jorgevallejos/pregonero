@@ -158,6 +158,15 @@ export function setCurrentSongTitle(title: string): void {
   }
 }
 
+/** Clears loaded song and lyric position; leaves language and projection preferences unchanged. */
+export function resetLoadedSongState(): void {
+  setCurrentSongId('')
+  setCurrentSongTitle('')
+  setSongLines([])
+  setSongIndex(-1)
+  setBlank(true)
+}
+
 export function getProjectionLanguage(): string {
   return localStorage.getItem(KEY_PROJECTION_LANGUAGE) ?? ''
 }
