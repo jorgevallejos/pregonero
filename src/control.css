@@ -456,7 +456,8 @@ html, body, #root {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 0.5em;
+  justify-content: flex-end;
+  min-width: 120px;
 }
 
 .manage-setlists-import-input-hidden {
@@ -491,18 +492,40 @@ html, body, #root {
   background: #3a3a3c;
 }
 
-/* Manage setlists: single column, not song grid */
+/* Manage setlists: 3-column workspace */
 .songs-screen.manage-setlists-screen .songs-body.manage-setlists-body {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 320px 420px 420px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 24px;
   flex: 1;
   min-height: 0;
-  max-width: 480px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   width: 100%;
   padding: 2em 1.25rem;
   box-sizing: border-box;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.manage-setlists-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.manage-setlists-column-header {
+  --manage-setlists-header-height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  height: var(--manage-setlists-header-height);
+  min-height: var(--manage-setlists-header-height);
+  margin-bottom: 0.6rem;
 }
 
 .manage-setlists-list {
@@ -511,9 +534,42 @@ html, body, #root {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  min-height: min-content;
+}
+
+.manage-setlists-column-setlists .manage-setlists-list {
   flex: 1;
   min-height: 0;
+  overflow: auto;
+  width: 100%;
+}
+
+.manage-setlists-panel {
+  padding: 0.65rem 0.5rem;
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  background: #1c1c1e;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.manage-setlists-column-header-spacer {
+  height: 2.5rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+}
+
+.manage-setlists-panel .manage-setlists-list,
+.manage-setlists-panel .manage-setlists-song-sublist {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .manage-setlists-item-inner {
@@ -611,30 +667,38 @@ html, body, #root {
 .manage-setlists-rename-input-inline {
   flex: 1;
   min-width: 0;
-  width: 0;
+  width: 100%;
 }
 
 .manage-setlists-footer {
-  margin-top: auto;
-  padding-top: 1.5rem;
+  grid-column: 1 / -1;
+  padding-top: 1rem;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
 .manage-setlists-footer .ctrl-btn.languages-confirm {
-  width: 100%;
-  max-width: 280px;
+  width: 280px;
 }
 
 .manage-setlists-song-editor {
-  margin-top: 0.65rem;
-  padding: 0.65rem 0.5rem 0.35rem;
-  border: 1px solid #3a3a3c;
-  border-radius: 8px;
-  background: #1c1c1e;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  min-height: 0;
+}
+
+.manage-setlists-song-editor-active {
+  border-color: #3d5c3d;
+}
+
+.manage-setlists-song-editor-inactive {
+  border-color: #48484a;
+  background: #242427;
+}
+
+.manage-setlists-song-editor-over {
+  border-color: #5d855d;
+  background: #223022;
 }
 
 .manage-setlists-song-editor-title {
@@ -653,6 +717,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .manage-setlists-song-row {
