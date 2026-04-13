@@ -809,7 +809,8 @@ html, body, #root {
 .songs-screen:not(.languages-screen) .songs-body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
+  row-gap: 24px;
+  column-gap: 32px;
   justify-items: center;
   align-items: center;
   width: 100%;
@@ -830,7 +831,7 @@ html, body, #root {
 
 .songs-song-btn {
   width: 220px;
-  min-height: 3.5em;
+  height: 130px;
   font-size: clamp(1.1em, 3vw, 1.35em);
   padding: 1em 1.25em;
   background: #2c2c2e;
@@ -842,8 +843,23 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4em;
   text-align: center;
+  white-space: normal;
+  overflow: hidden;
   touch-action: manipulation;
+}
+
+.songs-song-title {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .songs-song-btn:hover {
