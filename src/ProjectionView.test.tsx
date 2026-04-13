@@ -16,6 +16,7 @@ import {
   setProjectionLanguage,
 } from './songState'
 import type { SongItem } from './songState'
+import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -78,6 +79,15 @@ function setupProjectionStorage(lines: SongItem[], index: number, blank: boolean
   setCurrentSongId('test')
   setProjectionLanguage('en')
   window.location.hash = '#/projection'
+}
+
+function setupSongLibraryWithNotes(song: {
+  id: string
+  title: string
+  items: SongItem[]
+  notes?: string
+}) {
+  saveSetlistStore(createInitialSnapshot([song]))
 }
 
 /** Projection must not have a next-line preview element (preview is on control screen only). */
@@ -215,5 +225,42 @@ describe('Projection screen', () => {
       },
       { timeout: 3000 }
     )
+  })
+
+  it('stays blank before first lyric on projection even when song has notes', async () => {
+    setupSongLibraryWithNotes({
+      id: 'with-notes',
+      title: 'With Notes',
+      items: TWO_LINES,
+      notes: 'Capo 2. Soft intro.',
+    })
+    setupProjectionStorage(TWO_LINES, -1, true)
+    setCurrentSongId('with-notes')
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(document.querySelector('.projection-lyric')?.textContent).toBe('')
+    })
+    expect(screen.queryByText('Capo 2. Soft intro.')).toBeNull()
+  })
+
+  it('shows first lyric after first Next when song has notes', async () => {
+    setupSongLibraryWithNotes({
+      id: 'with-notes',
+      title: 'With Notes',
+      items: TWO_LINES,
+      notes: 'Capo 2. Soft intro.',
+    })
+    setupProjectionStorage(TWO_LINES, -1, true)
+    setCurrentSongId('with-notes')
+    render(<App initialHash="#/projection" />)
+
+    setSongIndex(0)
+    setBlank(false)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    })
   })
 })

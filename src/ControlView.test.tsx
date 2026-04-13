@@ -4576,3 +4576,134 @@ describe('Control next-line preview', () => {
     expect(getControlNextPreview()?.textContent?.trim()).toBe('')
   })
 })
+
+describe('Control pre-first-lyric notes display', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+  })
+
+  function setupArmedSongForNotesTest(song: {
+    id: string
+    title: string
+    items: SongItem[]
+    notes?: string
+  }) {
+    saveSetlistStore(createInitialSnapshot([song]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(song.items)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(song.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+  }
+
+  it('shows notes when armed before the first lyric, then first Next replaces notes with first lyric', async () => {
+    setupArmedSongForNotesTest({
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      notes: 'Capo 2. Soft intro.',
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Capo 2. Soft intro.')).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Hola')).toBeTruthy()
+    })
+    expect(screen.queryByText('Capo 2. Soft intro.')).toBeNull()
+  })
+
+  it('keeps existing behavior for songs without notes (blank until first Next)', async () => {
+    setupArmedSongForNotesTest({
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+    expect(screen.queryByText(/Capo 2\. Soft intro\./)).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Hola')).toBeTruthy()
+    })
+  })
+
+  it('continues normal navigation after the first lyric when notes were shown initially', async () => {
+    setupArmedSongForNotesTest({
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      notes: 'Capo 2. Soft intro.',
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Capo 2. Soft intro.')).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Hola')).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Mundo')).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /previous/i }))
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Hola')).toBeTruthy()
+    })
+  })
+})
