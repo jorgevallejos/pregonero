@@ -13,6 +13,7 @@ import {
   setSongIndex,
   setBlank,
   setCurrentSongId,
+  setCurrentSongTitle,
   setProjectionLanguage,
   setSingingLanguage,
   getSingingLanguage,
@@ -84,6 +85,10 @@ const WAIT_TIMEOUT = 3000
 function getArmButton() {
   const main = screen.getByRole('main')
   return within(main).getByRole('button', { name: 'Arm' })
+}
+
+function queryArmedTransportNextButton() {
+  return document.querySelector('button.ctrl-next')
 }
 
 function setupControlViewWithReadinessPassing() {
@@ -163,6 +168,19 @@ function installLibraryFromJsonFiles(files: Record<string, string>): void {
 /** Trigger storage listeners so hooks re-read from localStorage (simulates another tab changing config). */
 function dispatchStorageEvent() {
   window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+}
+
+function setActiveSetlistSongIds(songIds: string[]) {
+  const snapshot = loadSetlistStore()
+  if (!snapshot) throw new Error('Expected setlist snapshot')
+  const activeSetlistId = snapshot.activeSetlistId
+  if (!activeSetlistId) throw new Error('Expected active setlist id')
+  saveSetlistStore({
+    ...snapshot,
+    setlists: snapshot.setlists.map((setlist) =>
+      setlist.id === activeSetlistId ? { ...setlist, songIds: [...songIds] } : setlist
+    ),
+  })
 }
 
 /** Helpers for v0.5 state machine integration tests: no song, no lang, projection closed, not armed */
@@ -295,7 +313,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(queryArmedTransportNextButton()).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
   })
 
@@ -312,7 +330,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(queryArmedTransportNextButton()).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
   })
 
@@ -366,6 +384,121 @@ describe('v0.5 control screen state machine integration', () => {
       fireEvent.click(confirmBtn)
     })
     expect(window.location.hash).toBe('#/')
+  })
+
+  it('2f. Setup Next button selects the next song in the active setlist without changing languages or arming', async () => {
+    setActiveSetlistSongIds(['soy-una-puerta', 'duelo'])
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('soy-una-puerta')
+    setCurrentSongTitle('Soy una puerta')
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    })
+
+    expect(getCurrentSongId()).toBe('duelo')
+    expect(screen.getByRole('main').textContent).toMatch(/Duelo/)
+    expect(getSingingLanguage()).toBe('es')
+    expect(screen.getByRole('main').textContent).toMatch(/ES → EN/)
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
+    expect(window.location.hash).toBe('#/')
+  })
+
+  it('2g. Setup Next button is visible and selects the first song when no song is selected', async () => {
+    setActiveSetlistSongIds(['pimiento', 'duelo'])
+    setupControlViewInitial()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    const nextButton = screen.getByRole('button', { name: 'Next' })
+    expect((nextButton as HTMLButtonElement).disabled).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(nextButton)
+    })
+
+    expect(getCurrentSongId()).toBe('pimiento')
+  })
+
+  it('2h. Setup Next button remains visible and does nothing when selected song is last in the active setlist', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('pimiento')
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    const nextButton = screen.getByRole('button', { name: 'Next' })
+    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(nextButton)
+    })
+
+    expect(getCurrentSongId()).toBe('pimiento')
+  })
+
+  it('2h2. Setup Next button is placed to the left of Setlist button', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    const songSectionButtons = screen.getByRole('button', { name: 'Setlist' }).parentElement
+    if (!songSectionButtons) throw new Error('Expected song setup button container')
+    expect(songSectionButtons.classList.contains('control-setup-button-row')).toBe(true)
+
+    const buttonLabels = Array.from(songSectionButtons.querySelectorAll('button')).map((button) =>
+      button.textContent?.trim()
+    )
+    expect(buttonLabels).toEqual(['Next', 'Setlist'])
+  })
+
+  it('2i. Setup navigation to Setlist remains available when setup Next button is present', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
+    })
+
+    expect(window.location.hash).toBe('#/songs')
   })
 
   it('3. Arm is disabled until all prerequisites are satisfied', async () => {
@@ -679,7 +812,7 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(queryArmedTransportNextButton()).toBeNull()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
 
     await act(async () => {
@@ -962,7 +1095,7 @@ describe('ControlView performer state flow', () => {
       expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
     }, { timeout: WAIT_TIMEOUT })
 
-    expect(screen.queryByRole('button', { name: /next/i })).toBeNull()
+    expect(queryArmedTransportNextButton()).toBeNull()
   }, 10000)
 
   it('6. Arm is unavailable when readiness checks fail', async () => {

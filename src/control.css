@@ -247,6 +247,24 @@ html, body, #root {
   min-height: 6.25em;
 }
 
+.control-setup-button-row {
+  width: 100%;
+  flex-direction: row;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.control-setup-button-row .ctrl-btn {
+  width: auto;
+  margin-top: 0;
+}
+
+.control-setup-button-row .ctrl-setup-link {
+  width: auto;
+}
+
 .control-setup-content .ctrl-btn {
   flex-shrink: 0;
 }
