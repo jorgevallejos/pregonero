@@ -4727,7 +4727,7 @@ describe('Control performance timer/status button', () => {
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 
-  it("is visible only in performing view, starts with 0', and lives in top bar", async () => {
+  it("is visible only in performing view, starts with 0', and floats outside top bar", async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -4745,12 +4745,15 @@ describe('Control performance timer/status button', () => {
     const statusButton = screen.getByTestId('performance-status-button')
     const topBar = document.querySelector('.control-top-bar')
     const bottomButtons = document.querySelector('.bottom-buttons')
+    const floatingRoot = screen.getByTestId('performance-status-floating')
 
     expect(statusButton).toBeTruthy()
-    expect(topBar?.contains(statusButton)).toBe(true)
+    expect(floatingRoot.contains(statusButton)).toBe(true)
+    expect(topBar?.contains(statusButton)).toBe(false)
     expect(bottomButtons?.contains(statusButton)).toBe(false)
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
     expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    expect(screen.queryByTestId('performance-status-actions')).toBeNull()
   })
 
   it('renders minute-only musical format and does not render legacy timer text', async () => {
@@ -4796,7 +4799,7 @@ describe('Control performance timer/status button', () => {
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
   })
 
-  it('clicking the circle toggles paused/running state style without resetting value', async () => {
+  it('clicking the circle toggles visibility of floating timer actions', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -4808,24 +4811,50 @@ describe('Control performance timer/status button', () => {
       fireEvent.click(getArmButton())
     })
 
+    const statusButton = screen.getByTestId('performance-status-button')
+
+    expect(screen.queryByTestId('performance-status-actions')).toBeNull()
+    fireEvent.click(statusButton)
+    expect(screen.getByTestId('performance-status-actions')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
+
+    fireEvent.click(statusButton)
+    expect(screen.queryByTestId('performance-status-actions')).toBeNull()
+  })
+
+  it('pause/resume action toggles timer running state without resetting value', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    fireEvent.click(statusButton)
+    const pauseButton = screen.getByRole('button', { name: 'Pause' })
+
     act(() => {
       vi.advanceTimersByTime(60_000)
     })
-    const statusButton = screen.getByTestId('performance-status-button')
-    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
     expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
 
-    fireEvent.click(statusButton)
-    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    fireEvent.click(pauseButton)
     expect(statusButton.className).toContain('ctrl-timer-status-paused')
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy()
+
     act(() => {
       vi.advanceTimersByTime(180_000)
     })
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
 
-    fireEvent.click(statusButton)
-    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }))
     expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
     act(() => {
       vi.advanceTimersByTime(60_000)
@@ -4833,7 +4862,32 @@ describe('Control performance timer/status button', () => {
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
   })
 
-  it('uses the same base button style class while fitting the top bar layout', async () => {
+  it('reset action sets timer back to zero minutes', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    fireEvent.click(statusButton)
+
+    act(() => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+    expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
+  })
+
+  it('uses the same base button style class while floating outside top bar layout', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
 
@@ -4846,8 +4900,10 @@ describe('Control performance timer/status button', () => {
 
     const statusButton = screen.getByTestId('performance-status-button')
     const topBar = document.querySelector('.control-top-bar')
+    const floatingRoot = screen.getByTestId('performance-status-floating')
 
-    expect(topBar?.contains(statusButton)).toBe(true)
+    expect(floatingRoot.contains(statusButton)).toBe(true)
+    expect(topBar?.contains(statusButton)).toBe(false)
     expect(statusButton.className).toContain('ctrl-btn')
   })
 
@@ -4908,6 +4964,16 @@ describe('Control performance timer/status button', () => {
     expect(pausedRule).toMatch(/background:\s*#4a3d2d/)
     expect(pausedRule).toMatch(/border-color:\s*#5c4d3d/)
     expect(pausedRule).toMatch(/color:\s*#f0ebe0/)
+  })
+
+  it('positions floating actions vertically under the timer circle', () => {
+    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+    const actionsBlock = css.match(/\.ctrl-timer-actions\s*\{([^}]*)\}/)
+    expect(actionsBlock).toBeTruthy()
+    const actionsRule = actionsBlock![1]
+    expect(actionsRule).toMatch(/display:\s*flex/)
+    expect(actionsRule).toMatch(/flex-direction:\s*column/)
+    expect(actionsRule).toMatch(/align-items:\s*stretch/)
   })
 })
 

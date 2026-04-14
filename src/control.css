@@ -20,6 +20,7 @@ html, body, #root {
 }
 
 .control-screen {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -469,6 +470,35 @@ html, body, #root {
 .ctrl-timer-status-paused:hover:not(:disabled) {
   background: #5a4a3a;
   border-color: #6c5a4a;
+}
+
+.ctrl-timer-floating {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ctrl-timer-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid #48484a;
+  border-radius: 12px;
+  background: rgba(28, 28, 30, 0.95);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ctrl-timer-action {
+  min-width: 6.2em;
+  padding: 0.45em 0.7em;
+  font-size: 0.78em;
 }
 
 /* ---- Songs screen ---- */
