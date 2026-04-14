@@ -114,6 +114,18 @@ describe('Projection screen', () => {
     expect(getProjectionNextPreview()).toBeNull()
   })
 
+  it('does not show control performance timer/status button UI on projection screen', async () => {
+    setupProjectionStorage(TWO_LINES, 0, false)
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    })
+
+    expect(screen.queryByTestId('performance-status-button')).toBeNull()
+    expect(screen.queryByText(/^Min \d+$/)).toBeNull()
+  })
+
   it('does not show any next-line preview when on last line', async () => {
     setupProjectionStorage(TWO_LINES, 1, false)
     render(<App initialHash="#/projection" />)

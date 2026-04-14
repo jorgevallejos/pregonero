@@ -7,6 +7,8 @@ import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vite
 import { StrictMode } from 'react'
 import { render, screen, act, waitFor, within, cleanup } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import App from './App'
 import {
   setSongLines,
@@ -4707,6 +4709,205 @@ describe('Control next-line preview', () => {
       expect(screen.getByText('Tres')).toBeTruthy()
     })
     expect(getControlNextPreview()?.textContent?.trim()).toBe('')
+  })
+})
+
+describe('Control performance timer/status button', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    installProductionLikeLibrary()
+    window.location.hash = '#/'
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it("is visible only in performing view, starts with 0', and lives in top bar", async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('performance-status-button')).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    const topBar = document.querySelector('.control-top-bar')
+    const bottomButtons = document.querySelector('.bottom-buttons')
+
+    expect(statusButton).toBeTruthy()
+    expect(topBar?.contains(statusButton)).toBe(true)
+    expect(bottomButtons?.contains(statusButton)).toBe(false)
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+  })
+
+  it('renders minute-only musical format and does not render legacy timer text', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByTestId('performance-status-button')).toBeTruthy()
+    expect(screen.getByTestId('performance-status-minutes').textContent).toMatch(/^\d+'$/)
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+    expect(screen.queryByText(/^Minute:/)).toBeNull()
+  })
+
+  it('increments elapsed time once per minute', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+
+    act(() => {
+      vi.advanceTimersByTime(59_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
+  })
+
+  it('clicking the circle toggles paused/running state style without resetting value', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    const statusButton = screen.getByTestId('performance-status-button')
+    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
+    expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
+
+    fireEvent.click(statusButton)
+    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    expect(statusButton.className).toContain('ctrl-timer-status-paused')
+    act(() => {
+      vi.advanceTimersByTime(180_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
+
+    fireEvent.click(statusButton)
+    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+    expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
+  })
+
+  it('uses the same base button style class while fitting the top bar layout', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    const topBar = document.querySelector('.control-top-bar')
+
+    expect(topBar?.contains(statusButton)).toBe(true)
+    expect(statusButton.className).toContain('ctrl-btn')
+  })
+
+  it('uses circle and minute classes while keeping shared top-bar button contract', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    const minutesLabel = screen.getByTestId('performance-status-minutes')
+
+    expect(statusButton.className).toContain('ctrl-btn')
+    expect(statusButton.className).toContain('ctrl-timer-status')
+    expect(statusButton.className).toContain('ctrl-timer-status-circle')
+    expect(minutesLabel.className).toContain('ctrl-timer-status-minutes')
+    expect(minutesLabel.className).toContain('ctrl-timer-status-minutes-prominent')
+    expect(screen.queryByTestId('performance-status-icon')).toBeNull()
+  })
+
+  it('uses reduced circular sizing while keeping the shared dark button family', () => {
+    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+    const timerBlock = css.match(/\.ctrl-timer-status\s*\{([^}]*)\}/)
+    expect(timerBlock).toBeTruthy()
+
+    const timerRule = timerBlock![1]
+    expect(timerRule).toMatch(/width:\s*112px/)
+    expect(timerRule).toMatch(/height:\s*112px/)
+    expect(timerRule).toMatch(/padding:\s*0/)
+    expect(timerRule).toMatch(/border-radius:\s*50%/)
+    expect(timerRule).toMatch(/border:\s*1px\s+solid\s+#48484a/)
+    expect(timerRule).toMatch(/background:\s*#2c2c2e/)
+    expect(timerRule).toMatch(/color:\s*#e5e5e5/)
+  })
+
+  it('keeps minute text dominant and removes icon styling complexity', () => {
+    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+    const prominentMinutesBlock = css.match(/\.ctrl-timer-status-minutes-prominent\s*\{([^}]*)\}/)
+    expect(prominentMinutesBlock).toBeTruthy()
+
+    const prominentMinutesRule = prominentMinutesBlock![1]
+    expect(css).not.toMatch(/\.ctrl-timer-status-icon\s*\{/)
+    expect(prominentMinutesRule).toMatch(/font-size:\s*clamp\(2\.4em,\s*5vw,\s*2\.9em\)/)
+    expect(prominentMinutesRule).toMatch(/font-weight:\s*700/)
+  })
+
+  it('uses paused state colors matching the unarm button family', () => {
+    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+    const pausedBlock = css.match(/\.ctrl-timer-status-paused\s*\{([^}]*)\}/)
+    expect(pausedBlock).toBeTruthy()
+
+    const pausedRule = pausedBlock![1]
+    expect(pausedRule).toMatch(/background:\s*#4a3d2d/)
+    expect(pausedRule).toMatch(/border-color:\s*#5c4d3d/)
+    expect(pausedRule).toMatch(/color:\s*#f0ebe0/)
   })
 })
 

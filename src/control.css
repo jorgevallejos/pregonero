@@ -41,6 +41,16 @@ html, body, #root {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.5em 1em;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  margin-left: 1em;
 }
 
 .top-summary-line {
@@ -416,6 +426,49 @@ html, body, #root {
   gap: 0.75em;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.ctrl-timer-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 112px;
+  min-width: 112px;
+  min-height: 112px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 50%;
+  border: 1px solid #48484a;
+  background: #2c2c2e;
+  color: #e5e5e5;
+}
+
+.ctrl-timer-status:hover:not(:disabled) {
+  background: #3a3a3c;
+  border-color: #58585a;
+}
+
+.ctrl-timer-status-circle {
+  justify-content: center;
+}
+
+.ctrl-timer-status-minutes-prominent {
+  font-size: clamp(2.4em, 5vw, 2.9em);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctrl-timer-status-paused {
+  background: #4a3d2d;
+  border-color: #5c4d3d;
+  color: #f0ebe0;
+}
+
+.ctrl-timer-status-paused:hover:not(:disabled) {
+  background: #5a4a3a;
+  border-color: #6c5a4a;
 }
 
 /* ---- Songs screen ---- */
