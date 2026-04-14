@@ -4823,6 +4823,47 @@ describe('Control performance timer/status button', () => {
     expect(screen.queryByTestId('performance-status-actions')).toBeNull()
   })
 
+  it('clicking inside timer actions does not close them', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    fireEvent.click(statusButton)
+    const pauseButton = screen.getByRole('button', { name: 'Pause' })
+
+    fireEvent.click(pauseButton)
+    expect(screen.getByTestId('performance-status-actions')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy()
+  })
+
+  it('clicking outside the timer and actions closes floating timer actions', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const statusButton = screen.getByTestId('performance-status-button')
+    fireEvent.click(statusButton)
+    expect(screen.getByTestId('performance-status-actions')).toBeTruthy()
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByTestId('performance-status-actions')).toBeNull()
+  })
+
   it('pause/resume action toggles timer running state without resetting value', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
