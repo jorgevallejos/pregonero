@@ -82,6 +82,26 @@ html, body, #root {
   min-height: 0;
 }
 
+.performing-next-song-tile-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  /* Ensure the button uses the same tile sizing as the setlist screen. */
+  margin: 0;
+  padding: 0;
+}
+
+.performing-next-song-helper-label {
+  font-size: 0.75em;
+  font-weight: 400;
+  color: #8e8e93;
+  line-height: 1.2;
+  margin: 0;
+}
+
 .control-center-setup {
   justify-content: center;
   align-items: center;

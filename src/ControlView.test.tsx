@@ -388,7 +388,7 @@ describe('v0.5 control screen state machine integration', () => {
     expect(window.location.hash).toBe('#/')
   })
 
-  it('2f. Setup Next button selects the next song in the active setlist without changing languages or arming', async () => {
+  it('2f. Setup has no Next button for advancing setlist songs', async () => {
     setActiveSetlistSongIds(['soy-una-puerta', 'duelo'])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('soy-una-puerta')
@@ -402,20 +402,17 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    })
+    // "Next" in Setup was removed; setlist navigation is manual via the Setlist screen.
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
 
-    expect(getCurrentSongId()).toBe('duelo')
-    expect(screen.getByRole('main').textContent).toMatch(/Duelo/)
-    expect(getSingingLanguage()).toBe('es')
-    expect(screen.getByRole('main').textContent).toMatch(/ES → EN/)
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
-    expect(window.location.hash).toBe('#/')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
+    })
+    expect(window.location.hash).toBe('#/songs')
   })
 
-  it('2g. Setup Next button is visible and selects the first song when no song is selected', async () => {
+  it('2g. Setup has no Next button even when no song is selected', async () => {
     setActiveSetlistSongIds(['pimiento', 'duelo'])
     setupControlViewInitial()
     render(<App initialHash="#/" />)
@@ -427,17 +424,11 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    const nextButton = screen.getByRole('button', { name: 'Next' })
-    expect((nextButton as HTMLButtonElement).disabled).toBe(false)
-
-    await act(async () => {
-      fireEvent.click(nextButton)
-    })
-
-    expect(getCurrentSongId()).toBe('pimiento')
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
   })
 
-  it('2h. Setup Next button remains visible and does nothing when selected song is last in the active setlist', async () => {
+  it('2h. Setup has no Next button even when selected song is last in active setlist', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('pimiento')
@@ -450,17 +441,10 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    const nextButton = screen.getByRole('button', { name: 'Next' })
-    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
-
-    await act(async () => {
-      fireEvent.click(nextButton)
-    })
-
-    expect(getCurrentSongId()).toBe('pimiento')
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
   })
 
-  it('2h2. Setup Next button is placed to the left of Setlist button', async () => {
+  it('2h2. Setup song section button row contains only Setlist', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -468,10 +452,11 @@ describe('v0.5 control screen state machine integration', () => {
     await waitFor(
       () => {
         expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
-        expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
       },
       { timeout: WAIT_TIMEOUT }
     )
+
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
 
     const songSectionButtons = screen.getByRole('button', { name: 'Setlist' }).parentElement
     if (!songSectionButtons) throw new Error('Expected song setup button container')
@@ -480,10 +465,10 @@ describe('v0.5 control screen state machine integration', () => {
     const buttonLabels = Array.from(songSectionButtons.querySelectorAll('button')).map((button) =>
       button.textContent?.trim()
     )
-    expect(buttonLabels).toEqual(['Next', 'Setlist'])
+    expect(buttonLabels).toEqual(['Setlist'])
   })
 
-  it('2i. Setup navigation to Setlist remains available when setup Next button is present', async () => {
+  it('2i. Setup navigation to Setlist remains available', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -491,7 +476,6 @@ describe('v0.5 control screen state machine integration', () => {
     await waitFor(
       () => {
         expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
-        expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -849,6 +833,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     it('when armed and at last lyric phrase, single click on Unarm unarms immediately (no hold required)', async () => {
       setupControlViewWithReadinessPassing()
+      setActiveSetlistSongIds(['duelo'])
       setSongIndex(1)
       render(<App initialHash="#/" />)
 
@@ -964,6 +949,157 @@ describe('v0.5 control screen state machine integration', () => {
         fireEvent.click(unarmBtn)
       })
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    })
+
+    it('does not show next-song tile on first arrival to the last phrase', async () => {
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      // End-of-song position (last lyric phrase)
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        },
+        { timeout: WAIT_TIMEOUT }
+      )
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+
+      expect(screen.queryByTestId('next-song-tile')).toBeNull()
+      expect(screen.queryByText('Tap to continue')).toBeNull()
+    })
+
+    it('shows next-song tile after pressing Next once more from the last phrase', async () => {
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        },
+        { timeout: WAIT_TIMEOUT }
+      )
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      expect(screen.queryByTestId('next-song-tile')).toBeNull()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      })
+      const tile = screen.getByTestId('next-song-tile')
+      expect(tile.classList.contains('songs-song-btn')).toBe(true)
+      expect(tile.classList.contains('ctrl-arm')).toBe(false)
+      expect(tile.textContent).toContain('Pimiento')
+      expect(tile.textContent).not.toContain('Tap to continue')
+
+      const helper = screen.getByText('Tap to continue')
+      expect(helper.classList.contains('performing-next-song-helper-label')).toBe(true)
+      expect(helper.closest('button')).toBeNull()
+      expect(helper.nextElementSibling).toBe(tile)
+    })
+
+    it('next-song tile reuses Setlist song-tile visual classes', async () => {
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        },
+        { timeout: WAIT_TIMEOUT }
+      )
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      })
+
+      const tile = screen.getByTestId('next-song-tile')
+      expect(tile.className.trim()).toBe('songs-song-btn')
+      expect(tile.querySelector('.songs-song-title')?.textContent).toBe('Pimiento')
+    })
+
+    it('tapping next-song tile starts next song directly (without unarm/setup)', async () => {
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        },
+        { timeout: WAIT_TIMEOUT }
+      )
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      })
+
+      const tile = screen.getByTestId('next-song-tile')
+      await act(async () => {
+        fireEvent.click(tile)
+      })
+
+      expect(getCurrentSongId()).toBe('pimiento')
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+      expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+      expect(window.location.hash).toBe('#/')
+    })
+
+    it('keeps concert timer running when starting next song from tile', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+      expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+
+      act(() => {
+        vi.advanceTimersByTime(60_000)
+      })
+      expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
+
+      const tile = screen.getByTestId('next-song-tile')
+      await act(async () => {
+        fireEvent.click(tile)
+      })
+
+      // Next song starts from first lyric reveal, but the concert timer continues.
+      expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
     })
   })
 })
@@ -1669,6 +1805,7 @@ describe('ControlView performer state flow', () => {
 
     it('4. blank/index state sent to projection matches control state (prev and blankToggle)', async () => {
       setupControlViewWithReadinessPassing()
+      setActiveSetlistSongIds(['duelo'])
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -1821,6 +1958,7 @@ describe('ControlView performer state flow', () => {
 
     it('6. Next shortcut does nothing when at last line (performing)', async () => {
       setupControlViewWithReadinessPassing()
+      setActiveSetlistSongIds(['duelo'])
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -2126,7 +2264,7 @@ describe('ControlView performer state flow', () => {
       expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
     })
 
-    it('switching active setlist from Manage setlists clears selected song and current song id', async () => {
+    it('switching active setlist from Manage setlists auto-selects the new setlist first song', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       setCurrentSongId('duelo')
@@ -2161,9 +2299,12 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
+      const expectedFirstDefaultSongId =
+        loadSetlistStore()!.setlists.find((setlist) => setlist.id === DEFAULT_SETLIST_ID)?.songIds[0] ?? ''
+      expect(expectedFirstDefaultSongId).not.toBe('')
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
-        expect(getCurrentSongId()).toBe('')
+        expect(getCurrentSongId()).toBe(expectedFirstDefaultSongId)
       })
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Setlist: Default' })).toBeTruthy()
@@ -2173,6 +2314,159 @@ describe('ControlView performer state flow', () => {
         .find((b) => b.classList.contains('songs-song-btn'))
       expect(pimientoAfter).toBeTruthy()
       expect(pimientoAfter!.classList.contains('ctrl-arm')).toBe(false)
+    })
+
+    it('choosing a setlist from Manage setlists after prompt auto-selects that setlist first song', async () => {
+      clearStorage()
+      installProductionLikeLibrary()
+      const base = loadSetlistStore()!
+      saveSetlistStore({ ...base, activeSetlistId: '' })
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      const expectedFirstDefaultSongId =
+        loadSetlistStore()!.setlists.find((setlist) => setlist.id === DEFAULT_SETLIST_ID)?.songIds[0] ?? ''
+      expect(expectedFirstDefaultSongId).not.toBe('')
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+        expect(getCurrentSongId()).toBe(expectedFirstDefaultSongId)
+      })
+    })
+
+    it('initial app load with active setlist auto-selects its first song in Setup', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('')
+      setCurrentSongTitle('')
+      setSongLines([])
+      setSongIndex(-1)
+      setBlank(true)
+      sessionStorage.removeItem('liveLyricLaunched')
+      window.location.hash = '#/'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('duelo')
+      })
+      expect(getSongLines().length).toBeGreaterThan(0)
+      expect(getSongIndex()).toBe(-1)
+      expect(getBlank()).toBe(true)
+    })
+
+    it('restored persisted state with active setlist auto-selects first song when current song is invalid', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('vidas')
+      setCurrentSongTitle('Vidas')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('duelo')
+      })
+      expect(getSongLines().length).toBeGreaterThan(0)
+      expect(getSongIndex()).toBe(-1)
+      expect(getBlank()).toBe(true)
+    })
+
+    it('initial load with empty active setlist keeps song unselected in Setup', async () => {
+      clearStorage()
+      installProductionLikeLibrary()
+      const emptySetlist = createEmptySetlist()
+      const snapshot = loadSetlistStore()!
+      saveSetlistStore({ ...snapshot, activeSetlistId: emptySetlist.id })
+      setCurrentSongId('duelo')
+      setCurrentSongTitle('Duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.removeItem('liveLyricLaunched')
+      window.location.hash = '#/'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      })
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('')
+      })
+      expect(getSongLines()).toEqual([])
+      expect(getSongIndex()).toBe(-1)
+      expect(getBlank()).toBe(true)
+    })
+
+    it('choosing an empty setlist keeps song unselected', async () => {
+      clearStorage()
+      installProductionLikeLibrary()
+      const emptySetlist = createEmptySetlist()
+      const withEmpty = loadSetlistStore()!
+      saveSetlistStore({
+        ...withEmpty,
+        activeSetlistId: '',
+      })
+      setCurrentSongId('duelo')
+      setSongLines(VALID_LINES)
+      setSongIndex(0)
+      setBlank(false)
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Manage setlists' }))
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+      })
+      const emptySetlistName =
+        loadSetlistStore()!.setlists.find((setlist) => setlist.id === emptySetlist.id)?.name ?? 'New setlist'
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: `Select setlist ${emptySetlistName}` }))
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/songs')
+      })
+      expect(getCurrentSongId()).toBe('')
+      expect(getSongLines()).toEqual([])
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      })
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/')
+      })
+      expect(getArmButton().hasAttribute('disabled')).toBe(true)
     })
   })
 
@@ -3015,7 +3309,7 @@ describe('ControlView performer state flow', () => {
       expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
     })
 
-    it('selecting a setlist from manage clears loaded song state', async () => {
+    it('selecting a setlist from manage auto-selects the active setlist first song', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       setCurrentSongId('duelo')
@@ -3037,8 +3331,11 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
+      const expectedFirstDefaultSongId =
+        loadSetlistStore()!.setlists.find((setlist) => setlist.id === DEFAULT_SETLIST_ID)?.songIds[0] ?? ''
+      expect(expectedFirstDefaultSongId).not.toBe('')
       await waitFor(() => {
-        expect(getCurrentSongId()).toBe('')
+        expect(getCurrentSongId()).toBe(expectedFirstDefaultSongId)
       })
     })
 
@@ -3935,7 +4232,7 @@ describe('ControlView performer state flow', () => {
       confirmSpy.mockRestore()
     })
 
-    it('deleting the currently loaded song from the library resets session state safely', async () => {
+    it('deleting the currently loaded song after switching setlists loads the new first song safely', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
       setCurrentSongId('vidas')
@@ -3967,9 +4264,12 @@ describe('ControlView performer state flow', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
+      const expectedFirstDefaultSongId =
+        loadSetlistStore()!.setlists.find((setlist) => setlist.id === DEFAULT_SETLIST_ID)?.songIds[0] ?? ''
+      expect(expectedFirstDefaultSongId).not.toBe('')
       await waitFor(() => {
-        expect(getCurrentSongId()).toBe('')
-        expect(getSongLines().length).toBe(0)
+        expect(getCurrentSongId()).toBe(expectedFirstDefaultSongId)
+        expect(getSongLines().length).toBeGreaterThan(0)
         expect(getSongIndex()).toBe(-1)
         expect(getBlank()).toBe(true)
       })
@@ -4615,6 +4915,8 @@ describe('Control next-line preview', () => {
   it('does not show preview when there is no next lyric line', async () => {
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
+    // Prevent end-of-song next-song tile from replacing the lyric display.
+    setActiveSetlistSongIds(['duelo'])
     setSongLines(VALID_LINES)
     setSongIndex(1)
     setBlank(false)
@@ -4671,6 +4973,8 @@ describe('Control next-line preview', () => {
   it('updates the preview when advancing to the next phrase', async () => {
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
+    // Prevent end-of-song next-song tile from replacing the lyric display.
+    setActiveSetlistSongIds(['duelo'])
     setSongLines(THREE_LINES)
     setSongIndex(-1)
     setBlank(true)
@@ -4926,6 +5230,113 @@ describe('Control performance timer/status button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
     expect(statusButton.className).not.toContain('ctrl-timer-status-paused')
+  })
+
+  it('persists elapsed timer when navigating away from performing view', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("0'")
+
+    act(() => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
+
+    cleanup()
+    render(<App initialHash="#/songs" />)
+
+    // Advance time while ControlView is unmounted (timer UI not present)
+    act(() => {
+      vi.advanceTimersByTime(120_000)
+    })
+
+    cleanup()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("4'")
+  })
+
+  it('timer does not reset when opening Setlist after song end and re-arming', async () => {
+    vi.useFakeTimers()
+
+    setupControlViewWithReadinessPassing()
+    // Simulate end-of-song position so Unarm can happen immediately.
+    setSongIndex(1)
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    act(() => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
+
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => {
+      fireEvent.click(unarmBtn)
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+    cleanup()
+    render(<App initialHash="#/songs" />)
+
+    // Advance time while ControlView is unmounted.
+    act(() => {
+      vi.advanceTimersByTime(180_000)
+    })
+
+    cleanup()
+    render(<App initialHash="#/" />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    // Total: 2 min (before unarm) + 3 min (while on setlist screen)
+    expect(screen.getByTestId('performance-status-minutes').textContent).toBe("5'")
   })
 
   it('uses the same base button style class while floating outside top bar layout', async () => {

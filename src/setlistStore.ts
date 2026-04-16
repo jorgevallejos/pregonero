@@ -2,6 +2,11 @@ import {
   getCurrentSongId,
   parseSongFile,
   parseSongRecordFromUnknown,
+  setBlank,
+  setCurrentSongId,
+  setCurrentSongTitle,
+  setSongIndex,
+  setSongLines,
   resetLoadedSongState,
   tryParsePersistedSongItemsArray,
   type ParsedSongFile,
@@ -540,6 +545,28 @@ export function syncLoadedSongSessionWithSnapshot(snap: SetlistStoreSnapshot): v
   if (!sl || !sl.songIds.includes(songId)) {
     resetLoadedSongState()
   }
+}
+
+/**
+ * Loads the first song from the active setlist into setup state.
+ * When there is no active setlist or it has no songs, clears the loaded song.
+ */
+export function autoSelectFirstSongForActiveSetlist(snap: SetlistStoreSnapshot): void {
+  const activeSetlistId = snap.activeSetlistId
+  if (!activeSetlistId) {
+    resetLoadedSongState()
+    return
+  }
+  const firstSong = orderedSongsForSetlistId(snap, activeSetlistId)[0]
+  if (!firstSong) {
+    resetLoadedSongState()
+    return
+  }
+  setCurrentSongId(firstSong.id)
+  setCurrentSongTitle(firstSong.title)
+  setSongLines(firstSong.items)
+  setSongIndex(-1)
+  setBlank(true)
 }
 
 /** Appends an empty setlist, sets it active, and persists. */
