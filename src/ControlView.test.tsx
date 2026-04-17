@@ -62,13 +62,15 @@ beforeAll(() => {
   if (typeof globalThis.sessionStorage === 'undefined' || typeof globalThis.sessionStorage.setItem !== 'function') {
     vi.stubGlobal('sessionStorage', createStorage())
   }
-  vi.stubGlobal('WebSocket', vi.fn().mockImplementation(() => ({
-    readyState: 1,
-    send: vi.fn(),
-    close: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  })))
+  vi.stubGlobal('WebSocket', vi.fn().mockImplementation(function () {
+    return {
+      readyState: 1,
+      send: vi.fn(),
+      close: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }
+  }))
 })
 
 const VALID_LINES: SongItem[] = [
