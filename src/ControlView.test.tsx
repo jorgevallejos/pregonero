@@ -906,9 +906,10 @@ describe('v0.5 control screen state machine integration', () => {
       })
       vi.useRealTimers()
 
-      await waitFor(() => {
-        expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+      await act(async () => {
+        await Promise.resolve()
       })
+      expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
       const unarmAfterRestart = screen.getByRole('button', { name: /^Unarm/ })
       expect(unarmAfterRestart.classList.contains('ctrl-unarm')).toBe(true)
       expect(unarmAfterRestart.classList.contains('ctrl-arm')).toBe(false)
@@ -951,7 +952,7 @@ describe('v0.5 control screen state machine integration', () => {
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     })
 
-    it('does not show next-song tile on first arrival to the last phrase', async () => {
+    it('shows the last phrase immediately and disables Next at end-of-song', async () => {
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       // End-of-song position (last lyric phrase)
@@ -969,36 +970,46 @@ describe('v0.5 control screen state machine integration', () => {
         fireEvent.click(getArmButton())
       })
 
+      expect(screen.getByText('Mundo')).toBeTruthy()
+      expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true)
       expect(screen.queryByTestId('next-song-tile')).toBeNull()
       expect(screen.queryByText('Tap to continue')).toBeNull()
     })
 
-    it('shows next-song tile after pressing Next once more from the last phrase', async () => {
+    it('does not show next-song tile before 6 seconds, then auto-reveals it at 6 seconds', async () => {
+      vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       setSongIndex(1)
       render(<App initialHash="#/" />)
 
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-        },
-        { timeout: WAIT_TIMEOUT }
-      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
 
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+
+      expect(screen.getByText('Mundo')).toBeTruthy()
       expect(screen.queryByTestId('next-song-tile')).toBeNull()
 
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      act(() => {
+        vi.advanceTimersByTime(5_999)
       })
+      expect(screen.queryByTestId('next-song-tile')).toBeNull()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+
       const tile = screen.getByTestId('next-song-tile')
       expect(tile.classList.contains('songs-song-btn')).toBe(true)
       expect(tile.classList.contains('ctrl-arm')).toBe(false)
       expect(tile.textContent).toContain('Pimiento')
       expect(tile.textContent).not.toContain('Tap to continue')
+      expect(screen.getByText('Mundo')).toBeTruthy()
 
       const helper = screen.getByText('Tap to continue')
       expect(helper.classList.contains('performing-next-song-helper-label')).toBe(true)
@@ -1006,24 +1017,87 @@ describe('v0.5 control screen state machine integration', () => {
       expect(helper.nextElementSibling).toBe(tile)
     })
 
-    it('next-song tile reuses Setlist song-tile visual classes', async () => {
+    it('keeps phrase and next-song tile inside one centered middle-stage stack', async () => {
+      vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       setSongIndex(1)
       render(<App initialHash="#/" />)
 
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-        },
-        { timeout: WAIT_TIMEOUT }
-      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
 
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+
+      const stage = screen.getByTestId('performing-content')
+      expect(stage.classList.contains('control-performing-stage')).toBe(true)
+
+      const lyric = screen.getByText('Mundo')
+      expect(lyric.classList.contains('control-lyric')).toBe(true)
+      const stageStack = lyric.closest('.control-performing-stage-stack')
+      expect(stageStack).not.toBeNull()
+      expect(stageStack?.contains(lyric)).toBe(true)
+
+      act(() => {
+        vi.advanceTimersByTime(6_000)
+      })
+
+      const tile = screen.getByTestId('next-song-tile')
+      expect(stageStack?.contains(tile)).toBe(true)
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+    })
+
+    it('uses a 3-zone armed layout with centered middle stage and fixed bottom controls', () => {
+      const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+
+      const screenBlock = css.match(/\.control-screen\s*\{([^}]*)\}/)
+      expect(screenBlock).toBeTruthy()
+      expect(screenBlock![1]).toMatch(/display:\s*flex/)
+      expect(screenBlock![1]).toMatch(/flex-direction:\s*column/)
+
+      const centerBlock = css.match(/\.control-center\s*\{([^}]*)\}/)
+      expect(centerBlock).toBeTruthy()
+      expect(centerBlock![1]).toMatch(/flex:\s*1/)
+
+      const stageBlock = css.match(/\.control-performing-stage\s*\{([^}]*)\}/)
+      expect(stageBlock).toBeTruthy()
+      expect(stageBlock![1]).toMatch(/display:\s*flex/)
+      expect(stageBlock![1]).toMatch(/align-items:\s*center/)
+      expect(stageBlock![1]).toMatch(/justify-content:\s*center/)
+
+      const stackBlock = css.match(/\.control-performing-stage-stack\s*\{([^}]*)\}/)
+      expect(stackBlock).toBeTruthy()
+      expect(stackBlock![1]).toMatch(/display:\s*flex/)
+      expect(stackBlock![1]).toMatch(/flex-direction:\s*column/)
+      expect(stackBlock![1]).toMatch(/align-items:\s*center/)
+
+      const bottomBlock = css.match(/\.control-bottom-bar\s*\{([^}]*)\}/)
+      expect(bottomBlock).toBeTruthy()
+      expect(bottomBlock![1]).toMatch(/flex-shrink:\s*0/)
+    })
+
+    it('next-song tile reuses Setlist song-tile visual classes', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      act(() => {
+        vi.advanceTimersByTime(6_000)
       })
 
       const tile = screen.getByTestId('next-song-tile')
@@ -1032,23 +1106,22 @@ describe('v0.5 control screen state machine integration', () => {
     })
 
     it('tapping next-song tile starts next song directly (without unarm/setup)', async () => {
+      vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       setSongIndex(1)
       render(<App initialHash="#/" />)
 
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-        },
-        { timeout: WAIT_TIMEOUT }
-      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
 
       await act(async () => {
         fireEvent.click(getArmButton())
       })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      act(() => {
+        vi.advanceTimersByTime(6_000)
       })
 
       const tile = screen.getByTestId('next-song-tile')
@@ -1077,8 +1150,8 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      act(() => {
+        vi.advanceTimersByTime(6_000)
       })
 
     await act(async () => {
@@ -1100,6 +1173,73 @@ describe('v0.5 control screen state machine integration', () => {
 
       // Next song starts from first lyric reveal, but the concert timer continues.
       expect(screen.getByTestId('performance-status-minutes').textContent).toBe("1'")
+    })
+
+    it('cancels delayed tile reveal when user navigates back from the last phrase', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(5_000)
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /previous/i }))
+      })
+      expect(screen.getByText('Hola')).toBeTruthy()
+
+      act(() => {
+        vi.advanceTimersByTime(6_000)
+      })
+      expect(screen.queryByTestId('next-song-tile')).toBeNull()
+    })
+
+    it('cancels delayed tile reveal when user restarts from the last phrase', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      setSongIndex(1)
+      render(<App initialHash="#/" />)
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(5_000)
+      })
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: /restart/i }))
+      })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+      })
+      await act(async () => {
+        fireEvent.pointerUp(screen.getByRole('button', { name: /restart/i }))
+      })
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+      act(() => {
+        vi.advanceTimersByTime(6_000)
+      })
+      expect(screen.queryByTestId('next-song-tile')).toBeNull()
     })
   })
 })

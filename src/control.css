@@ -82,6 +82,25 @@ html, body, #root {
   min-height: 0;
 }
 
+.control-performing-stage {
+  width: 100%;
+  max-width: 1000px;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-performing-stage-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 2vh, 1.5rem);
+}
+
 .performing-next-song-tile-wrap {
   width: 100%;
   display: flex;
@@ -92,6 +111,15 @@ html, body, #root {
   /* Ensure the button uses the same tile sizing as the setlist screen. */
   margin: 0;
   padding: 0;
+}
+
+.control-performing-lyric-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .performing-next-song-helper-label {
