@@ -137,6 +137,8 @@ export interface ParsedSongFile {
   items: SongItem[]
   /** Free-text performance notes (capo, mood, cues). Omitted when not present in the file. */
   notes?: string
+  /** Stage memory cues shown on the first performer screen. Omitted when not present. */
+  intro_cues?: string
 }
 
 /**
@@ -162,6 +164,16 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
     const trimmed = n.trim()
     if (trimmed.length > 0) {
       out.notes = trimmed
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'intro_cues')) {
+    const c = raw.intro_cues
+    if (typeof c !== 'string') {
+      throw new Error('Song file "intro_cues" must be a string when present')
+    }
+    const trimmed = c.trim()
+    if (trimmed.length > 0) {
+      out.intro_cues = trimmed
     }
   }
   return out

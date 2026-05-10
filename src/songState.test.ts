@@ -536,6 +536,41 @@ describe('parseSongFile', () => {
     })
     expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
   })
+
+  it('optional "intro_cues" string is parsed and trimmed', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro_cues: '  The leap of faith  ',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.intro_cues).toBe('The leap of faith')
+  })
+
+  it('when "intro_cues" is omitted, result has no intro_cues property', () => {
+    const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.intro_cues).toBeUndefined()
+  })
+
+  it('when "intro_cues" is only whitespace, it is treated as absent', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro_cues: '   ',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.intro_cues).toBeUndefined()
+  })
+
+  it('when "intro_cues" is present but not a string, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro_cues: 99,
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"intro_cues" must be a string/)
+  })
 })
 
 describe('parseSongRecordFromUnknown', () => {

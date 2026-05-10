@@ -30,6 +30,8 @@ export type LibrarySong = {
   items: SongItem[]
   /** Performance notes (capo, cues); omitted when absent. */
   notes?: string
+  /** Stage memory cues shown on the first performer screen; omitted when absent. */
+  intro_cues?: string
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -62,6 +64,7 @@ function isLibrarySong(v: unknown): v is LibrarySong {
   if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
   if (tryParsePersistedSongItemsArray(o.items) === null) return false
   if (o.notes !== undefined && typeof o.notes !== 'string') return false
+  if (o.intro_cues !== undefined && typeof o.intro_cues !== 'string') return false
   return true
 }
 
@@ -162,6 +165,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
+    ...(s.intro_cues !== undefined && s.intro_cues.length > 0 ? { intro_cues: s.intro_cues } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -654,6 +658,9 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   const song: LibrarySong = { id, title, items: parsed.items }
   if (parsed.notes !== undefined) {
     song.notes = parsed.notes
+  }
+  if (parsed.intro_cues !== undefined) {
+    song.intro_cues = parsed.intro_cues
   }
   return { ok: true, song }
 }
