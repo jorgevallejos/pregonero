@@ -256,6 +256,15 @@ html, body, #root {
   color: #a0a0a5;
 }
 
+.control-intro-cues {
+  font-size: clamp(1.5em, 4.5vw, 2.6em);
+  font-weight: 400;
+  line-height: 1.3;
+  margin: 0.25em 0 0;
+  max-width: 90%;
+  color: #a0a0a5;
+}
+
 .control-performance-state {
   margin-top: 1.25em;
   display: flex;
