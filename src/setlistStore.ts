@@ -377,6 +377,7 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
+    ...(song.intro_cues !== undefined && song.intro_cues.length > 0 ? { intro_cues: song.intro_cues } : {}),
   }
   return libSong
 }
