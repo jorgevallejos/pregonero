@@ -52,9 +52,21 @@ export function useSongNavigation(): {
   const [blank, setBlankState] = useState(getBlank)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Sync from storage only; do not auto-load a default song on startup
+  // Sync from storage on mount. On a fresh control-window session (liveLyricLaunched not yet
+  // set by App), reset the song position so a stale localStorage index from the previous
+  // session does not make the performer start mid-song.
   useEffect(() => {
-    const { lines: storedLines, index: storedIndex, blank: storedBlank } = getSyncedLyricState()
+    const isControlWindow = typeof window !== 'undefined' && window.location.hash !== '#/projection'
+    const isNewSession = isControlWindow && !sessionStorage.getItem('liveLyricLaunched')
+    const { lines: storedLines } = getSyncedLyricState()
+    let storedIndex = getSongIndex()
+    let storedBlank = getBlank()
+    if (isNewSession && storedIndex >= 0) {
+      setSongIndex(-1)
+      setBlank(true)
+      storedIndex = -1
+      storedBlank = true
+    }
     setLines(storedLines)
     setIndexState(storedIndex)
     setBlankState(storedBlank)
