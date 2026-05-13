@@ -14,6 +14,7 @@ import {
   setBlank,
   setCurrentSongId,
   setProjectionLanguage,
+  setSingingLanguage,
 } from './songState'
 import type { SongItem } from './songState'
 import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
@@ -276,5 +277,120 @@ describe('Projection screen', () => {
     await waitFor(() => {
       expect(screen.getByText('Hello')).toBeTruthy()
     })
+  })
+})
+
+const SONG_LINES: SongItem[] = [
+  { languages: { es: 'Hola', en: 'Hello' } },
+  { languages: { es: 'Mundo', en: 'World' } },
+]
+
+function setupIntroScreenState(song: {
+  id: string
+  title: string
+  items: SongItem[]
+  title_translations?: Record<string, string>
+  intro?: Record<string, string>
+}) {
+  saveSetlistStore(createInitialSnapshot([song]))
+  sessionStorage.setItem('liveLyricLaunched', '1')
+  setSongLines(song.items)
+  setSongIndex(-1)
+  setBlank(true)
+  setCurrentSongId(song.id)
+  setProjectionLanguage('en')
+  setSingingLanguage('es')
+  window.location.hash = '#/projection'
+}
+
+describe('Song intro screen on projection (ARMED + index === -1)', () => {
+  const WAIT_TIMEOUT = 3000
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  it('shows the song title on the intro screen when a song is loaded and not started', async () => {
+    setupIntroScreenState({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
+  })
+
+  it('shows translated title in parentheses when projection lang differs and translation exists', async () => {
+    setupIntroScreenState({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+      title_translations: { en: 'Tragedy of Roasted Pig' },
+    })
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('(Tragedy of Roasted Pig)')).toBeTruthy()
+  })
+
+  it('shows intro tagline in projection language when intro is present', async () => {
+    setupIntroScreenState({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+      intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
+    })
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('Fight your destiny.')).toBeTruthy()
+  })
+
+  it('shows only the title when title_translations and intro are absent', async () => {
+    setupIntroScreenState({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
+    expect(document.querySelector('.projection-intro-translated-title')).toBeNull()
+    expect(document.querySelector('.projection-intro-tagline')).toBeNull()
+  })
+
+  it('intro screen is gone once index moves to 0 (first lyric)', async () => {
+    setupIntroScreenState({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    setSongIndex(0)
+    setBlank(false)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    }, { timeout: WAIT_TIMEOUT })
   })
 })
