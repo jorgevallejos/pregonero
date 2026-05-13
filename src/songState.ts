@@ -183,11 +183,7 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
     }
     if (Object.keys(map).length > 0) out.title_translations = map
   }
-  if (Object.prototype.hasOwnProperty.call(raw, 'intro_cues')) {
-    throw new Error(
-      'Song file "intro_cues" is no longer supported. Use "intro" (translations object) instead.'
-    )
-  }
+  // intro_cues (old string field) is silently dropped; use "intro" object instead
   if (Object.prototype.hasOwnProperty.call(raw, 'intro')) {
     const intr = raw.intro
     if (intr === null || typeof intr !== 'object' || Array.isArray(intr)) {
