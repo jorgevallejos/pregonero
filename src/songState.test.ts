@@ -571,6 +571,60 @@ describe('parseSongFile', () => {
     })
     expect(() => parseSongFile(json)).toThrow(/"intro_cues" must be a string/)
   })
+
+  it('optional "title_translations" object is parsed and whitespace-only values are dropped', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: 'English Title', fr: '  ', nl: 'Dutch Title' },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toEqual({ en: 'English Title', nl: 'Dutch Title' })
+  })
+
+  it('when "title_translations" is absent, result has no title_translations property', () => {
+    const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when "title_translations" is an empty object, result has no title_translations property', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: {},
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when all "title_translations" values are whitespace-only, result has no title_translations property', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: '  ', fr: '\t' },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when "title_translations" is not an object, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: 'not an object',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"title_translations" must be an object/)
+  })
+
+  it('when a "title_translations" value is not a string, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: 42 },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"title_translations" values must be strings/)
+  })
 })
 
 describe('parseSongRecordFromUnknown', () => {

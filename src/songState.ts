@@ -139,6 +139,8 @@ export interface ParsedSongFile {
   notes?: string
   /** Stage memory cues shown on the first performer screen. Omitted when not present. */
   intro_cues?: string
+  /** Title translated into other languages, keyed by language code. Omitted when not present. */
+  title_translations?: Record<string, string>
 }
 
 /**
@@ -165,6 +167,21 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
     if (trimmed.length > 0) {
       out.notes = trimmed
     }
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'title_translations')) {
+    const tt = raw.title_translations
+    if (tt === null || typeof tt !== 'object' || Array.isArray(tt)) {
+      throw new Error('Song file "title_translations" must be an object when present')
+    }
+    const map: Record<string, string> = {}
+    for (const [k, v] of Object.entries(tt as Record<string, unknown>)) {
+      if (typeof v !== 'string') {
+        throw new Error('Song file "title_translations" values must be strings')
+      }
+      const trimmed = v.trim()
+      if (trimmed.length > 0) map[k] = trimmed
+    }
+    if (Object.keys(map).length > 0) out.title_translations = map
   }
   if (Object.prototype.hasOwnProperty.call(raw, 'intro_cues')) {
     const c = raw.intro_cues
