@@ -135,6 +135,52 @@ describe('setlistStore', () => {
     })
   })
 
+  describe('v2 migration (drop intro_cues, bump to v3)', () => {
+    it('strips intro_cues from library songs and persists as v3', async () => {
+      const v2Snapshot = {
+        version: 2,
+        songLibrary: {
+          songs: [
+            { id: 'a', title: 'Alpha', items: [LYRIC], intro_cues: 'Press pedal to start' },
+            { id: 'b', title: 'Bravo', items: [LYRIC] },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a', 'b'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v2Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]).not.toHaveProperty('intro_cues')
+      expect(snap.songLibrary.songs[0]!.title).toBe('Alpha')
+      expect(snap.songLibrary.songs[1]).not.toHaveProperty('intro_cues')
+
+      const persisted = loadSetlistStore()
+      expect(persisted).not.toBeNull()
+      expect(persisted!.version).toBe(SETLIST_STORE_VERSION)
+      expect(persisted!.songLibrary.songs[0]).not.toHaveProperty('intro_cues')
+    })
+
+    it('migrates a v2 snapshot without intro_cues and sets version to v3', async () => {
+      const v2Snapshot = {
+        version: 2,
+        songLibrary: {
+          songs: [{ id: 'a', title: 'Alpha', items: [LYRIC], notes: 'Capo 2' }],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v2Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.notes).toBe('Capo 2')
+    })
+  })
+
   describe('v1 migration', () => {
     it('migrates v1 metadata-only rows to v2 with lyrics and notes from fetched files', async () => {
       const v1 = {
