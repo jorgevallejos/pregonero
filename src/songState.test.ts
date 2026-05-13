@@ -537,13 +537,16 @@ describe('parseSongFile', () => {
     expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
   })
 
-  it('when "intro_cues" is present, throws a migration error', () => {
+  it('when "intro_cues" is present, it is silently dropped and import succeeds', () => {
     const json = JSON.stringify({
       title: 'S',
       intro_cues: 'The leap of faith',
       lyrics: [{ es: 'A', en: 'B' }],
     })
-    expect(() => parseSongFile(json)).toThrow(/intro_cues.*no longer supported.*intro/)
+    const result = parseSongFile(json)
+    expect(result.title).toBe('S')
+    expect(result).not.toHaveProperty('intro_cues')
+    expect(result.intro).toBeUndefined()
   })
 
   it('optional "intro" object is parsed and whitespace-only values are dropped', () => {
