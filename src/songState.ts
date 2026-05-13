@@ -187,17 +187,18 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
   if (Object.prototype.hasOwnProperty.call(raw, 'intro')) {
     const intr = raw.intro
     if (intr === null || typeof intr !== 'object' || Array.isArray(intr)) {
-      throw new Error('Song file "intro" must be an object when present')
-    }
-    const map: Record<string, string> = {}
-    for (const [k, v] of Object.entries(intr as Record<string, unknown>)) {
-      if (typeof v !== 'string') {
-        throw new Error('Song file "intro" values must be strings')
+      // plain string or non-object intro: silently drop (old format or single-lang value)
+    } else {
+      const map: Record<string, string> = {}
+      for (const [k, v] of Object.entries(intr as Record<string, unknown>)) {
+        if (typeof v !== 'string') {
+          throw new Error('Song file "intro" values must be strings')
+        }
+        const trimmed = v.trim()
+        if (trimmed.length > 0) map[k] = trimmed
       }
-      const trimmed = v.trim()
-      if (trimmed.length > 0) map[k] = trimmed
+      if (Object.keys(map).length > 0) out.intro = map
     }
-    if (Object.keys(map).length > 0) out.intro = map
   }
   return out
 }

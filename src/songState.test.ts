@@ -585,13 +585,15 @@ describe('parseSongFile', () => {
     expect(result.intro).toBeUndefined()
   })
 
-  it('when "intro" is not an object, throws an error', () => {
+  it('when "intro" is a plain string, it is silently dropped and import succeeds', () => {
     const json = JSON.stringify({
       title: 'S',
       intro: 'a plain string',
       lyrics: [{ es: 'A', en: 'B' }],
     })
-    expect(() => parseSongFile(json)).toThrow(/"intro" must be an object/)
+    const result = parseSongFile(json)
+    expect(result.title).toBe('S')
+    expect(result.intro).toBeUndefined()
   })
 
   it('when an "intro" value is not a string, throws an error', () => {
