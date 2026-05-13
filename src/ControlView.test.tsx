@@ -5701,3 +5701,102 @@ describe('Control pre-first-lyric notes display', () => {
     })
   })
 })
+
+describe('Control pre-first-lyric intro display', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+  })
+
+  function setupArmedSongForIntroTest(song: {
+    id: string
+    title: string
+    items: SongItem[]
+    intro?: Record<string, string>
+  }) {
+    saveSetlistStore(createInitialSnapshot([song]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(song.items)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(song.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+  }
+
+  const WAIT_TIMEOUT = 3000
+
+  it('shows intro[projectionLang] in the middle slot when armed before the first lyric', async () => {
+    setupArmedSongForIntroTest({
+      id: 'song-intro',
+      title: 'Tragedia',
+      items: VALID_LINES,
+      intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Fight your destiny.')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(document.querySelector('.control-song-intro')).toBeTruthy()
+  })
+
+  it('shows nothing extra when song has no intro field', async () => {
+    setupArmedSongForIntroTest({
+      id: 'song-no-intro',
+      title: 'Tragedia',
+      items: VALID_LINES,
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(document.querySelector('.control-song-intro')).toBeNull()
+  })
+
+  it('never shows intro_cues text (regression)', async () => {
+    setupArmedSongForIntroTest({
+      id: 'song-regression',
+      title: 'Tragedia',
+      items: VALID_LINES,
+    })
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/Press Next to reveal/)).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(document.querySelector('.control-intro-cues')).toBeNull()
+  })
+})
