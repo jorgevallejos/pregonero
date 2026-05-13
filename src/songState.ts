@@ -137,10 +137,10 @@ export interface ParsedSongFile {
   items: SongItem[]
   /** Free-text performance notes (capo, mood, cues). Omitted when not present in the file. */
   notes?: string
-  /** Stage memory cues shown on the first performer screen. Omitted when not present. */
-  intro_cues?: string
   /** Title translated into other languages, keyed by language code. Omitted when not present. */
   title_translations?: Record<string, string>
+  /** One-line intro tagline per language shown on the intro screen. Omitted when not present. */
+  intro?: Record<string, string>
 }
 
 /**
@@ -184,14 +184,24 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
     if (Object.keys(map).length > 0) out.title_translations = map
   }
   if (Object.prototype.hasOwnProperty.call(raw, 'intro_cues')) {
-    const c = raw.intro_cues
-    if (typeof c !== 'string') {
-      throw new Error('Song file "intro_cues" must be a string when present')
+    throw new Error(
+      'Song file "intro_cues" is no longer supported. Use "intro" (translations object) instead.'
+    )
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'intro')) {
+    const intr = raw.intro
+    if (intr === null || typeof intr !== 'object' || Array.isArray(intr)) {
+      throw new Error('Song file "intro" must be an object when present')
     }
-    const trimmed = c.trim()
-    if (trimmed.length > 0) {
-      out.intro_cues = trimmed
+    const map: Record<string, string> = {}
+    for (const [k, v] of Object.entries(intr as Record<string, unknown>)) {
+      if (typeof v !== 'string') {
+        throw new Error('Song file "intro" values must be strings')
+      }
+      const trimmed = v.trim()
+      if (trimmed.length > 0) map[k] = trimmed
     }
+    if (Object.keys(map).length > 0) out.intro = map
   }
   return out
 }
