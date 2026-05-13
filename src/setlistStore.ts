@@ -32,6 +32,10 @@ export type LibrarySong = {
   items: SongItem[]
   /** Performance notes (capo, cues); omitted when absent. */
   notes?: string
+  /** Title translated into other languages, keyed by language code. Omitted when absent. */
+  title_translations?: Record<string, string>
+  /** One-line intro tagline per language shown on the intro screen. Omitted when absent. */
+  intro?: Record<string, string>
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -64,6 +68,14 @@ function isLibrarySong(v: unknown): v is LibrarySong {
   if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
   if (tryParsePersistedSongItemsArray(o.items) === null) return false
   if (o.notes !== undefined && typeof o.notes !== 'string') return false
+  if (o.title_translations !== undefined) {
+    if (typeof o.title_translations !== 'object' || o.title_translations === null || Array.isArray(o.title_translations)) return false
+    if (!Object.values(o.title_translations as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
+  if (o.intro !== undefined) {
+    if (typeof o.intro !== 'object' || o.intro === null || Array.isArray(o.intro)) return false
+    if (!Object.values(o.intro as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
   return true
 }
 
@@ -191,6 +203,8 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
+    ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
+    ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -406,6 +420,8 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
+    ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
+    ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
   }
   return libSong
 }
@@ -687,6 +703,12 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   const song: LibrarySong = { id, title, items: parsed.items }
   if (parsed.notes !== undefined) {
     song.notes = parsed.notes
+  }
+  if (parsed.title_translations !== undefined) {
+    song.title_translations = parsed.title_translations
+  }
+  if (parsed.intro !== undefined) {
+    song.intro = parsed.intro
   }
   return { ok: true, song }
 }
