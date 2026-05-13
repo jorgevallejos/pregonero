@@ -420,6 +420,57 @@ describe('setlistStore', () => {
     })
   })
 
+  describe('title_translations and intro round-trip through library', () => {
+    it('persists title_translations and intro when importing a song with those fields', async () => {
+      await ensureSongLibraryHydrated()
+      const json = JSON.stringify({
+        id: 'song-with-extras',
+        title: 'Tragedia',
+        lyrics: [{ es: 'línea', en: 'line' }],
+        title_translations: { en: 'Tragedy', nl: 'Tragedie' },
+        intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
+      })
+      const r = importSongFromJsonText(json)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      const loaded = loadSetlistStore()!.songLibrary.songs.find((s) => s.id === 'song-with-extras')
+      expect(loaded).toBeDefined()
+      expect(loaded!.title_translations).toEqual({ en: 'Tragedy', nl: 'Tragedie' })
+      expect(loaded!.intro).toEqual({ es: 'Pelea con tu destino.', en: 'Fight your destiny.' })
+    })
+
+    it('stores song without title_translations and intro when those fields are absent', async () => {
+      await ensureSongLibraryHydrated()
+      const json = JSON.stringify({
+        id: 'song-minimal',
+        title: 'Minimal',
+        lyrics: [{ es: 'a', en: 'b' }],
+      })
+      const r = importSongFromJsonText(json)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      const loaded = loadSetlistStore()!.songLibrary.songs.find((s) => s.id === 'song-minimal')
+      expect(loaded).toBeDefined()
+      expect(loaded!.title_translations).toBeUndefined()
+      expect(loaded!.intro).toBeUndefined()
+    })
+
+    it('round-trips title_translations and intro through addSongToLibrary', async () => {
+      await ensureSongLibraryHydrated()
+      const song: LibrarySong = {
+        id: 'direct-add',
+        title: 'Direct',
+        items: [LYRIC],
+        title_translations: { en: 'Direct EN' },
+        intro: { en: 'One-liner.' },
+      }
+      expect(addSongToLibrary(song)).toBe(true)
+      const loaded = loadSetlistStore()!.songLibrary.songs.find((s) => s.id === 'direct-add')
+      expect(loaded!.title_translations).toEqual({ en: 'Direct EN' })
+      expect(loaded!.intro).toEqual({ en: 'One-liner.' })
+    })
+  })
+
   describe('addSongToLibrary', () => {
     it('appends a song and persists full items and optional notes', async () => {
       await ensureSongLibraryHydrated()
