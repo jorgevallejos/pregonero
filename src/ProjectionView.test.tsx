@@ -18,6 +18,7 @@ import {
 } from './songState'
 import type { SongItem } from './songState'
 import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
+import { KEY_ARMED_BROADCAST } from './performanceState'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -98,6 +99,21 @@ function getProjectionNextPreview() {
   return document.querySelector('[data-testid="projection-next-preview"]')
 }
 
+/** Helper: flush React effects so the arm-transition flag registers. */
+async function flushEffects() {
+  await act(async () => { await Promise.resolve() })
+}
+
+/** Helper: trigger a generic storage update so useSongNavigation re-reads localStorage. */
+function dispatchStorageUpdate() {
+  window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+}
+
+/** Helper: fire the arm broadcast so ProjectionView sets hasSeenArmedSinceMount = true. */
+function simulateArm() {
+  window.dispatchEvent(new StorageEvent('storage', { key: KEY_ARMED_BROADCAST, newValue: '1' }))
+}
+
 describe('Projection screen', () => {
   beforeEach(() => {
     cleanup()
@@ -107,8 +123,13 @@ describe('Projection screen', () => {
   })
 
   it('shows only the current translated lyric line (no next-line preview)', async () => {
-    setupProjectionStorage(TWO_LINES, 0, false)
+    setupProjectionStorage(TWO_LINES, -1, true)
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(screen.getByText('Hello')).toBeTruthy()
@@ -118,8 +139,13 @@ describe('Projection screen', () => {
   })
 
   it('does not show control performance timer/status button UI on projection screen', async () => {
-    setupProjectionStorage(TWO_LINES, 0, false)
+    setupProjectionStorage(TWO_LINES, -1, true)
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(screen.getByText('Hello')).toBeTruthy()
@@ -130,8 +156,13 @@ describe('Projection screen', () => {
   })
 
   it('does not show any next-line preview when on last line', async () => {
-    setupProjectionStorage(TWO_LINES, 1, false)
+    setupProjectionStorage(TWO_LINES, -1, true)
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(1)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(screen.getByText('World')).toBeTruthy()
@@ -141,8 +172,13 @@ describe('Projection screen', () => {
   })
 
   it('shows only current lyric when a section marker follows (no preview)', async () => {
-    setupProjectionStorage(LINES_WITH_SECTION, 0, false)
+    setupProjectionStorage(LINES_WITH_SECTION, -1, true)
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(screen.getByText('First')).toBeTruthy()
@@ -152,8 +188,13 @@ describe('Projection screen', () => {
   })
 
   it('respects newline characters inside a single lyric phrase (manual line breaks)', async () => {
-    setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, 0, false)
+    setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, -1, true)
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       const lyric = document.querySelector('.projection-lyric')
@@ -172,10 +213,15 @@ describe('Projection screen', () => {
   it('preserves multiple consecutive newlines inside one phrase', async () => {
     setupProjectionStorage(
       [{ languages: { en: 'Line one\n\nLine two' } }],
-      0,
-      false
+      -1,
+      true
     )
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(document.querySelector('.projection-lyric')?.textContent).toBe('Line one\n\nLine two')
@@ -188,12 +234,19 @@ describe('Projection screen', () => {
   it('keeps the current lyric at full opacity until the phrase display duration elapses, then starts fade-out', async () => {
     vi.useFakeTimers()
     try {
-      setupProjectionStorage(TWO_LINES, 0, false)
+      setupProjectionStorage(TWO_LINES, -1, true)
       render(<App initialHash="#/projection" />)
+      simulateArm()
 
-      await act(async () => {
-        await Promise.resolve()
-      })
+      // Flush arm-transition effect with real microtasks (fake timers don't block this).
+      await act(async () => { await Promise.resolve() })
+
+      // Advance to first lyric.
+      setSongIndex(0)
+      setBlank(false)
+      dispatchStorageUpdate()
+      await act(async () => { await Promise.resolve() })
+
       const lyric = screen.getByText('Hello')
       expect(lyric.style.opacity).toBe('1')
 
@@ -218,12 +271,19 @@ describe('Projection screen', () => {
     ]
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(LINES)
-    setSongIndex(0)
-    setBlank(false)
+    setSongIndex(-1)
+    setBlank(true)
     setCurrentSongId('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
     render(<App initialHash="#/projection" />)
+    simulateArm()
+
+    // Flush effects so hasSeenArmedSinceMount settles, then advance to first lyric.
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
 
     await waitFor(() => {
       expect(screen.getByText('One')).toBeTruthy()
@@ -232,7 +292,7 @@ describe('Projection screen', () => {
     setProjectionLanguage('fr')
     setSongIndex(-1)
     setBlank(true)
-    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+    dispatchStorageUpdate()
 
     await waitFor(
       () => {
@@ -269,6 +329,8 @@ describe('Projection screen', () => {
     setupProjectionStorage(TWO_LINES, -1, true)
     setCurrentSongId('with-notes')
     render(<App initialHash="#/projection" />)
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
 
     setSongIndex(0)
     setBlank(false)
@@ -303,6 +365,129 @@ function setupIntroScreenState(song: {
   window.location.hash = '#/projection'
 }
 
+describe('Projection lifecycle: logo on mount, intro on arm', () => {
+  const PERF_SONG = {
+    id: 'perf-song',
+    title: 'Performance Song',
+    items: [{ languages: { es: 'Hola', en: 'Hello' } }] as SongItem[],
+  }
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  it('shows the logo when mounted mid-song (index 3), not the current lyric', async () => {
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines([
+      { languages: { es: 'L1', en: 'L1' } },
+      { languages: { es: 'L2', en: 'L2' } },
+      { languages: { es: 'L3', en: 'L3' } },
+      { languages: { es: 'L4', en: 'L4' } },
+    ])
+    setSongIndex(3)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.queryByText('L4')).toBeNull()
+    const logo = document.querySelector('img[aria-hidden="true"]') as HTMLElement
+    expect(logo).toBeTruthy()
+    expect(logo.style.opacity).toBe('1')
+  })
+
+  it('shows intro screen after arm transition (non-armed to armed)', async () => {
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    setSongIndex(-1)
+    setBlank(true)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+  })
+
+  it('shows first lyric after arm transition followed by advancing to index 0', async () => {
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    setSongIndex(-1)
+    setBlank(true)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    setSongIndex(0)
+    setBlank(false)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: 3000 })
+  })
+
+  it('shows logo again after unmount and remount during performing', async () => {
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    const { unmount } = render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+    unmount()
+    cleanup()
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.queryByText('Hello')).toBeNull()
+    const logo = document.querySelector('img[aria-hidden="true"]') as HTMLElement
+    expect(logo).toBeTruthy()
+    expect(logo.style.opacity).toBe('1')
+  })
+})
+
 describe('Song intro screen on projection (ARMED + index === -1)', () => {
   const WAIT_TIMEOUT = 3000
 
@@ -320,6 +505,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       items: SONG_LINES,
     })
     render(<App initialHash="#/projection" />)
+    simulateArm()
 
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -335,6 +521,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       title_translations: { en: 'Tragedy of Roasted Pig' },
     })
     render(<App initialHash="#/projection" />)
+    simulateArm()
 
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -350,6 +537,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
     })
     render(<App initialHash="#/projection" />)
+    simulateArm()
 
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -364,6 +552,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       items: SONG_LINES,
     })
     render(<App initialHash="#/projection" />)
+    simulateArm()
 
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -380,6 +569,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       items: SONG_LINES,
     })
     render(<App initialHash="#/projection" />)
+    simulateArm()
 
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
