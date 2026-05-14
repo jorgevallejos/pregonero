@@ -95,6 +95,12 @@ function queryArmedTransportNextButton() {
   return document.querySelector('button.ctrl-next')
 }
 
+/** Click Next twice to reach the last lyric of VALID_LINES (2-item song). */
+async function navigateToLastLyric() {
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /next/i })) })
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /next/i })) })
+}
+
 function setupControlViewWithReadinessPassing() {
   sessionStorage.setItem('liveLyricLaunched', '1')
   sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -815,7 +821,6 @@ describe('v0.5 control screen state machine integration', () => {
   describe('End-of-song behaviour', () => {
     it('when armed and current phrase is the last lyric phrase, Unarm button uses same green style as Arm (ctrl-arm)', async () => {
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -827,6 +832,7 @@ describe('v0.5 control screen state machine integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
+      await navigateToLastLyric()
 
       const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
       expect(unarmBtn.classList.contains('ctrl-arm')).toBe(true)
@@ -836,7 +842,6 @@ describe('v0.5 control screen state machine integration', () => {
     it('when armed and at last lyric phrase, single click on Unarm unarms immediately (no hold required)', async () => {
       setupControlViewWithReadinessPassing()
       setActiveSetlistSongIds(['duelo'])
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -848,6 +853,7 @@ describe('v0.5 control screen state machine integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
+      await navigateToLastLyric()
       expect(screen.getByText('Mundo')).toBeTruthy()
 
       await act(async () => {
@@ -884,7 +890,6 @@ describe('v0.5 control screen state machine integration', () => {
 
     it('when armed at last phrase then user restarts, Unarm returns to normal style and hold-to-confirm', async () => {
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -896,6 +901,7 @@ describe('v0.5 control screen state machine integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
+      await navigateToLastLyric()
       const unarmAtEnd = screen.getByRole('button', { name: /^Unarm/ })
       expect(unarmAtEnd.classList.contains('ctrl-arm')).toBe(true)
 
@@ -924,7 +930,6 @@ describe('v0.5 control screen state machine integration', () => {
 
     it('when armed at last phrase then user goes Previous, Unarm returns to normal style and hold-to-confirm', async () => {
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -936,6 +941,7 @@ describe('v0.5 control screen state machine integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
+      await navigateToLastLyric()
       expect(screen.getByRole('button', { name: /^Unarm/ }).classList.contains('ctrl-arm')).toBe(true)
 
       await act(async () => {
@@ -957,8 +963,6 @@ describe('v0.5 control screen state machine integration', () => {
     it('shows the last phrase immediately and disables Next at end-of-song', async () => {
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      // End-of-song position (last lyric phrase)
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(
@@ -971,6 +975,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
 
       expect(screen.getByText('Mundo')).toBeTruthy()
       expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true)
@@ -982,7 +987,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await act(async () => {
@@ -993,6 +997,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
 
       expect(screen.getByText('Mundo')).toBeTruthy()
       expect(screen.queryByTestId('next-song-tile')).toBeNull()
@@ -1023,7 +1028,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await act(async () => {
@@ -1034,6 +1038,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
 
       const stage = screen.getByTestId('performing-content')
       expect(stage.classList.contains('control-performing-stage')).toBe(true)
@@ -1087,7 +1092,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await act(async () => {
@@ -1098,6 +1102,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
       act(() => {
         vi.advanceTimersByTime(6_000)
       })
@@ -1111,7 +1116,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await act(async () => {
@@ -1122,6 +1126,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
       act(() => {
         vi.advanceTimersByTime(6_000)
       })
@@ -1141,7 +1146,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
     await act(async () => {
@@ -1152,6 +1156,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
       act(() => {
         vi.advanceTimersByTime(6_000)
       })
@@ -1181,7 +1186,6 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await act(async () => {
@@ -1191,6 +1195,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         fireEvent.click(getArmButton())
       })
+      await navigateToLastLyric()
 
       act(() => {
         vi.advanceTimersByTime(5_000)
@@ -4572,7 +4577,6 @@ describe('ControlView performer state flow', () => {
   describe('Played song indicator', () => {
     it('when performer unarms at end-of-song, current song is marked as played', async () => {
       setupControlViewWithReadinessPassing()
-      setSongIndex(1)
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
@@ -4584,6 +4588,7 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
+      await navigateToLastLyric()
       expect(getPlayedSongIds()).not.toContain('duelo')
 
       await act(async () => {
@@ -4743,8 +4748,8 @@ describe('ControlView performer state flow', () => {
       addPlayedSong('duelo')
       setCurrentSongId('duelo')
       setSongLines(VALID_LINES)
-      setSongIndex(1)
-      setBlank(false)
+      setSongIndex(-1)
+      setBlank(true)
       setProjectionLanguage('en')
       setSingingLanguage('es')
       sessionStorage.setItem('liveLyricLaunched', '1')
@@ -4771,6 +4776,7 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Armed/)
       })
+      await navigateToLastLyric()
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
@@ -5060,8 +5066,8 @@ describe('Control next-line preview', () => {
     // Prevent end-of-song next-song tile from replacing the lyric display.
     setActiveSetlistSongIds(['duelo'])
     setSongLines(VALID_LINES)
-    setSongIndex(1)
-    setBlank(false)
+    setSongIndex(-1)
+    setBlank(true)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
@@ -5073,6 +5079,7 @@ describe('Control next-line preview', () => {
     await act(async () => {
       fireEvent.click(getArmButton())
     })
+    await navigateToLastLyric()
 
     await waitFor(() => {
       expect(screen.getByText('Mundo')).toBeTruthy()
@@ -5419,8 +5426,6 @@ describe('Control performance timer/status button', () => {
     vi.useFakeTimers()
 
     setupControlViewWithReadinessPassing()
-    // Simulate end-of-song position so Unarm can happen immediately.
-    setSongIndex(1)
     render(<App initialHash="#/" />)
 
     await act(async () => {
@@ -5436,6 +5441,9 @@ describe('Control performance timer/status button', () => {
       await Promise.resolve()
     })
     expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+
+    // Navigate to last lyric so end-of-song single-click Unarm works.
+    await navigateToLastLyric()
 
     act(() => {
       vi.advanceTimersByTime(120_000)
