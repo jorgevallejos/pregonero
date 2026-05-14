@@ -1260,7 +1260,7 @@ html, body, #root {
 
 /* ---- Song intro screen (ARMED + not started) ---- */
 .projection-intro-screen {
-  --intro-title-size: clamp(2em, 6vw, 4.5em);
+  --intro-title-size: clamp(2.5em, 7vw, 5.5em);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1286,10 +1286,10 @@ html, body, #root {
   margin-top: 0.1em;
 }
 
-/* ~42% of title — nudged above the 35% slide ratio for room-distance readability */
+/* ~55% of title — enlarged for room-distance readability */
 .projection-intro-tagline {
   font-family: 'EB Garamond', Georgia, serif;
-  font-size: calc(var(--intro-title-size) * 0.42);
+  font-size: calc(var(--intro-title-size) * 0.55);
   font-weight: 400;
   font-style: italic;
   color: #a0a0a5;
