@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react'
 import App from './App'
 import {
@@ -19,6 +19,7 @@ import {
 import type { SongItem } from './songState'
 import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
 import { KEY_ARMED_BROADCAST } from './performanceState'
+import { KEY_END_CARD_VISIBLE } from './endCardState'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -582,5 +583,100 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('song-intro-screen')).toBeNull()
     }, { timeout: WAIT_TIMEOUT })
+  })
+})
+
+describe('End card screen on projection', () => {
+  const END_CARD_CONTENT = '# Thanks for listening\n\nChango Pepper'
+  const WAIT_TIMEOUT = 3000
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      text: vi.fn().mockResolvedValue(END_CARD_CONTENT),
+    }))
+  })
+
+  afterEach(() => {
+    localStorage.removeItem(KEY_END_CARD_VISIBLE)
+  })
+
+  function setupProjectionWithEndCard() {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+  }
+
+  it('shows end-card screen when KEY_END_CARD_VISIBLE is set in localStorage', async () => {
+    setupProjectionWithEndCard()
+    render(<App initialHash="#/projection" />)
+
+    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
+  it('end-card screen renders the content from end-card.md', async () => {
+    setupProjectionWithEndCard()
+    render(<App initialHash="#/projection" />)
+
+    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
+
+    await waitFor(() => {
+      const screen_ = screen.getByTestId('end-card-screen')
+      expect(screen_.textContent).toMatch(/Thanks for listening/)
+      expect(screen_.textContent).toMatch(/Chango Pepper/)
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
+  it('hides end-card screen when KEY_END_CARD_VISIBLE is removed from localStorage', async () => {
+    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
+    setupProjectionWithEndCard()
+    render(<App initialHash="#/projection" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    localStorage.removeItem(KEY_END_CARD_VISIBLE)
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('end-card-screen')).toBeNull()
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
+  it('normal lyric content is not shown while end-card is active', async () => {
+    setupProjectionWithEndCard()
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.queryByText('Hello')).toBeNull()
   })
 })
