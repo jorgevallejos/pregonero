@@ -6,12 +6,15 @@ export type CommandMessage = {
   action: 'next' | 'prev' | 'blankToggle' | 'setIndex'
   value?: number
 }
+export type SeekMessage = { type: 'command'; action: 'seek'; value: number }
 
 type Nav = {
   index: number
   blank: boolean
   applyRemoteState: (index: number, blank: boolean) => void
   applyCommand: (action: 'next' | 'prev' | 'blankToggle' | 'setIndex', value?: number) => void
+  /** Called when a `seek` command arrives. Only needed in video mode. */
+  onSeek?: (targetTime: number) => void
 }
 
 function getWsUrl(): string {
@@ -30,6 +33,7 @@ export function useWebSocket(nav: Nav | null): {
     value?: number,
     state?: { currentIndex: number; blank: boolean }
   ) => void
+  sendSeek: (targetTime: number) => void
 } {
   const wsRef = useRef<WebSocket | null>(null)
   const navRef = useRef(nav)
@@ -56,7 +60,9 @@ export function useWebSocket(nav: Nav | null): {
         if (msg.type === 'state') {
           n.applyRemoteState(Number(msg.currentIndex), Boolean(msg.blank))
         } else if (msg.type === 'command') {
-          if (msg.currentIndex !== undefined && msg.blank !== undefined) {
+          if (msg.action === 'seek' && typeof msg.value === 'number') {
+            n.onSeek?.(msg.value)
+          } else if (msg.currentIndex !== undefined && msg.blank !== undefined) {
             n.applyRemoteState(Number(msg.currentIndex), Boolean(msg.blank))
           } else {
             n.applyCommand(msg.action, msg.value)
@@ -103,5 +109,12 @@ export function useWebSocket(nav: Nav | null): {
     }
   }
 
-  return { sendCommand, sendState, sendCommandWithState }
+  const sendSeek = (targetTime: number) => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'command', action: 'seek', value: targetTime }))
+    }
+  }
+
+  return { sendCommand, sendState, sendCommandWithState, sendSeek }
 }
