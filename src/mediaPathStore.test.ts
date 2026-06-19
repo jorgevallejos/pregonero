@@ -1,0 +1,136 @@
+/** @vitest-environment jsdom */
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import {
+  getMediaPath,
+  setMediaPath,
+  removeMediaPath,
+  validateVideoForImport,
+  MEDIA_PATH_STORE_KEY,
+} from './mediaPathStore'
+
+function createStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+    removeItem: (key: string) => { store.delete(key) },
+    clear: () => { store.clear() },
+    key: (i: number) => [...store.keys()][i] ?? null,
+    get length() { return store.size },
+  }
+}
+
+beforeEach(() => {
+  vi.stubGlobal('localStorage', createStorage())
+})
+
+describe('getMediaPath', () => {
+  it('returns null when nothing is stored', () => {
+    expect(getMediaPath('tragedia.mp4')).toBeNull()
+  })
+
+  it('returns null for empty src', () => {
+    expect(getMediaPath('')).toBeNull()
+  })
+
+  it('returns the stored path after setMediaPath', () => {
+    setMediaPath('tragedia.mp4', '/Users/jorge/videos/tragedia.mp4')
+    expect(getMediaPath('tragedia.mp4')).toBe('/Users/jorge/videos/tragedia.mp4')
+  })
+
+  it('returns null for an unknown src when other paths exist', () => {
+    setMediaPath('tragedia.mp4', '/Users/jorge/videos/tragedia.mp4')
+    expect(getMediaPath('other.mp4')).toBeNull()
+  })
+})
+
+describe('setMediaPath', () => {
+  it('persists to localStorage under MEDIA_PATH_STORE_KEY', () => {
+    setMediaPath('song.mp4', '/absolute/path/song.mp4')
+    const raw = localStorage.getItem(MEDIA_PATH_STORE_KEY)
+    expect(raw).not.toBeNull()
+    const parsed = JSON.parse(raw!) as Record<string, string>
+    expect(parsed['song.mp4']).toBe('/absolute/path/song.mp4')
+  })
+
+  it('overwrites an existing path for the same src', () => {
+    setMediaPath('song.mp4', '/old/path.mp4')
+    setMediaPath('song.mp4', '/new/path.mp4')
+    expect(getMediaPath('song.mp4')).toBe('/new/path.mp4')
+  })
+
+  it('stores multiple src→path mappings independently', () => {
+    setMediaPath('a.mp4', '/path/a.mp4')
+    setMediaPath('b.mp4', '/path/b.mp4')
+    expect(getMediaPath('a.mp4')).toBe('/path/a.mp4')
+    expect(getMediaPath('b.mp4')).toBe('/path/b.mp4')
+  })
+
+  it('does nothing for empty src', () => {
+    setMediaPath('', '/path/file.mp4')
+    expect(localStorage.getItem(MEDIA_PATH_STORE_KEY)).toBeNull()
+  })
+
+  it('does nothing for empty absolutePath', () => {
+    setMediaPath('song.mp4', '')
+    expect(getMediaPath('song.mp4')).toBeNull()
+  })
+})
+
+describe('removeMediaPath', () => {
+  it('removes an existing mapping', () => {
+    setMediaPath('song.mp4', '/path/song.mp4')
+    removeMediaPath('song.mp4')
+    expect(getMediaPath('song.mp4')).toBeNull()
+  })
+
+  it('does not affect other mappings when removing one', () => {
+    setMediaPath('a.mp4', '/path/a.mp4')
+    setMediaPath('b.mp4', '/path/b.mp4')
+    removeMediaPath('a.mp4')
+    expect(getMediaPath('a.mp4')).toBeNull()
+    expect(getMediaPath('b.mp4')).toBe('/path/b.mp4')
+  })
+
+  it('is a no-op for unknown src', () => {
+    setMediaPath('a.mp4', '/path/a.mp4')
+    removeMediaPath('unknown.mp4')
+    expect(getMediaPath('a.mp4')).toBe('/path/a.mp4')
+  })
+})
+
+describe('validateVideoForImport', () => {
+  it('returns no warnings for a well-formed mp4', () => {
+    expect(validateVideoForImport('/path/video.mp4')).toEqual([])
+  })
+
+  it('returns no warnings for mp4 with file size below threshold', () => {
+    expect(validateVideoForImport('/path/video.mp4', 89_000_000)).toEqual([])
+  })
+
+  it('warns on .mov extension', () => {
+    expect(validateVideoForImport('/path/master.mov')).toContain('mov-or-prores')
+  })
+
+  it('warns on .MOV extension (case-insensitive)', () => {
+    expect(validateVideoForImport('/path/master.MOV')).toContain('mov-or-prores')
+  })
+
+  it('does not warn for .webm extension', () => {
+    expect(validateVideoForImport('/path/video.webm')).not.toContain('mov-or-prores')
+  })
+
+  it('warns on file larger than 500 MB', () => {
+    expect(validateVideoForImport('/path/huge.mp4', 600_000_000)).toContain('large-file')
+  })
+
+  it('does not warn on file exactly at 500 MB', () => {
+    expect(validateVideoForImport('/path/edge.mp4', 500_000_000)).not.toContain('large-file')
+  })
+
+  it('can produce both warnings at once', () => {
+    const warnings = validateVideoForImport('/path/huge.mov', 700_000_000)
+    expect(warnings).toContain('mov-or-prores')
+    expect(warnings).toContain('large-file')
+  })
+})

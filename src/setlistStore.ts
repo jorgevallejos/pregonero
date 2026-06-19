@@ -12,6 +12,7 @@ import {
   type ParsedSongFile,
   type SongItem,
   type TimelineEntry,
+  type MediaMetadata,
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
@@ -39,6 +40,8 @@ export type LibrarySong = {
   intro?: Record<string, string>
   /** Timing entries in seconds, one per item (including sections). Written by record-timeline mode. */
   timeline?: TimelineEntry[]
+  /** Optional video or audio media associated with this song (logical src + playback params). */
+  media?: MediaMetadata
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -91,6 +94,14 @@ function isLibrarySong(v: unknown): v is LibrarySong {
       )
     )
       return false
+  }
+  if (o.media !== undefined) {
+    if (o.media === null || typeof o.media !== 'object' || Array.isArray(o.media)) return false
+    const m = o.media as Record<string, unknown>
+    if (m.type !== 'video' && m.type !== 'audio') return false
+    if (typeof m.src !== 'string' || (m.src as string).trim().length === 0) return false
+    if (m.trimStart !== undefined && (typeof m.trimStart !== 'number' || (m.trimStart as number) < 0)) return false
+    if (m.offset !== undefined && (typeof m.offset !== 'number' || (m.offset as number) < 0)) return false
   }
   return true
 }
@@ -221,6 +232,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
     ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
     ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
+    ...(s.media !== undefined ? { media: { ...s.media } } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -293,6 +305,9 @@ async function migrateV1ToV2(
     const lib: LibrarySong = { id: row.id, title, items: parsed.items }
     if (parsed.notes !== undefined) {
       lib.notes = parsed.notes
+    }
+    if (parsed.media !== undefined) {
+      lib.media = parsed.media
     }
     songs.push(lib)
   }
@@ -438,6 +453,7 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
     ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
     ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
+    ...(song.media !== undefined ? { media: { ...song.media } } : {}),
   }
   return libSong
 }
@@ -725,6 +741,9 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   }
   if (parsed.intro !== undefined) {
     song.intro = parsed.intro
+  }
+  if (parsed.media !== undefined) {
+    song.media = parsed.media
   }
   return { ok: true, song }
 }

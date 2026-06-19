@@ -135,6 +135,8 @@ export interface TimelineEntry {
 export interface MediaMetadata {
   type: 'video' | 'audio'
   src: string
+  /** Seconds from the beginning of the file at which playback begins (skips blank lead-in). */
+  trimStart?: number
   offset?: number
 }
 
@@ -205,6 +207,13 @@ function validateMedia(media: unknown): MediaMetadata {
     throw new Error('Song file "media" src must be a non-empty string')
   }
   const result: MediaMetadata = { type, src: src.trim() }
+  const trimStart = obj.trimStart
+  if (trimStart !== undefined) {
+    if (typeof trimStart !== 'number' || trimStart < 0) {
+      throw new Error('Song file "media" trimStart must be a non-negative number when present')
+    }
+    result.trimStart = trimStart
+  }
   if (offset !== undefined) {
     if (typeof offset !== 'number' || offset < 0) {
       throw new Error('Song file "media" offset must be a non-negative number when present')
