@@ -1376,3 +1376,64 @@ html, body, #root {
   display: flex;
   gap: 1em;
 }
+
+/* ---- Display profile selector (setup panel, spans all columns) ---- */
+
+.ctrl-display-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  padding-top: 0.75em;
+  border-top: 1px solid #2c2c2e;
+}
+
+.ctrl-display-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #8e8e93;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ctrl-display-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  justify-content: center;
+  align-items: center;
+}
+
+.ctrl-custom-profile-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0;
+}
+
+.ctrl-custom-profile-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9em;
+  color: #a0a0a5;
+}
+
+.ctrl-custom-profile-input {
+  width: 4.5em;
+  padding: 0.3em 0.5em;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  border: 1px solid #444;
+  border-radius: 6px;
+  font-size: 1em;
+  text-align: center;
+}
+
+.ctrl-custom-profile-input:focus {
+  outline: none;
+  border-color: #636366;
+}
