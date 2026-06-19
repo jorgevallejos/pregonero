@@ -537,39 +537,126 @@ describe('parseSongFile', () => {
     expect(() => parseSongFile(json)).toThrow(/"notes" must be a string/)
   })
 
-  it('optional "intro_cues" string is parsed and trimmed', () => {
+  it('when "intro_cues" is present, it is silently dropped and import succeeds', () => {
     const json = JSON.stringify({
       title: 'S',
-      intro_cues: '  The leap of faith  ',
+      intro_cues: 'The leap of faith',
       lyrics: [{ es: 'A', en: 'B' }],
     })
     const result = parseSongFile(json)
-    expect(result.intro_cues).toBe('The leap of faith')
+    expect(result.title).toBe('S')
+    expect(result).not.toHaveProperty('intro_cues')
+    expect(result.intro).toBeUndefined()
   })
 
-  it('when "intro_cues" is omitted, result has no intro_cues property', () => {
+  it('optional "intro" object is parsed and whitespace-only values are dropped', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro: { es: 'Pelea con tu destino.', en: '  ', nl: 'Vecht tegen je lot.' },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.intro).toEqual({ es: 'Pelea con tu destino.', nl: 'Vecht tegen je lot.' })
+  })
+
+  it('when "intro" is absent, result has no intro property', () => {
     const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
     const result = parseSongFile(json)
-    expect(result.intro_cues).toBeUndefined()
+    expect(result.intro).toBeUndefined()
   })
 
-  it('when "intro_cues" is only whitespace, it is treated as absent', () => {
+  it('when "intro" is an empty object, result has no intro property', () => {
     const json = JSON.stringify({
       title: 'S',
-      intro_cues: '   ',
+      intro: {},
       lyrics: [{ es: 'A', en: 'B' }],
     })
     const result = parseSongFile(json)
-    expect(result.intro_cues).toBeUndefined()
+    expect(result.intro).toBeUndefined()
   })
 
-  it('when "intro_cues" is present but not a string, throws an error', () => {
+  it('when all "intro" values are whitespace-only, result has no intro property', () => {
     const json = JSON.stringify({
       title: 'S',
-      intro_cues: 99,
+      intro: { es: '  ', en: '\t' },
       lyrics: [{ es: 'A', en: 'B' }],
     })
-    expect(() => parseSongFile(json)).toThrow(/"intro_cues" must be a string/)
+    const result = parseSongFile(json)
+    expect(result.intro).toBeUndefined()
+  })
+
+  it('when "intro" is a plain string, it is silently dropped and import succeeds', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro: 'a plain string',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title).toBe('S')
+    expect(result.intro).toBeUndefined()
+  })
+
+  it('when an "intro" value is not a string, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      intro: { es: 42 },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"intro" values must be strings/)
+  })
+
+  it('optional "title_translations" object is parsed and whitespace-only values are dropped', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: 'English Title', fr: '  ', nl: 'Dutch Title' },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toEqual({ en: 'English Title', nl: 'Dutch Title' })
+  })
+
+  it('when "title_translations" is absent, result has no title_translations property', () => {
+    const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when "title_translations" is an empty object, result has no title_translations property', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: {},
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when all "title_translations" values are whitespace-only, result has no title_translations property', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: '  ', fr: '\t' },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    const result = parseSongFile(json)
+    expect(result.title_translations).toBeUndefined()
+  })
+
+  it('when "title_translations" is not an object, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: 'not an object',
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"title_translations" must be an object/)
+  })
+
+  it('when a "title_translations" value is not a string, throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      title_translations: { en: 42 },
+      lyrics: [{ es: 'A', en: 'B' }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/"title_translations" values must be strings/)
   })
 })
 

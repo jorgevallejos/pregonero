@@ -14,6 +14,8 @@ export interface PerformanceChecks {
 }
 
 const KEY_ARMED = 'liveLyricPerformanceArmed'
+// Written to localStorage (fires cross-window storage events) so the projection view can detect arm transitions.
+export const KEY_ARMED_BROADCAST = 'liveLyricArmedBroadcast'
 
 export function getPerformanceChecks(
   projectionOpen: boolean,
@@ -41,8 +43,14 @@ function setArmedInStorage(armed: boolean): void {
   if (typeof sessionStorage === 'undefined') return
   if (armed) {
     sessionStorage.setItem(KEY_ARMED, '1')
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(KEY_ARMED_BROADCAST, '1')
+    }
   } else {
     sessionStorage.removeItem(KEY_ARMED)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(KEY_ARMED_BROADCAST)
+    }
   }
 }
 

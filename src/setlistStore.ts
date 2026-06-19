@@ -14,8 +14,10 @@ import {
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
-/** v2: full song records (lyrics + optional notes) in the internal library. */
-export const SETLIST_STORE_VERSION = 2
+/** v3: full song records without intro_cues; adds title_translations and intro. */
+export const SETLIST_STORE_VERSION = 3
+/** v2 snapshots (full lyrics, optional intro_cues) are migrated on load. */
+export const SETLIST_STORE_VERSION_V2 = 2
 /** v1 snapshots (metadata + path only) are migrated on load. */
 export const SETLIST_STORE_VERSION_LEGACY = 1
 export const DEFAULT_SETLIST_ID = 'default-setlist'
@@ -30,8 +32,10 @@ export type LibrarySong = {
   items: SongItem[]
   /** Performance notes (capo, cues); omitted when absent. */
   notes?: string
-  /** Stage memory cues shown on the first performer screen; omitted when absent. */
-  intro_cues?: string
+  /** Title translated into other languages, keyed by language code. Omitted when absent. */
+  title_translations?: Record<string, string>
+  /** One-line intro tagline per language shown on the intro screen. Omitted when absent. */
+  intro?: Record<string, string>
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -64,7 +68,14 @@ function isLibrarySong(v: unknown): v is LibrarySong {
   if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
   if (tryParsePersistedSongItemsArray(o.items) === null) return false
   if (o.notes !== undefined && typeof o.notes !== 'string') return false
-  if (o.intro_cues !== undefined && typeof o.intro_cues !== 'string') return false
+  if (o.title_translations !== undefined) {
+    if (typeof o.title_translations !== 'object' || o.title_translations === null || Array.isArray(o.title_translations)) return false
+    if (!Object.values(o.title_translations as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
+  if (o.intro !== undefined) {
+    if (typeof o.intro !== 'object' || o.intro === null || Array.isArray(o.intro)) return false
+    if (!Object.values(o.intro as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
   return true
 }
 
@@ -76,21 +87,48 @@ function isSetlist(v: unknown): v is Setlist {
   return o.songIds.every((id) => isNonEmptyString(id))
 }
 
-function parseSnapshotV2(raw: unknown): SetlistStoreSnapshot | null {
+function parseSnapshotShape(
+  raw: unknown,
+  version: number
+): SetlistStoreSnapshot | null {
   if (raw === null || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
-  if (o.version !== SETLIST_STORE_VERSION) return null
+  if (o.version !== version) return null
   if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
   const lib = o.songLibrary as Record<string, unknown>
   if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySong)) return null
   if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
   if (typeof o.activeSetlistId !== 'string') return null
   return {
-    version: SETLIST_STORE_VERSION,
+    version,
     songLibrary: { songs: lib.songs as LibrarySong[] },
     setlists: o.setlists as Setlist[],
     activeSetlistId: o.activeSetlistId,
   }
+}
+
+function parseSnapshotV3(raw: unknown): SetlistStoreSnapshot | null {
+  return parseSnapshotShape(raw, SETLIST_STORE_VERSION)
+}
+
+function parseSnapshotV2(raw: unknown): SetlistStoreSnapshot | null {
+  return parseSnapshotShape(raw, SETLIST_STORE_VERSION_V2)
+}
+
+function migrateV2ToV3(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  const songs: LibrarySong[] = snap.songLibrary.songs.map((song) => {
+    const clean: LibrarySong = { id: song.id, title: song.title, items: song.items }
+    if (song.notes !== undefined) clean.notes = song.notes
+    return clean
+  })
+  const next: SetlistStoreSnapshot = {
+    ...snap,
+    version: SETLIST_STORE_VERSION,
+    songLibrary: { songs },
+  }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
 }
 
 /** Parses a v1 snapshot for migration (metadata + path only). */
@@ -165,7 +203,8 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
-    ...(s.intro_cues !== undefined && s.intro_cues.length > 0 ? { intro_cues: s.intro_cues } : {}),
+    ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
+    ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -182,7 +221,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
 }
 
 export function loadSetlistStore(): SetlistStoreSnapshot | null {
-  const parsed = parseSnapshotV2(readRaw())
+  const parsed = parseSnapshotV3(readRaw())
   if (!parsed) return null
   return repairSnapshot(parsed)
 }
@@ -277,6 +316,10 @@ export function ensureSongLibraryHydrated(
     hydrationInFlight = (async () => {
       const raw = readRaw()
       if (raw !== null && typeof raw === 'object') {
+        const v2 = parseSnapshotV2(raw)
+        if (v2) {
+          return migrateV2ToV3(v2)
+        }
         const v1 = parseSnapshotV1(raw)
         if (v1) {
           return migrateV1ToV2(v1, fetchSongJson)
@@ -377,7 +420,8 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
         : { languages: { ...(item as { languages: Record<string, string> }).languages } }
     ),
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
-    ...(song.intro_cues !== undefined && song.intro_cues.length > 0 ? { intro_cues: song.intro_cues } : {}),
+    ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
+    ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
   }
   return libSong
 }
@@ -660,8 +704,11 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   if (parsed.notes !== undefined) {
     song.notes = parsed.notes
   }
-  if (parsed.intro_cues !== undefined) {
-    song.intro_cues = parsed.intro_cues
+  if (parsed.title_translations !== undefined) {
+    song.title_translations = parsed.title_translations
+  }
+  if (parsed.intro !== undefined) {
+    song.intro = parsed.intro
   }
   return { ok: true, song }
 }
