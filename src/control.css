@@ -1692,3 +1692,90 @@ html, body, #root {
 .projection-end-card-line:empty {
   display: none;
 }
+
+/* ---- Beat indicator (performer view only) ---- */
+
+/* Count-in overlay: covers the performing stage area with a centred number + dot row */
+.beat-count-in-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background: rgba(28, 28, 30, 0.92);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.beat-count-in-number {
+  font-size: clamp(5rem, 20vw, 14rem);
+  font-weight: 300;
+  color: #b0b0b2;
+  line-height: 1;
+  transition: transform 80ms ease-out, color 80ms ease-out;
+}
+
+/* Downbeat: larger and brighter to guide the performer's eye */
+.beat-count-in-downbeat {
+  transform: scale(1.15);
+  color: #e5e5e5;
+  font-weight: 600;
+}
+
+.beat-count-in-dots {
+  display: flex;
+  gap: 0.6em;
+}
+
+.beat-count-in-dot {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background: #3c3c3e;
+  transition: background 80ms ease-out;
+}
+
+.beat-count-in-dot-active {
+  background: #e5e5e5;
+}
+
+/* Persistent small beat pulse shown during the song */
+.beat-pulse-wrap {
+  position: absolute;
+  top: 0.6em;
+  right: 0.6em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  z-index: 5;
+}
+
+@keyframes beat-pulse-anim {
+  0%   { opacity: 1; transform: scale(1.4); }
+  60%  { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0.4; transform: scale(1); }
+}
+
+.beat-pulse {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: #b0b0b2;
+  animation: beat-pulse-anim 0.35s ease-out forwards;
+}
+
+/* Downbeat pulse is brighter */
+.beat-pulse-down {
+  background: #e5e5e5;
+}
+
+.beat-pulse-toggle {
+  font-size: 0.75em;
+  padding: 0.15em 0.4em;
+  opacity: 0.6;
+  min-width: auto;
+}
