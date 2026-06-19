@@ -140,6 +140,13 @@ export interface MediaMetadata {
   offset?: number
 }
 
+/** Tempo for count-in and beat-pulse display in the performer view (mirrors SongTempo in setlistStore). */
+export interface SongTempoFromFile {
+  bpm: number
+  meter: number
+  countInBars?: number
+}
+
 /**
  * Parsed song file format: { title: string, lyrics: Array<LyricLineRaw | SectionMarker>, notes?: string }
  * Lyric line raw: { "es": "...", "en": "...", ... }
@@ -158,6 +165,8 @@ export interface ParsedSongFile {
   timeline?: TimelineEntry[]
   /** Optional media file (video or audio) to associate with the song. Omitted when not present. */
   media?: MediaMetadata
+  /** Optional tempo for count-in and beat-pulse display. Omitted when not present. */
+  tempo?: SongTempoFromFile
 }
 
 function validateTimeline(timeline: unknown, itemCount: number): TimelineEntry[] {
@@ -219,6 +228,27 @@ function validateMedia(media: unknown): MediaMetadata {
       throw new Error('Song file "media" offset must be a non-negative number when present')
     }
     result.offset = offset
+  }
+  return result
+}
+
+function validateTempo(tempo: unknown): SongTempoFromFile {
+  if (tempo === null || typeof tempo !== 'object' || Array.isArray(tempo)) {
+    throw new Error('Song file "tempo" must be an object when present')
+  }
+  const obj = tempo as Record<string, unknown>
+  if (typeof obj.bpm !== 'number' || obj.bpm <= 0) {
+    throw new Error('Song file "tempo.bpm" must be a positive number')
+  }
+  if (typeof obj.meter !== 'number' || !Number.isInteger(obj.meter) || obj.meter <= 0) {
+    throw new Error('Song file "tempo.meter" must be a positive integer')
+  }
+  const result: SongTempoFromFile = { bpm: obj.bpm, meter: obj.meter }
+  if (obj.countInBars !== undefined) {
+    if (typeof obj.countInBars !== 'number' || !Number.isInteger(obj.countInBars) || obj.countInBars <= 0) {
+      throw new Error('Song file "tempo.countInBars" must be a positive integer when present')
+    }
+    result.countInBars = obj.countInBars
   }
   return result
 }
@@ -292,6 +322,14 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
       out.media = validateMedia(m)
     } else {
       throw new Error('Song file "media" must be an object when present')
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'tempo')) {
+    const t = raw.tempo
+    if (t !== null && t !== undefined) {
+      out.tempo = validateTempo(t)
+    } else {
+      throw new Error('Song file "tempo" must be an object when present')
     }
   }
   return out
