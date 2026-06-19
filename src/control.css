@@ -1641,3 +1641,54 @@ html, body, #root {
   font-size: 0.9em;
   color: #636366;
 }
+
+/* ---- End Card (control) ---- */
+.bottom-buttons-secondary {
+  display: flex;
+  justify-content: center;
+  padding: 0.4em 1em 0.6em;
+  border-top: 1px solid #2c2c2e;
+}
+
+.ctrl-end-card {
+  background: #2c2c2e;
+  color: #e5e5e5;
+  border: 1px solid #3a3a3c;
+}
+
+.ctrl-end-card:hover {
+  background: #3a3a3c;
+}
+
+.ctrl-end-card-active {
+  background: #30303a;
+  color: #a0a0ff;
+  border: 1px solid #5050cc;
+}
+
+.ctrl-end-card-active:hover {
+  background: #3a3a5a;
+}
+
+/* ---- End Card (projection) ---- */
+.projection-end-card-screen {
+  font-family: 'EB Garamond', Georgia, serif;
+}
+
+.projection-end-card-line {
+  margin: 0;
+  font-size: clamp(1.2rem, 3.5vw, 2.8rem);
+  color: #e5e5e5;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.projection-end-card-line:first-child {
+  font-size: clamp(1.6rem, 5vw, 4rem);
+  font-weight: 600;
+  margin-bottom: 0.5em;
+}
+
+.projection-end-card-line:empty {
+  display: none;
+}
