@@ -31,6 +31,7 @@ import {
   areSetlistStoreSnapshotsEqual,
   cloneSetlistStoreSnapshot,
   getSetlistNamesContainingSongInSnapshot,
+  updateSongTimeline,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -885,6 +886,49 @@ describe('setlistStore', () => {
       expect(getSetlistNamesContainingSongInSnapshot(snap, 'a')).toEqual(['First', 'Second'])
       expect(getSetlistNamesContainingSongInSnapshot(snap, 'b')).toEqual(['Second'])
       expect(getSetlistNamesContainingSongInSnapshot(snap, 'ghost')).toEqual([])
+    })
+  })
+
+  describe('updateSongTimeline', () => {
+    it('saves a timeline onto the matching library song and persists', () => {
+      installTestStore()
+      const timeline = [
+        { start: 0, end: 2 },
+        { start: 2, end: 5 },
+      ]
+      const result = updateSongTimeline('a', timeline)
+      expect(result).toBe(true)
+      const stored = loadSetlistStore()!
+      const song = stored.songLibrary.songs.find((s) => s.id === 'a')!
+      expect(song.timeline).toEqual(timeline)
+    })
+
+    it('returns false when the song id is not in the library', () => {
+      installTestStore()
+      expect(updateSongTimeline('ghost', [{ start: 0, end: 1 }])).toBe(false)
+    })
+
+    it('returns false when the store is empty', () => {
+      // no installTestStore → store is empty
+      expect(updateSongTimeline('a', [{ start: 0, end: 1 }])).toBe(false)
+    })
+
+    it('does not alter other songs when updating one', () => {
+      installTestStore()
+      updateSongTimeline('a', [{ start: 0, end: 3 }])
+      const stored = loadSetlistStore()!
+      const songB = stored.songLibrary.songs.find((s) => s.id === 'b')!
+      expect(songB.timeline).toBeUndefined()
+    })
+
+    it('replaces an existing timeline when called again', () => {
+      installTestStore()
+      updateSongTimeline('a', [{ start: 0, end: 2 }])
+      const newTimeline = [{ start: 0, end: 10 }]
+      updateSongTimeline('a', newTimeline)
+      const stored = loadSetlistStore()!
+      const song = stored.songLibrary.songs.find((s) => s.id === 'a')!
+      expect(song.timeline).toEqual(newTimeline)
     })
   })
 })
