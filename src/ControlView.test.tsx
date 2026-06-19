@@ -26,6 +26,7 @@ import {
   parseSongFile,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
+import { KEY_END_CARD_VISIBLE, getEndCardVisible } from './endCardState'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
@@ -5806,5 +5807,113 @@ describe('Control pre-first-lyric intro display', () => {
       expect(screen.getByText(/Press Next to reveal/)).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
     expect(document.querySelector('.control-intro-cues')).toBeNull()
+  })
+})
+
+describe('End Card — control view', () => {
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+    localStorage.removeItem(KEY_END_CARD_VISIBLE)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+    localStorage.removeItem(KEY_END_CARD_VISIBLE)
+  })
+
+  it('End Card button is visible in ARMED state', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /end card/i })).toBeTruthy()
+  })
+
+  it('End Card button is NOT visible in SETUP or READY_TO_ARM state', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
+  })
+
+  it('clicking End Card sets the localStorage key and changes button label to Hide End Card', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
+    })
+
+    expect(getEndCardVisible()).toBe(true)
+    expect(screen.getByRole('button', { name: /hide end card/i })).toBeTruthy()
+  })
+
+  it('clicking Hide End Card removes the localStorage key and reverts label', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
+    })
+    expect(getEndCardVisible()).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /hide end card/i }))
+    })
+
+    expect(getEndCardVisible()).toBe(false)
+    expect(screen.getByRole('button', { name: /^End Card$/i })).toBeTruthy()
+  })
+
+  it('unarming automatically hides the end card', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
+    })
+    expect(getEndCardVisible()).toBe(true)
+
+    vi.useFakeTimers()
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => { fireEvent.pointerDown(unarmBtn) })
+    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+    vi.useRealTimers()
+
+    expect(getEndCardVisible()).toBe(false)
   })
 })
