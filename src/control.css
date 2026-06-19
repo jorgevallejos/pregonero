@@ -1295,3 +1295,84 @@ html, body, #root {
   color: #a0a0a5;
   margin-top: 2.5em;
 }
+
+/* ---- Record-timeline mode ---- */
+
+.ctrl-record-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  padding: 0.5em 0 0.25em;
+  flex-shrink: 0;
+}
+
+.ctrl-record {
+  background: #2c2c2e;
+  color: #b0b0b2;
+  border: 1px solid #444;
+}
+
+.ctrl-record:hover {
+  background: #3a3a3c;
+  color: #e5e5e5;
+}
+
+.ctrl-record-active {
+  background: #7c1d1d;
+  color: #ffc0c0;
+  border: 1px solid #b34040;
+}
+
+.ctrl-record-active:hover {
+  background: #9b2626;
+}
+
+.ctrl-record-indicator {
+  font-size: 0.85em;
+  color: #b0b0b2;
+  font-variant-numeric: tabular-nums;
+  min-width: 8em;
+}
+
+.ctrl-record-indicator-active {
+  color: #ffc0c0;
+  font-weight: 600;
+}
+
+/* ---- Timeline save dialog overlay ---- */
+
+.ctrl-timeline-save-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.ctrl-timeline-save-dialog {
+  background: #2c2c2e;
+  border: 1px solid #444;
+  border-radius: 0.75em;
+  padding: 1.5em 2em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25em;
+  max-width: 28em;
+  width: 90vw;
+  text-align: center;
+}
+
+.ctrl-timeline-save-message {
+  margin: 0;
+  font-size: 1em;
+  color: #e5e5e5;
+}
+
+.ctrl-timeline-save-actions {
+  display: flex;
+  gap: 1em;
+}

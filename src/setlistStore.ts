@@ -11,6 +11,7 @@ import {
   tryParsePersistedSongItemsArray,
   type ParsedSongFile,
   type SongItem,
+  type TimelineEntry,
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
@@ -36,6 +37,8 @@ export type LibrarySong = {
   title_translations?: Record<string, string>
   /** One-line intro tagline per language shown on the intro screen. Omitted when absent. */
   intro?: Record<string, string>
+  /** Timing entries in seconds, one per item (including sections). Written by record-timeline mode. */
+  timeline?: TimelineEntry[]
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -75,6 +78,19 @@ function isLibrarySong(v: unknown): v is LibrarySong {
   if (o.intro !== undefined) {
     if (typeof o.intro !== 'object' || o.intro === null || Array.isArray(o.intro)) return false
     if (!Object.values(o.intro as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
+  if (o.timeline !== undefined) {
+    if (!Array.isArray(o.timeline)) return false
+    if (
+      !(o.timeline as unknown[]).every(
+        (entry) =>
+          entry !== null &&
+          typeof entry === 'object' &&
+          typeof (entry as Record<string, unknown>).start === 'number' &&
+          typeof (entry as Record<string, unknown>).end === 'number'
+      )
+    )
+      return false
   }
   return true
 }
@@ -868,4 +884,21 @@ export function getLibrarySongById(id: string): LibrarySong | undefined {
   const snap = loadSetlistStore()
   if (!snap) return undefined
   return snap.songLibrary.songs.find((s) => s.id === id)
+}
+
+/**
+ * Writes a timeline onto the library song with the given id and persists.
+ * Returns false when the store is unreadable or the id is not found.
+ */
+export function updateSongTimeline(songId: string, timeline: TimelineEntry[]): boolean {
+  if (!songId) return false
+  const snap = loadSetlistStore()
+  if (!snap) return false
+  const idx = snap.songLibrary.songs.findIndex((s) => s.id === songId)
+  if (idx === -1) return false
+  const updatedSongs = snap.songLibrary.songs.map((s, i) =>
+    i === idx ? { ...s, timeline } : s
+  )
+  writeRaw({ ...snap, songLibrary: { songs: updatedSongs } })
+  return true
 }
