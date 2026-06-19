@@ -127,6 +127,17 @@ export function tryParsePersistedSongItemsArray(items: unknown): SongItem[] | nu
   return out
 }
 
+export interface TimelineEntry {
+  start: number
+  end: number
+}
+
+export interface MediaMetadata {
+  type: 'video' | 'audio'
+  src: string
+  offset?: number
+}
+
 /**
  * Parsed song file format: { title: string, lyrics: Array<LyricLineRaw | SectionMarker>, notes?: string }
  * Lyric line raw: { "es": "...", "en": "...", ... }
@@ -141,6 +152,66 @@ export interface ParsedSongFile {
   title_translations?: Record<string, string>
   /** One-line intro tagline per language shown on the intro screen. Omitted when not present. */
   intro?: Record<string, string>
+  /** Timing entries in seconds, one per lyrics array item (including sections). Omitted when not present. */
+  timeline?: TimelineEntry[]
+  /** Optional media file (video or audio) to associate with the song. Omitted when not present. */
+  media?: MediaMetadata
+}
+
+function validateTimeline(timeline: unknown, itemCount: number): TimelineEntry[] {
+  if (!Array.isArray(timeline)) {
+    throw new Error('Song file timeline must be an array when present')
+  }
+  if (timeline.length !== itemCount) {
+    throw new Error(`Song file timeline length must match lyric count (${itemCount})`)
+  }
+  const entries: TimelineEntry[] = []
+  let previousEnd = -Infinity
+  for (let i = 0; i < timeline.length; i++) {
+    const item = timeline[i]
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error(`Song file timeline[${i}]: must be an object`)
+    }
+    const entry = item as Record<string, unknown>
+    const start = entry.start
+    const end = entry.end
+    if (typeof start !== 'number' || typeof end !== 'number') {
+      throw new Error(`Song file timeline[${i}]: must have numeric start and end`)
+    }
+    if (start < 0 || end < 0) {
+      throw new Error(`Song file timeline[${i}]: times must be non-negative`)
+    }
+    if (start < previousEnd) {
+      throw new Error(`Song file timeline[${i}]: times must be monotonic (start >= previous end)`)
+    }
+    entries.push({ start, end })
+    previousEnd = end
+  }
+  return entries
+}
+
+function validateMedia(media: unknown): MediaMetadata {
+  if (media === null || typeof media !== 'object' || Array.isArray(media)) {
+    throw new Error('Song file "media" must be an object when present')
+  }
+  const obj = media as Record<string, unknown>
+  const type = obj.type
+  const src = obj.src
+  const offset = obj.offset
+  if (type !== 'video' && type !== 'audio') {
+    throw new Error('Song file "media" type must be "video" or "audio"')
+  }
+  if (typeof src !== 'string' || src.trim().length === 0) {
+    throw new Error('Song file "media" src must be a non-empty string')
+  }
+  const result: MediaMetadata = { type, src: src.trim() }
+  if (offset !== undefined) {
+    if (typeof offset !== 'number' || offset < 0) {
+      throw new Error('Song file "media" offset must be a non-negative number when present')
+    }
+    result.offset = offset
+  }
+  return result
 }
 
 /**
@@ -198,6 +269,20 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
         if (trimmed.length > 0) map[k] = trimmed
       }
       if (Object.keys(map).length > 0) out.intro = map
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'timeline')) {
+    const tl = raw.timeline
+    if (tl !== null && tl !== undefined) {
+      out.timeline = validateTimeline(tl, items.length)
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'media')) {
+    const m = raw.media
+    if (m !== null && m !== undefined) {
+      out.media = validateMedia(m)
+    } else {
+      throw new Error('Song file "media" must be an object when present')
     }
   }
   return out

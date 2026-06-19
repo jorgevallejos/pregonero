@@ -671,6 +671,190 @@ describe('parseSongRecordFromUnknown', () => {
   })
 })
 
+describe('parseSongFile — timeline field', () => {
+  it('when timeline is absent, result has no timeline property (backward compat)', () => {
+    const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.timeline).toBeUndefined()
+  })
+
+  it('valid timeline with correct length and monotonic non-negative times is parsed', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timeline: [{ start: 0, end: 2.5 }, { start: 3, end: 5 }],
+    })
+    const result = parseSongFile(json)
+    expect(result.timeline).toEqual([{ start: 0, end: 2.5 }, { start: 3, end: 5 }])
+  })
+
+  it('timeline with sections: length must match total items (lyrics + sections)', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ type: 'section', label: 'Intro' }, { es: 'A', en: 'B' }],
+      timeline: [{ start: 0, end: 1 }, { start: 2, end: 4 }],
+    })
+    const result = parseSongFile(json)
+    expect(result.timeline).toHaveLength(2)
+  })
+
+  it('timeline length mismatch throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timeline: [{ start: 0, end: 2 }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/timeline length must match/)
+  })
+
+  it('non-monotonic times throw an error (start < previous end)', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timeline: [{ start: 0, end: 5 }, { start: 3, end: 7 }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/monotonic/)
+  })
+
+  it('negative start time throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      timeline: [{ start: -1, end: 2 }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/non-negative/)
+  })
+
+  it('negative end time throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      timeline: [{ start: 0, end: -1 }],
+    })
+    expect(() => parseSongFile(json)).toThrow(/non-negative/)
+  })
+
+  it('timeline entry missing numeric start or end throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      timeline: [{ start: 0 }],
+    })
+    expect(() => parseSongFile(json)).toThrow()
+  })
+
+  it('timeline that is not an array throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      timeline: 'not-an-array',
+    })
+    expect(() => parseSongFile(json)).toThrow(/must be an array/)
+  })
+
+  it('empty timeline is valid for a song with no lyrics', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ type: 'section', label: 'End' }],
+      timeline: [{ start: 0, end: 1 }],
+    })
+    const result = parseSongFile(json)
+    expect(result.timeline).toEqual([{ start: 0, end: 1 }])
+  })
+})
+
+describe('parseSongFile — media field', () => {
+  it('when media is absent, result has no media property (backward compat)', () => {
+    const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
+    const result = parseSongFile(json)
+    expect(result.media).toBeUndefined()
+  })
+
+  it('valid media object with type video and src is parsed', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'video', src: 'song.mp4' },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'video', src: 'song.mp4' })
+  })
+
+  it('valid media object with type audio, src, and optional offset is parsed', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'audio', src: 'song.mp3', offset: 2.5 },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 2.5 })
+  })
+
+  it('invalid media type throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'image', src: 'song.png' },
+    })
+    expect(() => parseSongFile(json)).toThrow(/type must be "video" or "audio"/)
+  })
+
+  it('empty src throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'video', src: '' },
+    })
+    expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
+  })
+
+  it('whitespace-only src throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'audio', src: '   ' },
+    })
+    expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
+  })
+
+  it('negative offset throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'audio', src: 'song.mp3', offset: -1 },
+    })
+    expect(() => parseSongFile(json)).toThrow(/offset must be a non-negative number/)
+  })
+
+  it('zero offset is valid', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'audio', src: 'song.mp3', offset: 0 },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 0 })
+  })
+
+  it('media not an object throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: 'not-an-object',
+    })
+    expect(() => parseSongFile(json)).toThrow(/"media" must be an object/)
+  })
+
+  it('media that is null throws an error', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: null,
+    })
+    expect(() => parseSongFile(json)).toThrow(/"media" must be an object/)
+  })
+})
+
 describe('tryParsePersistedSongItemsArray', () => {
   it('accepts canonical persisted lyric lines with nested languages', () => {
     const items = [{ languages: { es: 'A', en: 'B' } }]
