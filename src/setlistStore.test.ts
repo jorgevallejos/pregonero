@@ -931,4 +931,94 @@ describe('setlistStore', () => {
       expect(song.timeline).toEqual(newTimeline)
     })
   })
+
+  describe('SongTempo schema field', () => {
+    it('song with full tempo round-trips through createInitialSnapshot and loadSetlistStore', () => {
+      const seed: LibrarySong[] = [
+        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 120, meter: 4, countInBars: 2 } },
+      ]
+      saveSetlistStore(createInitialSnapshot(seed))
+      const loaded = loadSetlistStore()!
+      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 120, meter: 4, countInBars: 2 })
+    })
+
+    it('song with minimal tempo (no countInBars) round-trips', () => {
+      const seed: LibrarySong[] = [
+        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 80, meter: 3 } },
+      ]
+      saveSetlistStore(createInitialSnapshot(seed))
+      const loaded = loadSetlistStore()!
+      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 80, meter: 3 })
+    })
+
+    it('song without tempo field loads fine (back-compat)', () => {
+      installTestStore()
+      const loaded = loadSetlistStore()!
+      expect(loaded.songLibrary.songs[0]!.tempo).toBeUndefined()
+    })
+
+    it('tempo is preserved through saveSetlistStore/loadSetlistStore cycle', () => {
+      installTestStore()
+      const snap = loadSetlistStore()!
+      const updated = {
+        ...snap,
+        songLibrary: {
+          songs: snap.songLibrary.songs.map((s) =>
+            s.id === 'a' ? { ...s, tempo: { bpm: 100, meter: 4, countInBars: 1 } } : s
+          ),
+        },
+      }
+      saveSetlistStore(updated)
+      const loaded = loadSetlistStore()!
+      expect(loaded.songLibrary.songs.find((s) => s.id === 'a')!.tempo).toEqual({
+        bpm: 100,
+        meter: 4,
+        countInBars: 1,
+      })
+    })
+
+    it('tempo from JSON import is preserved via importSongFromJsonText', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'tempo-song',
+        title: 'Rhythm',
+        lyrics: [{ es: 'Hola', en: 'Hello' }],
+        tempo: { bpm: 140, meter: 4, countInBars: 2 },
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.song.tempo).toEqual({ bpm: 140, meter: 4, countInBars: 2 })
+      const stored = loadSetlistStore()!
+      expect(stored.songLibrary.songs.find((s) => s.id === 'tempo-song')!.tempo).toEqual({
+        bpm: 140,
+        meter: 4,
+        countInBars: 2,
+      })
+    })
+
+    it('tempo with invalid bpm is rejected on JSON import', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'bad-tempo',
+        title: 'Bad',
+        lyrics: [{ es: 'Hola', en: 'Hello' }],
+        tempo: { bpm: -1, meter: 4 },
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(false)
+    })
+
+    it('tempo with non-integer meter is rejected on JSON import', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'bad-tempo2',
+        title: 'Bad2',
+        lyrics: [{ es: 'Hola', en: 'Hello' }],
+        tempo: { bpm: 120, meter: 4.5 },
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(false)
+    })
+  })
 })

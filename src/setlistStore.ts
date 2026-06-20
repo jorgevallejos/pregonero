@@ -27,6 +27,16 @@ export const DEFAULT_SETLIST_ID = 'default-setlist'
 /** Catalog entry shape (e.g. for tests or future import); runtime library is persisted v2 only. */
 export type SongSeedEntry = { readonly id: string; readonly title: string; readonly path: string }
 
+/** Tempo information for count-in and beat pulse display. All fields are in the performer view only. */
+export type SongTempo = {
+  /** Beats per minute (must be > 0). */
+  bpm: number
+  /** Beats per bar — positive integer (e.g. 4 for 4/4, 3 for 3/4). */
+  meter: number
+  /** Number of count-in bars before the song starts (defaults to 1 when absent). */
+  countInBars?: number
+}
+
 /** One row in the persisted internal song library (source of truth after hydration). */
 export type LibrarySong = {
   id: string
@@ -42,6 +52,8 @@ export type LibrarySong = {
   timeline?: TimelineEntry[]
   /** Optional video or audio media associated with this song (logical src + playback params). */
   media?: MediaMetadata
+  /** Optional tempo for count-in and beat-pulse display in the performer view. */
+  tempo?: SongTempo
 }
 
 /** Canonical song catalog persisted for the app (subset of “library” in the snapshot). */
@@ -102,6 +114,13 @@ function isLibrarySong(v: unknown): v is LibrarySong {
     if (typeof m.src !== 'string' || (m.src as string).trim().length === 0) return false
     if (m.trimStart !== undefined && (typeof m.trimStart !== 'number' || (m.trimStart as number) < 0)) return false
     if (m.offset !== undefined && (typeof m.offset !== 'number' || (m.offset as number) < 0)) return false
+  }
+  if (o.tempo !== undefined) {
+    if (o.tempo === null || typeof o.tempo !== 'object' || Array.isArray(o.tempo)) return false
+    const t = o.tempo as Record<string, unknown>
+    if (typeof t.bpm !== 'number' || (t.bpm as number) <= 0) return false
+    if (typeof t.meter !== 'number' || !Number.isInteger(t.meter) || (t.meter as number) <= 0) return false
+    if (t.countInBars !== undefined && (typeof t.countInBars !== 'number' || !Number.isInteger(t.countInBars) || (t.countInBars as number) <= 0)) return false
   }
   return true
 }
@@ -233,6 +252,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
     ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
     ...(s.media !== undefined ? { media: { ...s.media } } : {}),
+    ...(s.tempo !== undefined ? { tempo: { ...s.tempo } } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -308,6 +328,9 @@ async function migrateV1ToV2(
     }
     if (parsed.media !== undefined) {
       lib.media = parsed.media
+    }
+    if (parsed.tempo !== undefined) {
+      lib.tempo = parsed.tempo
     }
     songs.push(lib)
   }
@@ -454,6 +477,7 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
     ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
     ...(song.media !== undefined ? { media: { ...song.media } } : {}),
+    ...(song.tempo !== undefined ? { tempo: { ...song.tempo } } : {}),
   }
   return libSong
 }
@@ -744,6 +768,9 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   }
   if (parsed.media !== undefined) {
     song.media = parsed.media
+  }
+  if (parsed.tempo !== undefined) {
+    song.tempo = parsed.tempo
   }
   return { ok: true, song }
 }
