@@ -1340,6 +1340,80 @@ html, body, #root {
   font-weight: 600;
 }
 
+/* ---- Timed mode panel ---- */
+
+.ctrl-timed-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.5em 0.75em;
+  border: 1px solid #3a3a3c;
+  border-radius: 0.5em;
+  background: #1c1c1e;
+  flex-shrink: 0;
+  margin: 0.25em 0;
+}
+
+.ctrl-timed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+.ctrl-timed-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ctrl-timed-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9em;
+  color: #d0d0d2;
+  min-width: 4em;
+  flex-shrink: 0;
+}
+
+.ctrl-timed-line {
+  font-size: 0.85em;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.ctrl-timed-drift {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  color: #888;
+  min-width: 5em;
+  flex-shrink: 0;
+}
+
+.ctrl-timed-drift-warn {
+  color: #f4a22b;
+}
+
+.ctrl-timed-drift-alert {
+  color: #e05252;
+}
+
+.ctrl-timed-nudge {
+  background: #2c2c2e;
+  color: #c0c0c2;
+  border: 1px solid #444;
+  font-size: 0.78em;
+  padding: 0.25em 0.5em;
+  min-width: 3.5em;
+}
+
+.ctrl-timed-nudge:hover:not(:disabled) {
+  background: #3a3a3c;
+  color: #e5e5e5;
+}
+
 /* ---- Timeline save dialog overlay ---- */
 
 .ctrl-timeline-save-overlay {
