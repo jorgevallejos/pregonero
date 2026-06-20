@@ -106,4 +106,23 @@ describe('useBeatClock', () => {
     expect(result.current.phase).toBeNull()
     expect(result.current.beginFiredOnce).toBe(false)
   })
+
+  it('re-render with a new-but-equal tempo object does not restart the interval', () => {
+    // vi.useFakeTimers() fakes Date.now() so elapsed time advances with advanceTimersByTime.
+    // 120bpm → 500ms/beat: beat 1 @ 0ms, beat 2 @ 500ms, beat 3 @ 1000ms, beat 4 @ 1500ms.
+    const { result, rerender } = renderHook(
+      ({ tempo }: { tempo: SongTempo }) => useBeatClock(tempo, true),
+      { initialProps: { tempo: TEMPO } }
+    )
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(result.current.phase?.beatInBar).toBe(3)
+
+    // Structurally equal but new object reference (simulates getLibrarySongById re-returning).
+    rerender({ tempo: { ...TEMPO } })
+
+    act(() => { vi.advanceTimersByTime(500) })
+    // If the interval had been reset, startMs would restart from 1000ms fake-time,
+    // giving elapsed=500ms → beat 2. Correct behaviour continues to beat 4.
+    expect(result.current.phase?.beatInBar).toBe(4)
+  })
 })
