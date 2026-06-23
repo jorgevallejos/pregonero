@@ -19,7 +19,7 @@ import type { MediaFile, TimelineEntry, SongItem } from './songState'
 import type { SongTempo } from './beatScheduler'
 
 vi.mock('./mediaPathStore', () => ({
-  absolutePathToFileUrl: (path: string) => `file://${path}`,
+  absolutePathToMediaUrl: (path: string) => `media://${path}`,
   validateVideoForImport: () => [],
   setMediaPath: vi.fn(),
 }))

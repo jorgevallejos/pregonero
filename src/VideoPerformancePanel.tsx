@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { getBeatPhase, type SongTempo, type BeatPhaseResult } from './beatScheduler'
-import { absolutePathToFileUrl } from './mediaPathStore'
+import { absolutePathToMediaUrl } from './mediaPathStore'
 import { videoCueLookup } from './videoCueLookup'
 import { setVideoTransportCommand } from './VideoProjectionRegion'
 import { useHoldToConfirm } from './useHoldToConfirm'
@@ -212,7 +212,7 @@ export function VideoPerformancePanel({
       <div className="video-perf-video-wrap" style={{ position: 'relative' }}>
         <video
           ref={videoRef}
-          src={absolutePathToFileUrl(absolutePath)}
+          src={absolutePathToMediaUrl(absolutePath)}
           muted
           playsInline
           className="video-perf-preview"

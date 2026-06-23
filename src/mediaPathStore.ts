@@ -74,14 +74,17 @@ export function validateVideoForImport(
 }
 
 /**
- * Converts an absolute file path to a `file://` URL suitable for use as a
- * `<video src>` in the Electron renderer. Spaces and special characters are
- * percent-encoded path-segment by path-segment.
+ * Converts an absolute file path to a `media://` URL served by the Electron
+ * custom protocol handler (registered in electron/main.cjs). Spaces and
+ * special characters are percent-encoded path-segment by path-segment;
+ * slashes are preserved so the full path is the URL path component
+ * (empty host, e.g. media:///Users/...). Use this instead of file:// URLs,
+ * which are blocked by webSecurity when the renderer runs on http://localhost.
  */
-export function absolutePathToFileUrl(absolutePath: string): string {
+export function absolutePathToMediaUrl(absolutePath: string): string {
   const encoded = absolutePath
     .split('/')
     .map((segment, i) => (i === 0 ? segment : encodeURIComponent(segment)))
     .join('/')
-  return `file://${encoded}`
+  return `media://${encoded}`
 }

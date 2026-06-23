@@ -5,6 +5,7 @@ import {
   setMediaPath,
   removeMediaPath,
   validateVideoForImport,
+  absolutePathToMediaUrl,
   MEDIA_PATH_STORE_KEY,
 } from './mediaPathStore'
 
@@ -96,6 +97,26 @@ describe('removeMediaPath', () => {
     setMediaPath('a.mp4', '/path/a.mp4')
     removeMediaPath('unknown.mp4')
     expect(getMediaPath('a.mp4')).toBe('/path/a.mp4')
+  })
+})
+
+describe('absolutePathToMediaUrl', () => {
+  it('returns a media:// URL for a plain path', () => {
+    expect(absolutePathToMediaUrl('/Users/jorge/videos/tragedia.mp4')).toBe(
+      'media:///Users/jorge/videos/tragedia.mp4'
+    )
+  })
+
+  it('percent-encodes spaces in path segments', () => {
+    expect(absolutePathToMediaUrl('/Users/jorge/My Videos/cerdo asado.mp4')).toBe(
+      'media:///Users/jorge/My%20Videos/cerdo%20asado.mp4'
+    )
+  })
+
+  it('percent-encodes non-ASCII characters', () => {
+    expect(absolutePathToMediaUrl('/Users/jorge/Música/niño.mp4')).toBe(
+      'media:///Users/jorge/M%C3%BAsica/ni%C3%B1o.mp4'
+    )
   })
 })
 
