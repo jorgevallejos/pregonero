@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { getBeatPhase, type SongTempo, type BeatPhaseResult } from './beatScheduler'
 import { absolutePathToFileUrl } from './mediaPathStore'
 import { videoCueLookup } from './videoCueLookup'
-import { setVideoSeekTarget } from './VideoProjectionRegion'
+import { setVideoTransportCommand } from './VideoProjectionRegion'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
 import type { MediaFile, TimelineEntry } from './songState'
@@ -83,6 +83,7 @@ export function VideoPerformancePanel({
       if (p.beginFired && !videoStartedRef.current) {
         videoStartedRef.current = true
         videoRef.current?.play().catch(() => {})
+        setVideoTransportCommand('play')
         setPlayState('playing')
       }
     }
@@ -119,6 +120,7 @@ export function VideoPerformancePanel({
       // No count-in: start video immediately.
       videoStartedRef.current = true
       videoRef.current?.play().catch(() => {})
+      setVideoTransportCommand('play')
       setPlayState('playing')
     } else {
       setPlayState('count-in')
@@ -131,6 +133,7 @@ export function VideoPerformancePanel({
     if (playState !== 'count-in' && playState !== 'playing') return
     pausedElapsedRef.current = Date.now() - startMsRef.current
     videoRef.current?.pause()
+    setVideoTransportCommand('pause')
     setPlayState('paused')
     setPhase((prev) => prev) // keep phase frozen at current value
   }, [playState])
@@ -144,7 +147,7 @@ export function VideoPerformancePanel({
       video.pause()
       video.currentTime = trimStart
     }
-    setVideoSeekTarget(trimStart)
+    setVideoTransportCommand('seek', trimStart)
     onSeek(trimStart)
 
     videoStartedRef.current = false
@@ -155,6 +158,7 @@ export function VideoPerformancePanel({
     if (!hasCountIn(tempo)) {
       videoStartedRef.current = true
       video?.play().catch(() => {})
+      setVideoTransportCommand('play')
       setPlayState('playing')
     } else {
       setPlayState('count-in')

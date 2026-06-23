@@ -24,9 +24,13 @@ vi.mock('./mediaPathStore', () => ({
   setMediaPath: vi.fn(),
 }))
 
+const setVideoTransportCommandMock = vi.fn()
+
 vi.mock('./VideoProjectionRegion', () => ({
   setVideoSeekTarget: vi.fn(),
+  setVideoTransportCommand: setVideoTransportCommandMock,
 }))
+
 
 const TIMELINE: TimelineEntry[] = [
   { start: 0, end: 1 },
@@ -378,5 +382,84 @@ describe('VideoPerformancePanel — Unarm', () => {
     await act(async () => { fireEvent.pointerDown(unarmBtn) })
     act(() => { vi.advanceTimersByTime(2000) }) // HOLD_CONFIRM_MS
     expect(onUnarm).toHaveBeenCalled()
+  })
+})
+
+// ── transport broadcasts ──────────────────────────────────────────────────
+
+describe('VideoPerformancePanel — transport broadcasts', () => {
+  beforeEach(() => {
+    setVideoTransportCommandMock.mockClear()
+  })
+
+  it('broadcasts play at count-in→video handoff (beginFired)', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps({ tempo: TEMPO_4_4_1BAR })} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    // Before count-in ends: no play broadcast yet
+    act(() => { vi.advanceTimersByTime(1999) })
+    expect(setVideoTransportCommandMock).not.toHaveBeenCalledWith('play')
+    // After count-in ends: play broadcast
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('play')
+  })
+
+  it('broadcasts play immediately on Play when there is no count-in', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps({ tempo: undefined })} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(10) })
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('play')
+  })
+
+  it('broadcasts pause on Pause', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps({ tempo: TEMPO_4_4_1BAR })} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(2100) }) // past count-in
+    setVideoTransportCommandMock.mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^pause$/i }))
+    })
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('pause')
+  })
+
+  it('broadcasts seek(trimStart) on Restart', async () => {
+    const Panel = await importPanel()
+    const media: MediaFile = { type: 'video', src: 'test.mp4', trimStart: 5.0 }
+    render(<Panel {...defaultProps({ media, tempo: TEMPO_4_4_1BAR })} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(2100) })
+    setVideoTransportCommandMock.mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
+    })
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('seek', 5.0)
+  })
+
+  it('broadcasts play again after count-in following Restart', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps({ tempo: TEMPO_4_4_1BAR })} />)
+    // First play: run through count-in
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(2100) })
+    // Restart
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
+    })
+    setVideoTransportCommandMock.mockClear()
+    // Count-in runs again; play broadcast at handoff
+    act(() => { vi.advanceTimersByTime(2100) })
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('play')
   })
 })
