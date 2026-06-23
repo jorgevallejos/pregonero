@@ -5749,8 +5749,8 @@ describe('Control performance timer/status button', () => {
     expect(timerBlock).toBeTruthy()
 
     const timerRule = timerBlock![1]
-    expect(timerRule).toMatch(/width:\s*112px/)
-    expect(timerRule).toMatch(/height:\s*112px/)
+    expect(timerRule).toMatch(/width:\s*var\(--beat-circle-size\)/)
+    expect(timerRule).toMatch(/height:\s*var\(--beat-circle-size\)/)
     expect(timerRule).toMatch(/padding:\s*0/)
     expect(timerRule).toMatch(/border-radius:\s*50%/)
     expect(timerRule).toMatch(/border:\s*1px\s+solid\s+#48484a/)

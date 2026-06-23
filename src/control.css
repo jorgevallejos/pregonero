@@ -39,6 +39,7 @@
    Projection typography (font-size, font-family) is independent and set on .projection-screen. */
 :root {
   --control-ui-scale: 1.5;
+  --beat-circle-size: 112px;
 }
 
 /* Base: no font-size on html so projection is independent; control screens set their own below */
@@ -541,10 +542,10 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 112px;
-  height: 112px;
-  min-width: 112px;
-  min-height: 112px;
+  width: var(--beat-circle-size);
+  height: var(--beat-circle-size);
+  min-width: var(--beat-circle-size);
+  min-height: var(--beat-circle-size);
   padding: 0;
   line-height: 1;
   border-radius: 50%;
@@ -1867,4 +1868,63 @@ html, body, #root {
   padding: 0.15em 0.4em;
   opacity: 0.6;
   min-width: auto;
+}
+
+/* ── BeatCircle — shared beat indicator, sized like the gig-time circle ── */
+
+.beat-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--beat-circle-size);
+  height: var(--beat-circle-size);
+  min-width: var(--beat-circle-size);
+  min-height: var(--beat-circle-size);
+  border-radius: 50%;
+  border: 1px solid #48484a;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  flex-direction: column;
+  gap: 0.25em;
+  user-select: none;
+}
+
+.beat-circle-count-in,
+.beat-circle-running {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.beat-circle-beat-number {
+  font-size: clamp(2.4em, 5vw, 2.9em);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #a0a0a2;
+  transition: color 0.08s ease-out;
+}
+
+.beat-circle-downbeat {
+  color: #e5e5e5;
+  transform: scale(1.12);
+  display: inline-block;
+  transform-origin: center;
+}
+
+.beat-circle-dots {
+  display: flex;
+  gap: 0.3em;
+}
+
+.beat-circle-dot {
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: #48484a;
+}
+
+.beat-circle-dot-active {
+  background: #e5e5e5;
 }
