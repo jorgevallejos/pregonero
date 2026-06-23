@@ -665,6 +665,24 @@ export function getActiveMediaFile(song: LibrarySong): MediaFile | undefined {
   return song.media.small ?? song.media.big
 }
 
+/** Pure snapshot update: set (or clear) the media field for a library song. Returns null if songId unknown. */
+export function patchSongMediaInSnapshot(
+  snap: SetlistStoreSnapshot,
+  songId: string,
+  media: SongMedia | undefined
+): SetlistStoreSnapshot | null {
+  if (!snap.songLibrary.songs.some((s) => s.id === songId)) return null
+  const songs = snap.songLibrary.songs.map((s) => {
+    if (s.id !== songId) return s
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { media: _, ...rest } = s
+    return media !== undefined && (media.big !== undefined || media.small !== undefined)
+      ? { ...rest, media }
+      : rest
+  })
+  return { ...snap, songLibrary: { songs } }
+}
+
 /** Pure snapshot update: append one library row. Returns null if duplicate id or invalid song. */
 export function appendSongToLibraryInSnapshot(
   snap: SetlistStoreSnapshot,
