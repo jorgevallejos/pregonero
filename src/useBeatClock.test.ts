@@ -4,7 +4,7 @@ import { renderHook, act } from '@testing-library/react'
 import { useBeatClock } from './useBeatClock'
 import type { SongTempo } from './beatScheduler'
 
-const TEMPO: SongTempo = { bpm: 120, meter: 4, countInBars: 1 }
+const TEMPO: SongTempo = { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 }
 // 120 bpm → 500ms/beat, 4 beats count-in → begin at 2000ms
 
 describe('useBeatClock', () => {

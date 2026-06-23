@@ -12,12 +12,17 @@ import {
   type ParsedSongFile,
   type SongItem,
   type TimelineEntry,
-  type MediaMetadata,
+  type MediaFile,
+  type SongMedia,
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
-/** v3: full song records without intro_cues; adds title_translations and intro. */
-export const SETLIST_STORE_VERSION = 3
+/** v5: media field replaced with SongMedia { big?, small? } (was flat MediaFile). */
+export const SETLIST_STORE_VERSION = 5
+/** v4 snapshots (flat media object) are migrated to v5 on load. */
+export const SETLIST_STORE_VERSION_V4 = 4
+/** v3 snapshots (tempo.meter) are migrated on load. */
+export const SETLIST_STORE_VERSION_V3 = 3
 /** v2 snapshots (full lyrics, optional intro_cues) are migrated on load. */
 export const SETLIST_STORE_VERSION_V2 = 2
 /** v1 snapshots (metadata + path only) are migrated on load. */
@@ -29,10 +34,12 @@ export type SongSeedEntry = { readonly id: string; readonly title: string; reado
 
 /** Tempo information for count-in and beat pulse display. All fields are in the performer view only. */
 export type SongTempo = {
-  /** Beats per minute (must be > 0). */
+  /** Beats per minute — the felt pulse (quarter note for 4/4, dotted-quarter for 6/8). Must be > 0. */
   bpm: number
-  /** Beats per bar — positive integer (e.g. 4 for 4/4, 3 for 3/4). */
-  meter: number
+  /** Numerator of the time signature (e.g. 4 for 4/4, 6 for 6/8). Positive integer. */
+  numerator: number
+  /** Denominator of the time signature (e.g. 4 for 4/4, 8 for 6/8). Positive integer. */
+  denominator: number
   /** Number of count-in bars before the song starts (defaults to 1 when absent). */
   countInBars?: number
 }
@@ -50,8 +57,8 @@ export type LibrarySong = {
   intro?: Record<string, string>
   /** Timing entries in seconds, one per item (including sections). Written by record-timeline mode. */
   timeline?: TimelineEntry[]
-  /** Optional video or audio media associated with this song (logical src + playback params). */
-  media?: MediaMetadata
+  /** Optional media files (video or audio) for big and small screens. */
+  media?: SongMedia
   /** Optional tempo for count-in and beat-pulse display in the performer view. */
   tempo?: SongTempo
 }
@@ -80,7 +87,68 @@ function isLegacyLibrarySong(v: unknown): v is LegacyLibrarySong {
   return isNonEmptyString(o.id) && isNonEmptyString(o.title) && isNonEmptyString(o.path)
 }
 
+function isMediaFileShape(m: unknown): boolean {
+  if (m === null || typeof m !== 'object' || Array.isArray(m)) return false
+  const f = m as Record<string, unknown>
+  if (f.type !== 'video' && f.type !== 'audio') return false
+  if (typeof f.src !== 'string' || (f.src as string).trim().length === 0) return false
+  if (f.trimStart !== undefined && (typeof f.trimStart !== 'number' || (f.trimStart as number) < 0)) return false
+  if (f.offset !== undefined && (typeof f.offset !== 'number' || (f.offset as number) < 0)) return false
+  return true
+}
+
+function isLibrarySongCommonFields(o: Record<string, unknown>): boolean {
+  if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
+  if (tryParsePersistedSongItemsArray(o.items) === null) return false
+  if (o.notes !== undefined && typeof o.notes !== 'string') return false
+  if (o.title_translations !== undefined) {
+    if (typeof o.title_translations !== 'object' || o.title_translations === null || Array.isArray(o.title_translations)) return false
+    if (!Object.values(o.title_translations as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
+  if (o.intro !== undefined) {
+    if (typeof o.intro !== 'object' || o.intro === null || Array.isArray(o.intro)) return false
+    if (!Object.values(o.intro as Record<string, unknown>).every((v) => typeof v === 'string')) return false
+  }
+  if (o.timeline !== undefined) {
+    if (!Array.isArray(o.timeline)) return false
+    if (
+      !(o.timeline as unknown[]).every(
+        (entry) =>
+          entry !== null &&
+          typeof entry === 'object' &&
+          typeof (entry as Record<string, unknown>).start === 'number' &&
+          typeof (entry as Record<string, unknown>).end === 'number'
+      )
+    )
+      return false
+  }
+  if (o.tempo !== undefined) {
+    if (o.tempo === null || typeof o.tempo !== 'object' || Array.isArray(o.tempo)) return false
+    const t = o.tempo as Record<string, unknown>
+    if (typeof t.bpm !== 'number' || (t.bpm as number) <= 0) return false
+    if (typeof t.numerator !== 'number' || !Number.isInteger(t.numerator) || (t.numerator as number) <= 0) return false
+    if (typeof t.denominator !== 'number' || !Number.isInteger(t.denominator) || (t.denominator as number) <= 0) return false
+    if (t.countInBars !== undefined && (typeof t.countInBars !== 'number' || !Number.isInteger(t.countInBars) || (t.countInBars as number) <= 0)) return false
+  }
+  return true
+}
+
 function isLibrarySong(v: unknown): v is LibrarySong {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  if (!isLibrarySongCommonFields(o)) return false
+  if (o.media !== undefined) {
+    if (o.media === null || typeof o.media !== 'object' || Array.isArray(o.media)) return false
+    const m = o.media as Record<string, unknown>
+    if (m.big !== undefined && !isMediaFileShape(m.big)) return false
+    if (m.small !== undefined && !isMediaFileShape(m.small)) return false
+    if (m.big === undefined && m.small === undefined) return false
+  }
+  return true
+}
+
+/** Validates a v3 library song (meter tempo, flat media). For migration only. */
+function isLibrarySongV3(v: unknown): boolean {
   if (v === null || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
   if (!isNonEmptyString(o.id) || !isNonEmptyString(o.title)) return false
@@ -107,21 +175,24 @@ function isLibrarySong(v: unknown): v is LibrarySong {
     )
       return false
   }
-  if (o.media !== undefined) {
-    if (o.media === null || typeof o.media !== 'object' || Array.isArray(o.media)) return false
-    const m = o.media as Record<string, unknown>
-    if (m.type !== 'video' && m.type !== 'audio') return false
-    if (typeof m.src !== 'string' || (m.src as string).trim().length === 0) return false
-    if (m.trimStart !== undefined && (typeof m.trimStart !== 'number' || (m.trimStart as number) < 0)) return false
-    if (m.offset !== undefined && (typeof m.offset !== 'number' || (m.offset as number) < 0)) return false
-  }
+  if (o.media !== undefined && !isMediaFileShape(o.media)) return false
   if (o.tempo !== undefined) {
     if (o.tempo === null || typeof o.tempo !== 'object' || Array.isArray(o.tempo)) return false
     const t = o.tempo as Record<string, unknown>
     if (typeof t.bpm !== 'number' || (t.bpm as number) <= 0) return false
+    // v3 uses meter (positive integer)
     if (typeof t.meter !== 'number' || !Number.isInteger(t.meter) || (t.meter as number) <= 0) return false
     if (t.countInBars !== undefined && (typeof t.countInBars !== 'number' || !Number.isInteger(t.countInBars) || (t.countInBars as number) <= 0)) return false
   }
+  return true
+}
+
+/** Validates a v4 library song (numerator/denominator tempo, flat media). For migration only. */
+function isLibrarySongV4(v: unknown): boolean {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  if (!isLibrarySongCommonFields(o)) return false
+  if (o.media !== undefined && !isMediaFileShape(o.media)) return false
   return true
 }
 
@@ -153,12 +224,95 @@ function parseSnapshotShape(
   }
 }
 
-function parseSnapshotV3(raw: unknown): SetlistStoreSnapshot | null {
+function parseSnapshotLatest(raw: unknown): SetlistStoreSnapshot | null {
   return parseSnapshotShape(raw, SETLIST_STORE_VERSION)
+}
+
+/** Reads an old v4 snapshot (flat media) for migration purposes only. */
+function parseSnapshotV4ForMigration(raw: unknown): SetlistStoreSnapshot | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (o.version !== SETLIST_STORE_VERSION_V4) return null
+  if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
+  const lib = o.songLibrary as Record<string, unknown>
+  if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySongV4)) return null
+  if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
+  return {
+    version: SETLIST_STORE_VERSION_V4,
+    songLibrary: { songs: lib.songs as LibrarySong[] },
+    setlists: o.setlists as Setlist[],
+    activeSetlistId: o.activeSetlistId,
+  }
+}
+
+/** Reads an old v3 snapshot (meter tempo, flat media) for migration purposes only. */
+function parseSnapshotV3ForMigration(raw: unknown): SetlistStoreSnapshot | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (o.version !== SETLIST_STORE_VERSION_V3) return null
+  if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
+  const lib = o.songLibrary as Record<string, unknown>
+  if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySongV3)) return null
+  if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
+  return {
+    version: SETLIST_STORE_VERSION_V3,
+    songLibrary: { songs: lib.songs as LibrarySong[] },
+    setlists: o.setlists as Setlist[],
+    activeSetlistId: o.activeSetlistId,
+  }
 }
 
 function parseSnapshotV2(raw: unknown): SetlistStoreSnapshot | null {
   return parseSnapshotShape(raw, SETLIST_STORE_VERSION_V2)
+}
+
+function wrapFlatMediaInSmallSlot(song: LibrarySong): LibrarySong {
+  if (song.media === undefined) return song
+  const m = song.media as unknown as Record<string, unknown>
+  if (m.type !== undefined) {
+    return { ...song, media: { small: song.media as unknown as MediaFile } }
+  }
+  return song
+}
+
+function migrateV4ToV5(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  const songs = snap.songLibrary.songs.map(wrapFlatMediaInSmallSlot)
+  const next: SetlistStoreSnapshot = {
+    ...snap,
+    version: SETLIST_STORE_VERSION,
+    songLibrary: { songs },
+  }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
+}
+
+function migrateV3ToLatest(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  const songs: LibrarySong[] = snap.songLibrary.songs.map((song) => {
+    let updated = song
+    // Migrate meter → numerator/denominator
+    if (updated.tempo !== undefined) {
+      const t = updated.tempo as unknown as Record<string, unknown>
+      if (typeof t.meter === 'number' && t.numerator === undefined) {
+        const newTempo: SongTempo = { bpm: t.bpm as number, numerator: t.meter, denominator: 4 }
+        if (t.countInBars !== undefined) newTempo.countInBars = t.countInBars as number
+        updated = { ...updated, tempo: newTempo }
+      }
+    }
+    // Migrate flat media → { small: ... }
+    updated = wrapFlatMediaInSmallSlot(updated)
+    return updated
+  })
+  const next: SetlistStoreSnapshot = {
+    ...snap,
+    version: SETLIST_STORE_VERSION,
+    songLibrary: { songs },
+  }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
 }
 
 function migrateV2ToV3(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
@@ -251,7 +405,14 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
     ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
     ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
-    ...(s.media !== undefined ? { media: { ...s.media } } : {}),
+    ...(s.media !== undefined
+      ? {
+          media: {
+            ...(s.media.big ? { big: { ...s.media.big } } : {}),
+            ...(s.media.small ? { small: { ...s.media.small } } : {}),
+          },
+        }
+      : {}),
     ...(s.tempo !== undefined ? { tempo: { ...s.tempo } } : {}),
   }))
   return {
@@ -269,7 +430,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
 }
 
 export function loadSetlistStore(): SetlistStoreSnapshot | null {
-  const parsed = parseSnapshotV3(readRaw())
+  const parsed = parseSnapshotLatest(readRaw())
   if (!parsed) return null
   return repairSnapshot(parsed)
 }
@@ -353,7 +514,8 @@ export type EnsureSongLibraryOptions = {
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
 
 /**
- * Loads v2 from storage, migrates v1, or persists an empty v2 snapshot (no bundled seed).
+ * Loads v5 from storage, migrates older versions, or persists an empty v5 snapshot.
+ * Migration chain: v1 → v5, v2 → v5, v3 → v5, v4 → v5.
  * Safe to call multiple times; concurrent calls share one in-flight migration.
  */
 export function ensureSongLibraryHydrated(
@@ -361,15 +523,23 @@ export function ensureSongLibraryHydrated(
 ): Promise<SetlistStoreSnapshot> {
   const fetchSongJson = options.fetchSongJson ?? defaultFetchSongJson
 
-  const existingV2 = loadSetlistStore()
-  if (existingV2) {
-    return Promise.resolve(existingV2)
+  const existing = loadSetlistStore()
+  if (existing) {
+    return Promise.resolve(existing)
   }
 
   if (!hydrationInFlight) {
     hydrationInFlight = (async () => {
       const raw = readRaw()
       if (raw !== null && typeof raw === 'object') {
+        const v4 = parseSnapshotV4ForMigration(raw)
+        if (v4) {
+          return migrateV4ToV5(v4)
+        }
+        const v3 = parseSnapshotV3ForMigration(raw)
+        if (v3) {
+          return migrateV3ToLatest(v3)
+        }
         const v2 = parseSnapshotV2(raw)
         if (v2) {
           return migrateV2ToV3(v2)
@@ -476,10 +646,23 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
     ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
     ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
-    ...(song.media !== undefined ? { media: { ...song.media } } : {}),
+    ...(song.media !== undefined
+      ? {
+          media: {
+            ...(song.media.big ? { big: { ...song.media.big } } : {}),
+            ...(song.media.small ? { small: { ...song.media.small } } : {}),
+          },
+        }
+      : {}),
     ...(song.tempo !== undefined ? { tempo: { ...song.tempo } } : {}),
   }
   return libSong
+}
+
+/** Returns the active MediaFile for a song: prefers small, falls back to big. Returns undefined if no media. */
+export function getActiveMediaFile(song: LibrarySong): MediaFile | undefined {
+  if (!song.media) return undefined
+  return song.media.small ?? song.media.big
 }
 
 /** Pure snapshot update: append one library row. Returns null if duplicate id or invalid song. */

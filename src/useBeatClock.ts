@@ -16,7 +16,7 @@ const TICK_MS = 50
  * Drives the visual beat clock for the performer view.
  * Starts when `isActive` is true and `tempo` is defined; stops and resets on deactivation.
  *
- * Effect deps use primitive fields (bpm/meter/countInBars) rather than the tempo object so
+ * Effect deps use primitive fields (bpm/numerator/denominator/countInBars) rather than the tempo object so
  * that callers returning a new-but-equal object every render (e.g. getLibrarySongById) do
  * not tear down and recreate the interval on every tick.
  */
@@ -33,7 +33,8 @@ export function useBeatClock(
 
   // Destructure to primitives so object identity changes don't retrigger the effect.
   const bpm = tempo?.bpm
-  const meter = tempo?.meter
+  const numerator = tempo?.numerator
+  const denominator = tempo?.denominator
   const countInBars = tempo?.countInBars
 
   const reset = useCallback(() => {
@@ -43,7 +44,7 @@ export function useBeatClock(
   }, [])
 
   useEffect(() => {
-    if (!isActive || bpm === undefined || meter === undefined) {
+    if (!isActive || bpm === undefined || numerator === undefined || denominator === undefined) {
       reset()
       return
     }
@@ -63,7 +64,7 @@ export function useBeatClock(
     tick()
     const id = setInterval(tick, TICK_MS)
     return () => clearInterval(id)
-  }, [isActive, bpm, meter, countInBars, reset])
+  }, [isActive, bpm, numerator, denominator, countInBars, reset])
 
   return { phase, beginFiredOnce, reset }
 }

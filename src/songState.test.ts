@@ -770,70 +770,137 @@ describe('parseSongFile — media field', () => {
     expect(result.media).toBeUndefined()
   })
 
-  it('valid media object with type video and src is parsed', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'video', src: 'song.mp4' },
+  describe('old flat format (auto-migrated to { small: ... })', () => {
+    it('flat video media is wrapped in the small slot', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'video', src: 'song.mp4' },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({ small: { type: 'video', src: 'song.mp4' } })
     })
-    const result = parseSongFile(json)
-    expect(result.media).toEqual({ type: 'video', src: 'song.mp4' })
+
+    it('flat audio media with offset is wrapped in the small slot', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'audio', src: 'song.mp3', offset: 2.5 },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({ small: { type: 'audio', src: 'song.mp3', offset: 2.5 } })
+    })
+
+    it('zero offset is valid (flat)', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'audio', src: 'song.mp3', offset: 0 },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({ small: { type: 'audio', src: 'song.mp3', offset: 0 } })
+    })
+
+    it('invalid media type (flat) throws an error', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'image', src: 'song.png' },
+      })
+      expect(() => parseSongFile(json)).toThrow(/type must be "video" or "audio"/)
+    })
+
+    it('empty src (flat) throws an error', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'video', src: '' },
+      })
+      expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
+    })
+
+    it('whitespace-only src (flat) throws an error', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'audio', src: '   ' },
+      })
+      expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
+    })
+
+    it('negative offset (flat) throws an error', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { type: 'audio', src: 'song.mp3', offset: -1 },
+      })
+      expect(() => parseSongFile(json)).toThrow(/offset must be a non-negative number/)
+    })
   })
 
-  it('valid media object with type audio, src, and optional offset is parsed', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'audio', src: 'song.mp3', offset: 2.5 },
+  describe('new SongMedia format ({ big?, small? })', () => {
+    it('SongMedia with only small slot is parsed', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { small: { type: 'video', src: 'small.mp4' } },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({ small: { type: 'video', src: 'small.mp4' } })
     })
-    const result = parseSongFile(json)
-    expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 2.5 })
-  })
 
-  it('invalid media type throws an error', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'image', src: 'song.png' },
+    it('SongMedia with only big slot is parsed', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { big: { type: 'video', src: 'big.mp4' } },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({ big: { type: 'video', src: 'big.mp4' } })
     })
-    expect(() => parseSongFile(json)).toThrow(/type must be "video" or "audio"/)
-  })
 
-  it('empty src throws an error', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'video', src: '' },
+    it('SongMedia with both slots is parsed', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: {
+          big: { type: 'video', src: 'big.mp4', trimStart: 2 },
+          small: { type: 'video', src: 'small.mp4', offset: 0.1 },
+        },
+      })
+      const result = parseSongFile(json)
+      expect(result.media).toEqual({
+        big: { type: 'video', src: 'big.mp4', trimStart: 2 },
+        small: { type: 'video', src: 'small.mp4', offset: 0.1 },
+      })
     })
-    expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
-  })
 
-  it('whitespace-only src throws an error', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'audio', src: '   ' },
+    it('SongMedia with no slots throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: {},
+      })
+      expect(() => parseSongFile(json)).toThrow(/"media" must have at least one/)
     })
-    expect(() => parseSongFile(json)).toThrow(/src must be a non-empty string/)
-  })
 
-  it('negative offset throws an error', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'audio', src: 'song.mp3', offset: -1 },
+    it('SongMedia with invalid small slot type throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { small: { type: 'image', src: 'file.png' } },
+      })
+      expect(() => parseSongFile(json)).toThrow(/type must be "video" or "audio"/)
     })
-    expect(() => parseSongFile(json)).toThrow(/offset must be a non-negative number/)
-  })
 
-  it('zero offset is valid', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      media: { type: 'audio', src: 'song.mp3', offset: 0 },
+    it('SongMedia with null big slot throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        media: { big: null, small: { type: 'video', src: 'small.mp4' } },
+      })
+      expect(() => parseSongFile(json)).toThrow(/"media.big" must be an object/)
     })
-    const result = parseSongFile(json)
-    expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 0 })
   })
 
   it('media not an object throws an error', () => {

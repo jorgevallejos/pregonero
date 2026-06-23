@@ -132,7 +132,7 @@ export interface TimelineEntry {
   end: number
 }
 
-export interface MediaMetadata {
+export interface MediaFile {
   type: 'video' | 'audio'
   src: string
   /** Seconds from the beginning of the file at which playback begins (skips blank lead-in). */
@@ -140,10 +140,20 @@ export interface MediaMetadata {
   offset?: number
 }
 
+/** Per-song media container: optional big-screen and small-screen video files. */
+export interface SongMedia {
+  big?: MediaFile
+  small?: MediaFile
+}
+
+/** @deprecated Use MediaFile. Kept for backward compatibility. */
+export type MediaMetadata = MediaFile
+
 /** Tempo for count-in and beat-pulse display in the performer view (mirrors SongTempo in setlistStore). */
 export interface SongTempoFromFile {
   bpm: number
-  meter: number
+  numerator: number
+  denominator: number
   countInBars?: number
 }
 
@@ -163,8 +173,8 @@ export interface ParsedSongFile {
   intro?: Record<string, string>
   /** Timing entries in seconds, one per lyrics array item (including sections). Omitted when not present. */
   timeline?: TimelineEntry[]
-  /** Optional media file (video or audio) to associate with the song. Omitted when not present. */
-  media?: MediaMetadata
+  /** Optional media files (video or audio) for big and small screens. Omitted when not present. */
+  media?: SongMedia
   /** Optional tempo for count-in and beat-pulse display. Omitted when not present. */
   tempo?: SongTempoFromFile
 }
@@ -201,11 +211,7 @@ function validateTimeline(timeline: unknown, itemCount: number): TimelineEntry[]
   return entries
 }
 
-function validateMedia(media: unknown): MediaMetadata {
-  if (media === null || typeof media !== 'object' || Array.isArray(media)) {
-    throw new Error('Song file "media" must be an object when present')
-  }
-  const obj = media as Record<string, unknown>
+function validateMediaFile(obj: Record<string, unknown>): MediaFile {
   const type = obj.type
   const src = obj.src
   const offset = obj.offset
@@ -215,7 +221,7 @@ function validateMedia(media: unknown): MediaMetadata {
   if (typeof src !== 'string' || src.trim().length === 0) {
     throw new Error('Song file "media" src must be a non-empty string')
   }
-  const result: MediaMetadata = { type, src: src.trim() }
+  const result: MediaFile = { type, src: src.trim() }
   const trimStart = obj.trimStart
   if (trimStart !== undefined) {
     if (typeof trimStart !== 'number' || trimStart < 0) {
@@ -232,6 +238,35 @@ function validateMedia(media: unknown): MediaMetadata {
   return result
 }
 
+function validateMedia(media: unknown): SongMedia {
+  if (media === null || typeof media !== 'object' || Array.isArray(media)) {
+    throw new Error('Song file "media" must be an object when present')
+  }
+  const obj = media as Record<string, unknown>
+  // Old flat format: has 'type' key → auto-migrate to { small: ... }
+  if (obj.type !== undefined) {
+    return { small: validateMediaFile(obj) }
+  }
+  // New SongMedia format: has 'big' and/or 'small' keys
+  const result: SongMedia = {}
+  if (obj.big !== undefined) {
+    if (obj.big === null || typeof obj.big !== 'object' || Array.isArray(obj.big)) {
+      throw new Error('Song file "media.big" must be an object when present')
+    }
+    result.big = validateMediaFile(obj.big as Record<string, unknown>)
+  }
+  if (obj.small !== undefined) {
+    if (obj.small === null || typeof obj.small !== 'object' || Array.isArray(obj.small)) {
+      throw new Error('Song file "media.small" must be an object when present')
+    }
+    result.small = validateMediaFile(obj.small as Record<string, unknown>)
+  }
+  if (result.big === undefined && result.small === undefined) {
+    throw new Error('Song file "media" must have at least one of "big" or "small"')
+  }
+  return result
+}
+
 function validateTempo(tempo: unknown): SongTempoFromFile {
   if (tempo === null || typeof tempo !== 'object' || Array.isArray(tempo)) {
     throw new Error('Song file "tempo" must be an object when present')
@@ -240,10 +275,29 @@ function validateTempo(tempo: unknown): SongTempoFromFile {
   if (typeof obj.bpm !== 'number' || obj.bpm <= 0) {
     throw new Error('Song file "tempo.bpm" must be a positive number')
   }
-  if (typeof obj.meter !== 'number' || !Number.isInteger(obj.meter) || obj.meter <= 0) {
-    throw new Error('Song file "tempo.meter" must be a positive integer')
+  let numerator: number
+  let denominator: number
+  if (obj.numerator !== undefined || obj.denominator !== undefined) {
+    // New format: explicit numerator + denominator
+    if (typeof obj.numerator !== 'number' || !Number.isInteger(obj.numerator) || obj.numerator <= 0) {
+      throw new Error('Song file "tempo.numerator" must be a positive integer')
+    }
+    if (typeof obj.denominator !== 'number' || !Number.isInteger(obj.denominator) || obj.denominator <= 0) {
+      throw new Error('Song file "tempo.denominator" must be a positive integer')
+    }
+    numerator = obj.numerator
+    denominator = obj.denominator
+  } else if (obj.meter !== undefined) {
+    // Old format: meter: N defaults to { numerator: N, denominator: 4 }
+    if (typeof obj.meter !== 'number' || !Number.isInteger(obj.meter) || obj.meter <= 0) {
+      throw new Error('Song file "tempo.meter" must be a positive integer')
+    }
+    numerator = obj.meter
+    denominator = 4
+  } else {
+    throw new Error('Song file "tempo" must have "numerator" and "denominator"')
   }
-  const result: SongTempoFromFile = { bpm: obj.bpm, meter: obj.meter }
+  const result: SongTempoFromFile = { bpm: obj.bpm, numerator, denominator }
   if (obj.countInBars !== undefined) {
     if (typeof obj.countInBars !== 'number' || !Number.isInteger(obj.countInBars) || obj.countInBars <= 0) {
       throw new Error('Song file "tempo.countInBars" must be a positive integer when present')
