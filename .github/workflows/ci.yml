@@ -18,10 +18,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # npm install (not npm ci) + no cache: works around npm's optional-deps
+        # bug (#4828) that skips rolldown's platform-specific native binding
+        # under the Vite 8 / Vitest 4 toolchain, which crashed vitest at startup.
+        run: npm install --no-audit --no-fund
 
       - name: Run lint
         run: npm run lint
