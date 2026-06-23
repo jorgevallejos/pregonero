@@ -6128,3 +6128,189 @@ describe('End Card — control view', () => {
     expect(getEndCardVisible()).toBe(false)
   })
 })
+
+// ── §5 + §6 — simplified performance screens ──────────────────────────────
+
+describe('§6 non-video armed screen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('End Card button is visible in the non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /end card/i })).toBeTruthy()
+  })
+
+  it('Previous, Next, Restart, Unarm are all present in non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /previous/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /restart/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^unarm/i })).toBeTruthy()
+  })
+
+  it('no ← Cue or Cue → buttons appear on the non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByText(/← cue/i)).toBeNull()
+    expect(screen.queryByText(/cue →/i)).toBeNull()
+  })
+
+  it('BeatCircle is rendered when the loaded song has a tempo', async () => {
+    // Set up a library with a song that has tempo
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    const snapshot = createInitialSnapshot([songWithTempo, { id: 'pimiento', title: 'Pimiento', items: VALID_LINES }])
+    saveSetlistStore(snapshot)
+
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    vi.useFakeTimers()
+    // Advance timers so the beat clock ticks at least once
+    act(() => { vi.advanceTimersByTime(100) })
+
+    // BeatCircle should be rendered (the §7 component)
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+  })
+
+  it('BeatCircle is NOT rendered when the loaded song has no tempo', async () => {
+    // Standard library (no tempo on songs)
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+})
+
+describe('§5 video armed screen — End Card absent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('End Card button is NOT rendered in the video armed screen', async () => {
+    // Set up a library with a song that has a video
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    // Provide a resolved path so the panel renders with video
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+
+    setupControlViewWithReadinessPassing()
+    // Override the song state to use the video song
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Video armed screen should NOT have End Card
+    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
+  })
+
+  it('Previous / Next / Restart are NOT in the video armed screen (video controls are Play/Pause/Restart/Unarm)', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+
+    setupControlViewWithReadinessPassing()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Video screen has Restart (but not Previous/Next)
+    expect(screen.queryByRole('button', { name: /^previous$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
+    // Play, Pause, Restart, Unarm should be present
+    expect(screen.getByRole('button', { name: /^play$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^pause$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^unarm$/i })).toBeTruthy()
+  })
+})
