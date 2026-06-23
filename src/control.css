@@ -507,6 +507,21 @@ html, body, #root {
   /* same as base .ctrl-btn; override if design needs distinct projection style */
 }
 
+.ctrl-screen-size {
+  opacity: 0.55;
+}
+
+.ctrl-screen-size--active {
+  opacity: 1;
+  border-color: #fff;
+}
+
+.control-setup-button-row {
+  display: flex;
+  gap: 0.5em;
+  margin-bottom: 0.4em;
+}
+
 .control-bottom-bar {
   flex-shrink: 0;
   padding: 1em 1.25em;
