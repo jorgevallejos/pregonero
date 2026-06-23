@@ -74,17 +74,21 @@ export function validateVideoForImport(
 }
 
 /**
- * Converts an absolute file path to a `media://` URL served by the Electron
- * custom protocol handler (registered in electron/main.cjs). Spaces and
- * special characters are percent-encoded path-segment by path-segment;
- * slashes are preserved so the full path is the URL path component
- * (empty host, e.g. media:///Users/...). Use this instead of file:// URLs,
+ * Converts an absolute file path to a `media://local/...` URL served by the
+ * Electron custom protocol handler (registered in electron/main.cjs). Spaces
+ * and special characters are percent-encoded path-segment by path-segment;
+ * slashes are preserved so the full path is the URL path component.
+ *
+ * The fixed `local` host is required: an empty-host media:/// URL is
+ * canonicalized by Chromium into media://firstsegment/..., absorbing and
+ * lowercasing the first path segment as the hostname, which breaks the path
+ * reconstruction in the main-process handler. Use this instead of file:// URLs,
  * which are blocked by webSecurity when the renderer runs on http://localhost.
  */
 export function absolutePathToMediaUrl(absolutePath: string): string {
-  const encoded = absolutePath
+  const encodedPath = absolutePath
     .split('/')
     .map((segment, i) => (i === 0 ? segment : encodeURIComponent(segment)))
     .join('/')
-  return `media://${encoded}`
+  return `media://local${encodedPath}`
 }

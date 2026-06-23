@@ -101,21 +101,21 @@ describe('removeMediaPath', () => {
 })
 
 describe('absolutePathToMediaUrl', () => {
-  it('returns a media:// URL for a plain path', () => {
-    expect(absolutePathToMediaUrl('/Users/jorge/videos/tragedia.mp4')).toBe(
-      'media:///Users/jorge/videos/tragedia.mp4'
+  it('returns a media://local URL with the absolute path preserved', () => {
+    expect(absolutePathToMediaUrl('/Users/jorge/cerdo.mp4')).toBe(
+      'media://local/Users/jorge/cerdo.mp4'
     )
   })
 
   it('percent-encodes spaces in path segments', () => {
     expect(absolutePathToMediaUrl('/Users/jorge/My Videos/cerdo asado.mp4')).toBe(
-      'media:///Users/jorge/My%20Videos/cerdo%20asado.mp4'
+      'media://local/Users/jorge/My%20Videos/cerdo%20asado.mp4'
     )
   })
 
-  it('percent-encodes non-ASCII characters', () => {
+  it('percent-encodes non-ASCII characters in path segments', () => {
     expect(absolutePathToMediaUrl('/Users/jorge/Música/niño.mp4')).toBe(
-      'media:///Users/jorge/M%C3%BAsica/ni%C3%B1o.mp4'
+      'media://local/Users/jorge/M%C3%BAsica/ni%C3%B1o.mp4'
     )
   })
 })
