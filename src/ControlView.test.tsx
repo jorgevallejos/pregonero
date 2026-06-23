@@ -43,6 +43,7 @@ import {
   setActiveSetlistId,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -4573,6 +4574,216 @@ describe('ControlView performer state flow', () => {
         expect(getActiveSetlistId()).toBe(TONIGHT_ID)
       })
     })
+
+    describe('camera icon + link video dialog (§3)', () => {
+      function seedSetlistWithSong() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        const snap = {
+          version: 5 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: {
+            songs: [{ id: 'duelo', title: 'Duelo', items: [line] }],
+          },
+        }
+        saveSetlistStore(snap)
+      }
+
+      function renderManageSetlists(openFileDialogImpl?: () => Promise<string | null>) {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
+        ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+          isProjectionOpen: vi.fn().mockResolvedValue(false),
+          onProjectionOpened: vi.fn(() => vi.fn()),
+          onProjectionClosed: vi.fn(() => vi.fn()),
+          openProjection: vi.fn().mockResolvedValue(undefined),
+          closeProjection: vi.fn().mockResolvedValue(undefined),
+          openFileDialog: openFileDialogImpl ?? vi.fn().mockResolvedValue(null),
+        }
+        window.location.hash = '#/songs/manage-setlists'
+        sessionStorage.setItem('liveLyricLaunched', '1')
+        render(<App />)
+      }
+
+      it('each setlist song row has a camera button', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        expect(within(row).getByRole('button', { name: /Link video for Duelo/i })).toBeTruthy()
+      })
+
+      it('clicking the camera button opens the link video dialog', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        await act(async () => {
+          fireEvent.click(within(row).getByRole('button', { name: /Link video for Duelo/i }))
+        })
+        const dialog = screen.getByTestId('link-video-dialog')
+        expect(dialog).toBeTruthy()
+        expect(within(dialog).getByRole('button', { name: /Choose file.*Big/i })).toBeTruthy()
+        expect(within(dialog).getByRole('button', { name: /Choose file.*Small/i })).toBeTruthy()
+      })
+
+      it('link dialog has a Close button that dismisses it', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        expect(screen.getByTestId('link-video-dialog')).toBeTruthy()
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Close/i }))
+        })
+        expect(screen.queryByTestId('link-video-dialog')).toBeNull()
+      })
+
+      it('Choose file for Small screen sets song.media.small and registers the path', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        const chosenPath = '/Users/jorge/videos/duelo_small.mp4'
+        renderManageSetlists(() => Promise.resolve(chosenPath))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Ss]mall/i }))
+        })
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.media?.small?.src).toBe('duelo_small.mp4')
+          expect(song.media?.small?.type).toBe('video')
+        })
+        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+        expect(paths['duelo_small.mp4']).toBe(chosenPath)
+      })
+
+      it('Choose file for Big screen sets song.media.big and registers the path', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        const chosenPath = '/Users/jorge/videos/duelo_big.mp4'
+        renderManageSetlists(() => Promise.resolve(chosenPath))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Bb]ig/i }))
+        })
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.media?.big?.src).toBe('duelo_big.mp4')
+          expect(song.media?.big?.type).toBe('video')
+        })
+        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+        expect(paths['duelo_big.mp4']).toBe(chosenPath)
+      })
+
+      it('shows a .mov warning inline when a .mov file is chosen', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        renderManageSetlists(() => Promise.resolve('/Users/jorge/videos/duelo.mov'))
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Ss]mall/i }))
+        })
+        await waitFor(() => {
+          expect(screen.getByText(/ProRes.*MOV|MOV.*ProRes|not web-playable/i)).toBeTruthy()
+        })
+      })
+
+      it('Clear for Small screen removes song.media.small from the store', async () => {
+        clearStorage()
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 5 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: {
+            songs: [{
+              id: 'duelo',
+              title: 'Duelo',
+              items: [line],
+              media: { small: { type: 'video', src: 'duelo_small.mp4' } },
+            }],
+          },
+        })
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        await waitFor(() => {
+          expect(screen.getByText('duelo_small.mp4')).toBeTruthy()
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Clear.*[Ss]mall|[Ss]mall.*[Cc]lear/i }))
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: /Close/i }))
+        })
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+        })
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.media?.small).toBeUndefined()
+        })
+      })
+    })
   })
 
   describe('Played song indicator', () => {
@@ -5538,8 +5749,8 @@ describe('Control performance timer/status button', () => {
     expect(timerBlock).toBeTruthy()
 
     const timerRule = timerBlock![1]
-    expect(timerRule).toMatch(/width:\s*112px/)
-    expect(timerRule).toMatch(/height:\s*112px/)
+    expect(timerRule).toMatch(/width:\s*var\(--beat-circle-size\)/)
+    expect(timerRule).toMatch(/height:\s*var\(--beat-circle-size\)/)
     expect(timerRule).toMatch(/padding:\s*0/)
     expect(timerRule).toMatch(/border-radius:\s*50%/)
     expect(timerRule).toMatch(/border:\s*1px\s+solid\s+#48484a/)
@@ -5915,5 +6126,191 @@ describe('End Card — control view', () => {
     vi.useRealTimers()
 
     expect(getEndCardVisible()).toBe(false)
+  })
+})
+
+// ── §5 + §6 — simplified performance screens ──────────────────────────────
+
+describe('§6 non-video armed screen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('End Card button is visible in the non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /end card/i })).toBeTruthy()
+  })
+
+  it('Previous, Next, Restart, Unarm are all present in non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /previous/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /next/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /restart/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^unarm/i })).toBeTruthy()
+  })
+
+  it('no ← Cue or Cue → buttons appear on the non-video armed screen', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByText(/← cue/i)).toBeNull()
+    expect(screen.queryByText(/cue →/i)).toBeNull()
+  })
+
+  it('BeatCircle is rendered when the loaded song has a tempo', async () => {
+    // Set up a library with a song that has tempo
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    const snapshot = createInitialSnapshot([songWithTempo, { id: 'pimiento', title: 'Pimiento', items: VALID_LINES }])
+    saveSetlistStore(snapshot)
+
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    vi.useFakeTimers()
+    // Advance timers so the beat clock ticks at least once
+    act(() => { vi.advanceTimersByTime(100) })
+
+    // BeatCircle should be rendered (the §7 component)
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+  })
+
+  it('BeatCircle is NOT rendered when the loaded song has no tempo', async () => {
+    // Standard library (no tempo on songs)
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+})
+
+describe('§5 video armed screen — End Card absent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('End Card button is NOT rendered in the video armed screen', async () => {
+    // Set up a library with a song that has a video
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    // Provide a resolved path so the panel renders with video
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+
+    setupControlViewWithReadinessPassing()
+    // Override the song state to use the video song
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Video armed screen should NOT have End Card
+    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
+  })
+
+  it('Previous / Next / Restart are NOT in the video armed screen (video controls are Play/Pause/Restart/Unarm)', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+
+    setupControlViewWithReadinessPassing()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Video screen has Restart (but not Previous/Next)
+    expect(screen.queryByRole('button', { name: /^previous$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
+    // Play, Pause, Restart, Unarm should be present
+    expect(screen.getByRole('button', { name: /^play$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^pause$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^unarm$/i })).toBeTruthy()
   })
 })

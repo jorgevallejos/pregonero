@@ -935,20 +935,20 @@ describe('setlistStore', () => {
   describe('SongTempo schema field', () => {
     it('song with full tempo round-trips through createInitialSnapshot and loadSetlistStore', () => {
       const seed: LibrarySong[] = [
-        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 120, meter: 4, countInBars: 2 } },
+        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 2 } },
       ]
       saveSetlistStore(createInitialSnapshot(seed))
       const loaded = loadSetlistStore()!
-      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 120, meter: 4, countInBars: 2 })
+      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 120, numerator: 4, denominator: 4, countInBars: 2 })
     })
 
     it('song with minimal tempo (no countInBars) round-trips', () => {
       const seed: LibrarySong[] = [
-        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 80, meter: 3 } },
+        { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 80, numerator: 3, denominator: 4 } },
       ]
       saveSetlistStore(createInitialSnapshot(seed))
       const loaded = loadSetlistStore()!
-      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 80, meter: 3 })
+      expect(loaded.songLibrary.songs[0]!.tempo).toEqual({ bpm: 80, numerator: 3, denominator: 4 })
     })
 
     it('song without tempo field loads fine (back-compat)', () => {
@@ -964,7 +964,7 @@ describe('setlistStore', () => {
         ...snap,
         songLibrary: {
           songs: snap.songLibrary.songs.map((s) =>
-            s.id === 'a' ? { ...s, tempo: { bpm: 100, meter: 4, countInBars: 1 } } : s
+            s.id === 'a' ? { ...s, tempo: { bpm: 100, numerator: 4, denominator: 4, countInBars: 1 } } : s
           ),
         },
       }
@@ -972,29 +972,45 @@ describe('setlistStore', () => {
       const loaded = loadSetlistStore()!
       expect(loaded.songLibrary.songs.find((s) => s.id === 'a')!.tempo).toEqual({
         bpm: 100,
-        meter: 4,
+        numerator: 4,
+        denominator: 4,
         countInBars: 1,
       })
     })
 
-    it('tempo from JSON import is preserved via importSongFromJsonText', () => {
+    it('tempo from JSON import (new numerator/denominator format) is preserved', () => {
       installTestStore()
       const json = JSON.stringify({
         id: 'tempo-song',
         title: 'Rhythm',
         lyrics: [{ es: 'Hola', en: 'Hello' }],
-        tempo: { bpm: 140, meter: 4, countInBars: 2 },
+        tempo: { bpm: 140, numerator: 4, denominator: 4, countInBars: 2 },
       })
       const result = importSongFromJsonText(json)
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.song.tempo).toEqual({ bpm: 140, meter: 4, countInBars: 2 })
+      expect(result.song.tempo).toEqual({ bpm: 140, numerator: 4, denominator: 4, countInBars: 2 })
       const stored = loadSetlistStore()!
       expect(stored.songLibrary.songs.find((s) => s.id === 'tempo-song')!.tempo).toEqual({
         bpm: 140,
-        meter: 4,
+        numerator: 4,
+        denominator: 4,
         countInBars: 2,
       })
+    })
+
+    it('tempo from JSON import (old meter format) is accepted and converted', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'tempo-song-old',
+        title: 'Rhythm Old',
+        lyrics: [{ es: 'Hola', en: 'Hello' }],
+        tempo: { bpm: 126, meter: 4 },
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.song.tempo).toEqual({ bpm: 126, numerator: 4, denominator: 4 })
     })
 
     it('tempo with invalid bpm is rejected on JSON import', () => {
@@ -1003,22 +1019,235 @@ describe('setlistStore', () => {
         id: 'bad-tempo',
         title: 'Bad',
         lyrics: [{ es: 'Hola', en: 'Hello' }],
-        tempo: { bpm: -1, meter: 4 },
+        tempo: { bpm: -1, numerator: 4, denominator: 4 },
       })
       const result = importSongFromJsonText(json)
       expect(result.ok).toBe(false)
     })
 
-    it('tempo with non-integer meter is rejected on JSON import', () => {
+    it('tempo with non-integer numerator is rejected on JSON import', () => {
       installTestStore()
       const json = JSON.stringify({
         id: 'bad-tempo2',
         title: 'Bad2',
         lyrics: [{ es: 'Hola', en: 'Hello' }],
-        tempo: { bpm: 120, meter: 4.5 },
+        tempo: { bpm: 120, numerator: 4.5, denominator: 4 },
       })
       const result = importSongFromJsonText(json)
       expect(result.ok).toBe(false)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // RED: v3 → v4 migration tests.
+  // These fail until SETLIST_STORE_VERSION is bumped to 4 and a v3→v4 migration
+  // path (meter → numerator/denominator) is added to ensureSongLibraryHydrated.
+  // ---------------------------------------------------------------------------
+  describe('v3 → v4 migration (meter → numerator/denominator)', () => {
+    it('migrates a v3 snapshot with tempo.meter to v4 with numerator/denominator', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [
+            { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 126, meter: 4 } },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.tempo).toEqual({ bpm: 126, numerator: 4, denominator: 4 })
+    })
+
+    it('preserves countInBars when migrating meter → numerator/denominator', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [
+            { id: 'a', title: 'Alpha', items: [LYRIC], tempo: { bpm: 80, meter: 3, countInBars: 2 } },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.tempo).toEqual({
+        bpm: 80,
+        numerator: 3,
+        denominator: 4,
+        countInBars: 2,
+      })
+    })
+
+    it('migrates a v3 song without tempo (no tempo field added)', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [{ id: 'a', title: 'Alpha', items: [LYRIC] }],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.tempo).toBeUndefined()
+    })
+
+    it('migrates a v3 song with flat media to { small: ... }', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { type: 'video', src: 'cerdo.mp4' },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ small: { type: 'video', src: 'cerdo.mp4' } })
+    })
+
+    it('preserves all flat media fields (trimStart, offset) when migrating v3', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.songLibrary.songs[0]!.media).toEqual({
+        small: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
+      })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // v4 → v5 migration tests.
+  // Fail until SETLIST_STORE_VERSION is bumped to 5 and a v4→v5 migration
+  // path (flat media → SongMedia) is added to ensureSongLibraryHydrated.
+  // ---------------------------------------------------------------------------
+  describe('v4 → v5 migration (flat media → SongMedia)', () => {
+    it('migrates a v4 snapshot with flat media to v5 with { small: ... }', async () => {
+      const v4Snapshot = {
+        version: 4,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { type: 'video', src: 'cerdo.mp4' },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v4Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ small: { type: 'video', src: 'cerdo.mp4' } })
+    })
+
+    it('preserves all flat media fields (trimStart, offset) when migrating v4', async () => {
+      const v4Snapshot = {
+        version: 4,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v4Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.songLibrary.songs[0]!.media).toEqual({
+        small: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
+      })
+    })
+
+    it('preserves a v4 song without media (no media field added)', async () => {
+      const v4Snapshot = {
+        version: 4,
+        songLibrary: {
+          songs: [{ id: 'a', title: 'Alpha', items: [LYRIC] }],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v4Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toBeUndefined()
+    })
+
+    it('preserves tempo when migrating v4 (no tempo data lost)', async () => {
+      const v4Snapshot = {
+        version: 4,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              tempo: { bpm: 126, numerator: 4, denominator: 4 },
+              media: { type: 'video', src: 'song.mp4' },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v4Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.songLibrary.songs[0]!.tempo).toEqual({ bpm: 126, numerator: 4, denominator: 4 })
     })
   })
 })
