@@ -6,14 +6,12 @@ import { videoCueLookup } from './videoCueLookup'
 import { setVideoSeekTarget } from './VideoProjectionRegion'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
-import type { MediaFile, TimelineEntry, SongItem } from './songState'
+import type { MediaFile, TimelineEntry } from './songState'
 
 interface Props {
   absolutePath: string | null
   media: MediaFile
   timeline: TimelineEntry[]
-  lines: SongItem[]
-  singingLang: string
   tempo?: SongTempo
   onUnarm: () => void
   onSeek: (targetTime: number) => void
@@ -36,8 +34,6 @@ export function VideoPerformancePanel({
   absolutePath,
   media,
   timeline,
-  lines,
-  singingLang,
   tempo,
   onUnarm,
   onSeek,
