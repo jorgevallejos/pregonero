@@ -13,6 +13,7 @@ interface Props {
   media: MediaFile
   timeline: TimelineEntry[]
   tempo?: SongTempo
+  beatIndicatorOn?: boolean
   onUnarm: () => void
   onSeek: (targetTime: number) => void
 }
@@ -35,6 +36,7 @@ export function VideoPerformancePanel({
   media,
   timeline,
   tempo,
+  beatIndicatorOn = true,
   onUnarm,
   onSeek,
 }: Props) {
@@ -217,7 +219,7 @@ export function VideoPerformancePanel({
           playsInline
           className="video-perf-preview"
         />
-        {tempo && (
+        {tempo && beatIndicatorOn && (
           <BeatCircle tempo={tempo} phase={phase} style={beatCircleStyle} />
         )}
       </div>

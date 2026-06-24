@@ -6549,3 +6549,143 @@ describe('§5 video armed screen — End Card absent', () => {
     expect(screen.getByRole('button', { name: /^unarm$/i })).toBeTruthy()
   })
 })
+
+describe('Beat indicator toggle', () => {
+  function installLibraryWithTempoOnDuelo(): void {
+    const line: SongItem = { languages: { es: 't', en: 't' } }
+    const songs = SONGS.map((s) => ({
+      id: s.id,
+      title: s.title,
+      items: [line],
+      ...(s.id === 'duelo' ? { tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 } } : {}),
+    }))
+    saveSetlistStore(createInitialSnapshot(songs))
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    installLibraryWithTempoOnDuelo()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('beat indicator toggle button is visible in Projection section when READY_TO_ARM', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+  })
+
+  it('toggle button has aria-pressed=true by default', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    const btn = screen.getByRole('button', { name: 'Beat indicator' })
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('clicking toggle sets aria-pressed to false', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    const btn = screen.getByRole('button', { name: 'Beat indicator' })
+    await act(async () => { fireEvent.click(btn) })
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('clicking toggle twice restores aria-pressed to true', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    const btn = screen.getByRole('button', { name: 'Beat indicator' })
+    await act(async () => { fireEvent.click(btn) })
+    await act(async () => { fireEvent.click(btn) })
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('armed non-video view renders BeatCircle when beatIndicatorOn is true (default)', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { fireEvent.click(getArmButton()) })
+    act(() => { vi.advanceTimersByTime(50) })
+
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+  })
+
+  it('armed non-video view hides BeatCircle when toggled off before arming', async () => {
+    vi.useFakeTimers()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await act(async () => { await Promise.resolve() })
+
+    const toggleBtn = screen.getByRole('button', { name: 'Beat indicator' })
+    await act(async () => { fireEvent.click(toggleBtn) })
+    expect(toggleBtn.getAttribute('aria-pressed')).toBe('false')
+
+    await act(async () => { fireEvent.click(getArmButton()) })
+    act(() => { vi.advanceTimersByTime(50) })
+
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+
+  it('video armed view hides BeatCircle when toggled off before arming', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+
+    setupControlViewWithReadinessPassing()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+
+    vi.useFakeTimers()
+    render(<App initialHash="#/" />)
+
+    // Flush microtasks so isProjectionOpen promise resolves → READY_TO_ARM
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+    const toggleBtn = screen.getByRole('button', { name: 'Beat indicator' })
+    await act(async () => { fireEvent.click(toggleBtn) })
+
+    await act(async () => { fireEvent.click(getArmButton()) })
+
+    // Play video to start clock
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^play$/i })) })
+    act(() => { vi.advanceTimersByTime(50) })
+
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+})
