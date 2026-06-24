@@ -32,6 +32,7 @@ import {
   cloneSetlistStoreSnapshot,
   getSetlistNamesContainingSongInSnapshot,
   updateSongTimeline,
+  getActiveMediaFile,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
@@ -1104,7 +1105,7 @@ describe('setlistStore', () => {
       expect(snap.songLibrary.songs[0]!.tempo).toBeUndefined()
     })
 
-    it('migrates a v3 song with flat media to { small: ... }', async () => {
+    it('migrates a v3 song with flat media to a single MediaFile (stays flat)', async () => {
       const v3Snapshot = {
         version: 3,
         songLibrary: {
@@ -1125,7 +1126,7 @@ describe('setlistStore', () => {
       const snap = await ensureSongLibraryHydrated()
 
       expect(snap.version).toBe(SETLIST_STORE_VERSION)
-      expect(snap.songLibrary.songs[0]!.media).toEqual({ small: { type: 'video', src: 'cerdo.mp4' } })
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'cerdo.mp4' })
     })
 
     it('preserves all flat media fields (trimStart, offset) when migrating v3', async () => {
@@ -1148,19 +1149,16 @@ describe('setlistStore', () => {
 
       const snap = await ensureSongLibraryHydrated()
 
-      expect(snap.songLibrary.songs[0]!.media).toEqual({
-        small: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
-      })
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 })
     })
   })
 
   // ---------------------------------------------------------------------------
-  // v4 → v5 migration tests.
-  // Fail until SETLIST_STORE_VERSION is bumped to 5 and a v4→v5 migration
-  // path (flat media → SongMedia) is added to ensureSongLibraryHydrated.
+  // v4 → v6 migration tests.
+  // v4 already has flat media (same shape as v6) — the migration just bumps the version.
   // ---------------------------------------------------------------------------
-  describe('v4 → v5 migration (flat media → SongMedia)', () => {
-    it('migrates a v4 snapshot with flat media to v5 with { small: ... }', async () => {
+  describe('v4 → v6 migration (flat media stays flat)', () => {
+    it('migrates a v4 snapshot with flat media to v6 (flat media unchanged)', async () => {
       const v4Snapshot = {
         version: 4,
         songLibrary: {
@@ -1181,7 +1179,7 @@ describe('setlistStore', () => {
       const snap = await ensureSongLibraryHydrated()
 
       expect(snap.version).toBe(SETLIST_STORE_VERSION)
-      expect(snap.songLibrary.songs[0]!.media).toEqual({ small: { type: 'video', src: 'cerdo.mp4' } })
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'cerdo.mp4' })
     })
 
     it('preserves all flat media fields (trimStart, offset) when migrating v4', async () => {
@@ -1204,9 +1202,7 @@ describe('setlistStore', () => {
 
       const snap = await ensureSongLibraryHydrated()
 
-      expect(snap.songLibrary.songs[0]!.media).toEqual({
-        small: { type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 },
-      })
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'song.mp4', trimStart: 1.5, offset: 0.2 })
     })
 
     it('preserves a v4 song without media (no media field added)', async () => {
@@ -1248,6 +1244,150 @@ describe('setlistStore', () => {
       const snap = await ensureSongLibraryHydrated()
 
       expect(snap.songLibrary.songs[0]!.tempo).toEqual({ bpm: 126, numerator: 4, denominator: 4 })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // v5 → v6 migration tests.
+  // Fail until SETLIST_STORE_VERSION is bumped to 6 and a v5→v6 migration path
+  // (SongMedia { big?, small? } → single MediaFile) is added.
+  // ---------------------------------------------------------------------------
+  describe('v5 → v6 migration (SongMedia → single MediaFile)', () => {
+    it('SETLIST_STORE_VERSION is 6', () => {
+      expect(SETLIST_STORE_VERSION).toBe(6)
+    })
+
+    it('migrates { big, small } to the big MediaFile', async () => {
+      const v5Snapshot = {
+        version: 5,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: {
+                big: { type: 'video', src: 'big.mp4', trimStart: 1 },
+                small: { type: 'video', src: 'small.mp4' },
+              },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v5Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'big.mp4', trimStart: 1 })
+    })
+
+    it('migrates { small } to that MediaFile when no big', async () => {
+      const v5Snapshot = {
+        version: 5,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { small: { type: 'video', src: 'small.mp4', offset: 0.5 } },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v5Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'small.mp4', offset: 0.5 })
+    })
+
+    it('migrates { big } to that MediaFile when no small', async () => {
+      const v5Snapshot = {
+        version: 5,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { big: { type: 'video', src: 'big.mp4' } },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v5Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'big.mp4' })
+    })
+
+    it('preserves songs without media (no media field added)', async () => {
+      const v5Snapshot = {
+        version: 5,
+        songLibrary: {
+          songs: [{ id: 'a', title: 'Alpha', items: [LYRIC] }],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v5Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toBeUndefined()
+    })
+
+    it('also migrates flat-media v3 songs all the way to a single MediaFile', async () => {
+      const v3Snapshot = {
+        version: 3,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              media: { type: 'video', src: 'cerdo.mp4' },
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v3Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.media).toEqual({ type: 'video', src: 'cerdo.mp4' })
+    })
+  })
+
+  describe('getActiveMediaFile (v6: returns song.media directly)', () => {
+    it('returns song.media when the song has a media field', () => {
+      const song: LibrarySong = {
+        id: 'x',
+        title: 'X',
+        items: [LYRIC],
+        media: { type: 'video', src: 'song.mp4' } as unknown as LibrarySong['media'],
+      }
+      expect(getActiveMediaFile(song)).toEqual({ type: 'video', src: 'song.mp4' })
+    })
+
+    it('returns undefined when the song has no media field', () => {
+      const song: LibrarySong = { id: 'x', title: 'X', items: [LYRIC] }
+      expect(getActiveMediaFile(song)).toBeUndefined()
     })
   })
 })

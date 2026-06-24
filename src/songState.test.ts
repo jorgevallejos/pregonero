@@ -770,25 +770,25 @@ describe('parseSongFile — media field', () => {
     expect(result.media).toBeUndefined()
   })
 
-  describe('old flat format (auto-migrated to { small: ... })', () => {
-    it('flat video media is wrapped in the small slot', () => {
+  describe('flat format (parses as single MediaFile)', () => {
+    it('flat video media parses as a single MediaFile', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
         media: { type: 'video', src: 'song.mp4' },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({ small: { type: 'video', src: 'song.mp4' } })
+      expect(result.media).toEqual({ type: 'video', src: 'song.mp4' })
     })
 
-    it('flat audio media with offset is wrapped in the small slot', () => {
+    it('flat audio media with offset parses as a single MediaFile', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
         media: { type: 'audio', src: 'song.mp3', offset: 2.5 },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({ small: { type: 'audio', src: 'song.mp3', offset: 2.5 } })
+      expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 2.5 })
     })
 
     it('zero offset is valid (flat)', () => {
@@ -798,7 +798,7 @@ describe('parseSongFile — media field', () => {
         media: { type: 'audio', src: 'song.mp3', offset: 0 },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({ small: { type: 'audio', src: 'song.mp3', offset: 0 } })
+      expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 0 })
     })
 
     it('invalid media type (flat) throws an error', () => {
@@ -838,28 +838,28 @@ describe('parseSongFile — media field', () => {
     })
   })
 
-  describe('new SongMedia format ({ big?, small? })', () => {
-    it('SongMedia with only small slot is parsed', () => {
+  describe('legacy SongMedia format ({ big?, small? }) — collapses to single MediaFile', () => {
+    it('{ small } collapses to that MediaFile', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
         media: { small: { type: 'video', src: 'small.mp4' } },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({ small: { type: 'video', src: 'small.mp4' } })
+      expect(result.media).toEqual({ type: 'video', src: 'small.mp4' })
     })
 
-    it('SongMedia with only big slot is parsed', () => {
+    it('{ big } collapses to that MediaFile', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
         media: { big: { type: 'video', src: 'big.mp4' } },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({ big: { type: 'video', src: 'big.mp4' } })
+      expect(result.media).toEqual({ type: 'video', src: 'big.mp4' })
     })
 
-    it('SongMedia with both slots is parsed', () => {
+    it('{ big, small } collapses to big (preferred)', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
@@ -869,10 +869,7 @@ describe('parseSongFile — media field', () => {
         },
       })
       const result = parseSongFile(json)
-      expect(result.media).toEqual({
-        big: { type: 'video', src: 'big.mp4', trimStart: 2 },
-        small: { type: 'video', src: 'small.mp4', offset: 0.1 },
-      })
+      expect(result.media).toEqual({ type: 'video', src: 'big.mp4', trimStart: 2 })
     })
 
     it('SongMedia with no slots throws', () => {
@@ -954,5 +951,74 @@ describe('tryParseSongItemsArray', () => {
 
   it('returns null when an element is invalid', () => {
     expect(tryParseSongItemsArray([{ es: 1 }])).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// v6 media schema: ParsedSongFile.media is a single MediaFile, not SongMedia.
+// These tests fail until validateMedia returns MediaFile and ParsedSongFile.media
+// is typed as MediaFile.
+// ---------------------------------------------------------------------------
+describe('parseSongFile — media field (v6: single MediaFile)', () => {
+  it('flat video media parses as a single MediaFile (no slot wrapping)', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'video', src: 'song.mp4' },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'video', src: 'song.mp4' })
+  })
+
+  it('flat audio media with offset parses as a single MediaFile', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { type: 'audio', src: 'song.mp3', offset: 2.5 },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'audio', src: 'song.mp3', offset: 2.5 })
+  })
+
+  it('{ big } collapses to that MediaFile', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { big: { type: 'video', src: 'big.mp4' } },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'video', src: 'big.mp4' })
+  })
+
+  it('{ small } collapses to that MediaFile', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: { small: { type: 'video', src: 'small.mp4' } },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'video', src: 'small.mp4' })
+  })
+
+  it('{ big, small } collapses to big (big is preferred)', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: {
+        big: { type: 'video', src: 'big.mp4', trimStart: 2 },
+        small: { type: 'video', src: 'small.mp4', offset: 0.1 },
+      },
+    })
+    const result = parseSongFile(json)
+    expect(result.media).toEqual({ type: 'video', src: 'big.mp4', trimStart: 2 })
+  })
+
+  it('media: {} still throws (empty object is rejected)', () => {
+    const json = JSON.stringify({
+      title: 'S',
+      lyrics: [{ es: 'A', en: 'B' }],
+      media: {},
+    })
+    expect(() => parseSongFile(json)).toThrow()
   })
 })

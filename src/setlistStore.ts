@@ -13,13 +13,14 @@ import {
   type SongItem,
   type TimelineEntry,
   type MediaFile,
-  type SongMedia,
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
-/** v5: media field replaced with SongMedia { big?, small? } (was flat MediaFile). */
-export const SETLIST_STORE_VERSION = 5
-/** v4 snapshots (flat media object) are migrated to v5 on load. */
+/** v6: media field is a single MediaFile (was SongMedia { big?, small? } in v5). */
+export const SETLIST_STORE_VERSION = 6
+/** v5 snapshots (SongMedia { big?, small? }) are migrated to v6 on load. */
+export const SETLIST_STORE_VERSION_V5 = 5
+/** v4 snapshots (flat media object) are migrated on load. */
 export const SETLIST_STORE_VERSION_V4 = 4
 /** v3 snapshots (tempo.meter) are migrated on load. */
 export const SETLIST_STORE_VERSION_V3 = 3
@@ -57,8 +58,8 @@ export type LibrarySong = {
   intro?: Record<string, string>
   /** Timing entries in seconds, one per item (including sections). Written by record-timeline mode. */
   timeline?: TimelineEntry[]
-  /** Optional media files (video or audio) for big and small screens. */
-  media?: SongMedia
+  /** Optional media file (video or audio). */
+  media?: MediaFile
   /** Optional tempo for count-in and beat-pulse display in the performer view. */
   tempo?: SongTempo
 }
@@ -134,6 +135,15 @@ function isLibrarySongCommonFields(o: Record<string, unknown>): boolean {
 }
 
 function isLibrarySong(v: unknown): v is LibrarySong {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  if (!isLibrarySongCommonFields(o)) return false
+  if (o.media !== undefined && !isMediaFileShape(o.media)) return false
+  return true
+}
+
+/** Validates a v5 library song (SongMedia { big?, small? } format). For migration only. */
+function isLibrarySongV5(v: unknown): boolean {
   if (v === null || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
   if (!isLibrarySongCommonFields(o)) return false
@@ -228,6 +238,24 @@ function parseSnapshotLatest(raw: unknown): SetlistStoreSnapshot | null {
   return parseSnapshotShape(raw, SETLIST_STORE_VERSION)
 }
 
+/** Reads a v5 snapshot (SongMedia { big?, small? }) for migration purposes only. */
+function parseSnapshotV5ForMigration(raw: unknown): SetlistStoreSnapshot | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (o.version !== SETLIST_STORE_VERSION_V5) return null
+  if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
+  const lib = o.songLibrary as Record<string, unknown>
+  if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySongV5)) return null
+  if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
+  return {
+    version: SETLIST_STORE_VERSION_V5,
+    songLibrary: { songs: lib.songs as LibrarySong[] },
+    setlists: o.setlists as Setlist[],
+    activeSetlistId: o.activeSetlistId,
+  }
+}
+
 /** Reads an old v4 snapshot (flat media) for migration purposes only. */
 function parseSnapshotV4ForMigration(raw: unknown): SetlistStoreSnapshot | null {
   if (raw === null || typeof raw !== 'object') return null
@@ -268,17 +296,23 @@ function parseSnapshotV2(raw: unknown): SetlistStoreSnapshot | null {
   return parseSnapshotShape(raw, SETLIST_STORE_VERSION_V2)
 }
 
-function wrapFlatMediaInSmallSlot(song: LibrarySong): LibrarySong {
-  if (song.media === undefined) return song
-  const m = song.media as unknown as Record<string, unknown>
-  if (m.type !== undefined) {
-    return { ...song, media: { small: song.media as unknown as MediaFile } }
-  }
-  return song
+/** Collapses a v5 SongMedia object to a single MediaFile (big preferred, else small). */
+function collapseSongMediaToMediaFile(m: Record<string, unknown>): MediaFile | undefined {
+  return (m.big as MediaFile | undefined) ?? (m.small as MediaFile | undefined)
 }
 
-function migrateV4ToV5(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
-  const songs = snap.songLibrary.songs.map(wrapFlatMediaInSmallSlot)
+function migrateV5ToV6(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  const songs: LibrarySong[] = snap.songLibrary.songs.map((song) => {
+    if (song.media === undefined) return song
+    const m = song.media as unknown as Record<string, unknown>
+    const collapsed = collapseSongMediaToMediaFile(m)
+    if (collapsed === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { media: _m, ...rest } = song
+      return rest
+    }
+    return { ...song, media: collapsed }
+  })
   const next: SetlistStoreSnapshot = {
     ...snap,
     version: SETLIST_STORE_VERSION,
@@ -289,7 +323,18 @@ function migrateV4ToV5(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
   return repaired
 }
 
-function migrateV3ToLatest(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+function migrateV4ToV6(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  // v4 already has flat media (same shape as v6) — just bump the version
+  const next: SetlistStoreSnapshot = {
+    ...snap,
+    version: SETLIST_STORE_VERSION,
+  }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
+}
+
+function migrateV3ToV6(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
   const songs: LibrarySong[] = snap.songLibrary.songs.map((song) => {
     let updated = song
     // Migrate meter → numerator/denominator
@@ -301,8 +346,7 @@ function migrateV3ToLatest(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
         updated = { ...updated, tempo: newTempo }
       }
     }
-    // Migrate flat media → { small: ... }
-    updated = wrapFlatMediaInSmallSlot(updated)
+    // v3 has flat media (same shape as v6) — no wrapping needed
     return updated
   })
   const next: SetlistStoreSnapshot = {
@@ -405,14 +449,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.notes !== undefined && s.notes.length > 0 ? { notes: s.notes } : {}),
     ...(s.title_translations !== undefined && Object.keys(s.title_translations).length > 0 ? { title_translations: s.title_translations } : {}),
     ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
-    ...(s.media !== undefined
-      ? {
-          media: {
-            ...(s.media.big ? { big: { ...s.media.big } } : {}),
-            ...(s.media.small ? { small: { ...s.media.small } } : {}),
-          },
-        }
-      : {}),
+    ...(s.media !== undefined ? { media: { ...s.media } } : {}),
     ...(s.tempo !== undefined ? { tempo: { ...s.tempo } } : {}),
   }))
   return {
@@ -514,8 +551,8 @@ export type EnsureSongLibraryOptions = {
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
 
 /**
- * Loads v5 from storage, migrates older versions, or persists an empty v5 snapshot.
- * Migration chain: v1 → v5, v2 → v5, v3 → v5, v4 → v5.
+ * Loads v6 from storage, migrates older versions, or persists an empty v6 snapshot.
+ * Migration chain: v1 → v6, v2 → v6, v3 → v6, v4 → v6, v5 → v6.
  * Safe to call multiple times; concurrent calls share one in-flight migration.
  */
 export function ensureSongLibraryHydrated(
@@ -532,13 +569,17 @@ export function ensureSongLibraryHydrated(
     hydrationInFlight = (async () => {
       const raw = readRaw()
       if (raw !== null && typeof raw === 'object') {
+        const v5 = parseSnapshotV5ForMigration(raw)
+        if (v5) {
+          return migrateV5ToV6(v5)
+        }
         const v4 = parseSnapshotV4ForMigration(raw)
         if (v4) {
-          return migrateV4ToV5(v4)
+          return migrateV4ToV6(v4)
         }
         const v3 = parseSnapshotV3ForMigration(raw)
         if (v3) {
-          return migrateV3ToLatest(v3)
+          return migrateV3ToV6(v3)
         }
         const v2 = parseSnapshotV2(raw)
         if (v2) {
@@ -646,39 +687,29 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.notes !== undefined && song.notes.length > 0 ? { notes: song.notes } : {}),
     ...(song.title_translations !== undefined && Object.keys(song.title_translations).length > 0 ? { title_translations: song.title_translations } : {}),
     ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
-    ...(song.media !== undefined
-      ? {
-          media: {
-            ...(song.media.big ? { big: { ...song.media.big } } : {}),
-            ...(song.media.small ? { small: { ...song.media.small } } : {}),
-          },
-        }
-      : {}),
+    ...(song.media !== undefined ? { media: { ...song.media } } : {}),
     ...(song.tempo !== undefined ? { tempo: { ...song.tempo } } : {}),
   }
   return libSong
 }
 
-/** Returns the active MediaFile for a song: prefers small, falls back to big. Returns undefined if no media. */
+/** Returns the media file for a song (single file per song in v6 schema). */
 export function getActiveMediaFile(song: LibrarySong): MediaFile | undefined {
-  if (!song.media) return undefined
-  return song.media.small ?? song.media.big
+  return song.media
 }
 
 /** Pure snapshot update: set (or clear) the media field for a library song. Returns null if songId unknown. */
 export function patchSongMediaInSnapshot(
   snap: SetlistStoreSnapshot,
   songId: string,
-  media: SongMedia | undefined
+  media: MediaFile | undefined
 ): SetlistStoreSnapshot | null {
   if (!snap.songLibrary.songs.some((s) => s.id === songId)) return null
   const songs = snap.songLibrary.songs.map((s) => {
     if (s.id !== songId) return s
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { media: _, ...rest } = s
-    return media !== undefined && (media.big !== undefined || media.small !== undefined)
-      ? { ...rest, media }
-      : rest
+    return media !== undefined ? { ...rest, media } : rest
   })
   return { ...snap, songLibrary: { songs } }
 }

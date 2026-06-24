@@ -140,7 +140,7 @@ export interface MediaFile {
   offset?: number
 }
 
-/** Per-song media container: optional big-screen and small-screen video files. */
+/** @deprecated v5 per-song container; kept only for migration code in setlistStore. Use MediaFile directly. */
 export interface SongMedia {
   big?: MediaFile
   small?: MediaFile
@@ -173,8 +173,8 @@ export interface ParsedSongFile {
   intro?: Record<string, string>
   /** Timing entries in seconds, one per lyrics array item (including sections). Omitted when not present. */
   timeline?: TimelineEntry[]
-  /** Optional media files (video or audio) for big and small screens. Omitted when not present. */
-  media?: SongMedia
+  /** Optional media file (video or audio). Omitted when not present. */
+  media?: MediaFile
   /** Optional tempo for count-in and beat-pulse display. Omitted when not present. */
   tempo?: SongTempoFromFile
 }
@@ -238,33 +238,31 @@ function validateMediaFile(obj: Record<string, unknown>): MediaFile {
   return result
 }
 
-function validateMedia(media: unknown): SongMedia {
+function validateMedia(media: unknown): MediaFile {
   if (media === null || typeof media !== 'object' || Array.isArray(media)) {
     throw new Error('Song file "media" must be an object when present')
   }
   const obj = media as Record<string, unknown>
-  // Old flat format: has 'type' key → auto-migrate to { small: ... }
+  // Flat format (has 'type' key) → validate and return directly as MediaFile
   if (obj.type !== undefined) {
-    return { small: validateMediaFile(obj) }
+    return validateMediaFile(obj)
   }
-  // New SongMedia format: has 'big' and/or 'small' keys
-  const result: SongMedia = {}
-  if (obj.big !== undefined) {
-    if (obj.big === null || typeof obj.big !== 'object' || Array.isArray(obj.big)) {
+  // Legacy v5 SongMedia format ({ big?, small? }) → collapse to single MediaFile (big preferred)
+  const big = obj.big
+  const small = obj.small
+  if (big !== undefined) {
+    if (big === null || typeof big !== 'object' || Array.isArray(big)) {
       throw new Error('Song file "media.big" must be an object when present')
     }
-    result.big = validateMediaFile(obj.big as Record<string, unknown>)
+    return validateMediaFile(big as Record<string, unknown>)
   }
-  if (obj.small !== undefined) {
-    if (obj.small === null || typeof obj.small !== 'object' || Array.isArray(obj.small)) {
+  if (small !== undefined) {
+    if (small === null || typeof small !== 'object' || Array.isArray(small)) {
       throw new Error('Song file "media.small" must be an object when present')
     }
-    result.small = validateMediaFile(obj.small as Record<string, unknown>)
+    return validateMediaFile(small as Record<string, unknown>)
   }
-  if (result.big === undefined && result.small === undefined) {
-    throw new Error('Song file "media" must have at least one of "big" or "small"')
-  }
-  return result
+  throw new Error('Song file "media" must have at least one of "big" or "small"')
 }
 
 function validateTempo(tempo: unknown): SongTempoFromFile {

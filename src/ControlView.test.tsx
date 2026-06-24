@@ -4579,7 +4579,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistWithSong() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         const snap = {
-          version: 5 as const,
+          version: 6 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4656,7 +4656,7 @@ describe('ControlView performer state flow', () => {
         expect(screen.queryByTestId('link-video-dialog')).toBeNull()
       })
 
-      it('Choose file for Small screen sets song.media.small and registers the path', async () => {
+      it('Choose file (Small) sets song.media and registers the path', async () => {
         clearStorage()
         seedSetlistWithSong()
         const chosenPath = '/Users/jorge/videos/duelo_small.mp4'
@@ -4678,14 +4678,14 @@ describe('ControlView performer state flow', () => {
         await waitFor(() => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.small?.src).toBe('duelo_small.mp4')
-          expect(song.media?.small?.type).toBe('video')
+          expect(song.media?.src).toBe('duelo_small.mp4')
+          expect(song.media?.type).toBe('video')
         })
         const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
         expect(paths['duelo_small.mp4']).toBe(chosenPath)
       })
 
-      it('Choose file for Big screen sets song.media.big and registers the path', async () => {
+      it('Choose file (Big) sets song.media and registers the path', async () => {
         clearStorage()
         seedSetlistWithSong()
         const chosenPath = '/Users/jorge/videos/duelo_big.mp4'
@@ -4707,8 +4707,8 @@ describe('ControlView performer state flow', () => {
         await waitFor(() => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.big?.src).toBe('duelo_big.mp4')
-          expect(song.media?.big?.type).toBe('video')
+          expect(song.media?.src).toBe('duelo_big.mp4')
+          expect(song.media?.type).toBe('video')
         })
         const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
         expect(paths['duelo_big.mp4']).toBe(chosenPath)
@@ -4737,11 +4737,11 @@ describe('ControlView performer state flow', () => {
         })
       })
 
-      it('Clear for Small screen removes song.media.small from the store', async () => {
+      it('Clear removes song.media from the store', async () => {
         clearStorage()
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 5 as const,
+          version: 6 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4749,7 +4749,7 @@ describe('ControlView performer state flow', () => {
               id: 'duelo',
               title: 'Duelo',
               items: [line],
-              media: { small: { type: 'video', src: 'duelo_small.mp4' } },
+              media: { type: 'video', src: 'duelo_small.mp4' },
             }],
           },
         })
@@ -4780,7 +4780,7 @@ describe('ControlView performer state flow', () => {
         await waitFor(() => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.small).toBeUndefined()
+          expect(song.media).toBeUndefined()
         })
       })
     })
@@ -6254,7 +6254,7 @@ describe('§5 video armed screen — End Card absent', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     saveSetlistStore(createInitialSnapshot([songWithVideo]))
@@ -6285,7 +6285,7 @@ describe('§5 video armed screen — End Card absent', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { small: { type: 'video' as const, src: 'test.mp4' } },
+      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     saveSetlistStore(createInitialSnapshot([songWithVideo]))
