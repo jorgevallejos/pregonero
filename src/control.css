@@ -1767,32 +1767,6 @@ html, body, #root {
 }
 
 /* ---- End Card (control) ---- */
-.bottom-buttons-secondary {
-  display: flex;
-  justify-content: center;
-  padding: 0.4em 1em 0.6em;
-  border-top: 1px solid #2c2c2e;
-}
-
-.ctrl-end-card {
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #3a3a3c;
-}
-
-.ctrl-end-card:hover {
-  background: #3a3a3c;
-}
-
-.ctrl-end-card-active {
-  background: #30303a;
-  color: #a0a0ff;
-  border: 1px solid #5050cc;
-}
-
-.ctrl-end-card-active:hover {
-  background: #3a3a5a;
-}
 
 /* ---- End Card (projection) ---- */
 .projection-end-card-screen {
