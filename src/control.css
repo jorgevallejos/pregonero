@@ -508,13 +508,32 @@ html, body, #root {
   /* same as base .ctrl-btn; override if design needs distinct projection style */
 }
 
-.ctrl-screen-size {
+.ctrl-segmented-control {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.4em;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ctrl-segmented-control .ctrl-screen-size {
+  flex: 1;
+  border-radius: 0;
   opacity: 0.55;
 }
 
-.ctrl-screen-size--active {
+.ctrl-segmented-control .ctrl-screen-size:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.ctrl-segmented-control .ctrl-screen-size:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.ctrl-screen-size--selected {
   opacity: 1;
   border-color: #fff;
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 .control-setup-button-row {
