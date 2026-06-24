@@ -370,6 +370,40 @@ describe('VideoPerformancePanel — restart', () => {
   })
 })
 
+// ── layout structure ─────────────────────────────────────────────────────
+
+describe('VideoPerformancePanel — layout structure', () => {
+  it('renders video-perf-video-wrap and video-perf-bottom-bar as direct children of the panel', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps()} />)
+    const panel = container.querySelector('.video-perf-panel')
+    expect(panel).toBeTruthy()
+    const wrap = panel!.querySelector(':scope > .video-perf-video-wrap')
+    const bar = panel!.querySelector(':scope > .video-perf-bottom-bar')
+    expect(wrap).toBeTruthy()
+    expect(bar).toBeTruthy()
+  })
+
+  it('video-perf-bottom-bar carries its class so the spacing rule applies', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps()} />)
+    const bar = container.querySelector('.video-perf-bottom-bar')
+    expect(bar).toBeTruthy()
+    expect(bar!.classList.contains('video-perf-bottom-bar')).toBe(true)
+  })
+
+  it('video-perf-bottom-bar appears after video-perf-video-wrap in DOM order', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps()} />)
+    const panel = container.querySelector('.video-perf-panel')!
+    const children = Array.from(panel.children)
+    const wrapIdx = children.findIndex(el => el.classList.contains('video-perf-video-wrap'))
+    const barIdx = children.findIndex(el => el.classList.contains('video-perf-bottom-bar'))
+    expect(wrapIdx).toBeGreaterThanOrEqual(0)
+    expect(barIdx).toBeGreaterThan(wrapIdx)
+  })
+})
+
 // ── Unarm callback ────────────────────────────────────────────────────────
 
 describe('VideoPerformancePanel — Unarm', () => {

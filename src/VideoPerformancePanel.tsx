@@ -209,7 +209,7 @@ export function VideoPerformancePanel({
 
   return (
     <div className="video-perf-panel">
-      <div className="video-perf-video-wrap" style={{ position: 'relative' }}>
+      <div className="video-perf-video-wrap">
         <video
           ref={videoRef}
           src={absolutePathToMediaUrl(absolutePath)}
