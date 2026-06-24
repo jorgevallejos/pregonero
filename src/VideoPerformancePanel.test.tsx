@@ -417,6 +417,18 @@ describe('VideoPerformancePanel — Unarm', () => {
     act(() => { vi.advanceTimersByTime(2000) }) // HOLD_CONFIRM_MS
     expect(onUnarm).toHaveBeenCalled()
   })
+
+  it('broadcasts stop before calling onUnarm', async () => {
+    const Panel = await importPanel()
+    const onUnarm = vi.fn()
+    render(<Panel {...defaultProps({ onUnarm })} />)
+    setVideoTransportCommandMock.mockClear()
+    const unarmBtn = screen.getByRole('button', { name: /^unarm$/i })
+    await act(async () => { fireEvent.pointerDown(unarmBtn) })
+    act(() => { vi.advanceTimersByTime(1001) }) // past HOLD_CONFIRM_MS (1000)
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('stop')
+    expect(onUnarm).toHaveBeenCalled()
+  })
 })
 
 // ── transport broadcasts ──────────────────────────────────────────────────
@@ -464,7 +476,7 @@ describe('VideoPerformancePanel — transport broadcasts', () => {
     expect(setVideoTransportCommandMock).toHaveBeenCalledWith('pause')
   })
 
-  it('broadcasts seek(trimStart) on Restart', async () => {
+  it('broadcasts stop immediately on Restart (before count-in)', async () => {
     const Panel = await importPanel()
     const media: MediaFile = { type: 'video', src: 'test.mp4', trimStart: 5.0 }
     render(<Panel {...defaultProps({ media, tempo: TEMPO_4_4_1BAR })} />)
@@ -476,7 +488,8 @@ describe('VideoPerformancePanel — transport broadcasts', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
     })
-    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('seek', 5.0)
+    expect(setVideoTransportCommandMock).toHaveBeenCalledWith('stop')
+    expect(setVideoTransportCommandMock).not.toHaveBeenCalledWith('play')
   })
 
   it('broadcasts play again after count-in following Restart', async () => {

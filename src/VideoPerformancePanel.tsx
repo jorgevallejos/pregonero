@@ -147,7 +147,7 @@ export function VideoPerformancePanel({
       video.pause()
       video.currentTime = trimStart
     }
-    setVideoTransportCommand('seek', trimStart)
+    setVideoTransportCommand('stop')
     onSeek(trimStart)
 
     videoStartedRef.current = false
@@ -167,7 +167,7 @@ export function VideoPerformancePanel({
 
   // ── Unarm button ─────────────────────────────────────────────────────────
 
-  const unarmHold = useHoldToConfirm(onUnarm)
+  const unarmHold = useHoldToConfirm(() => { setVideoTransportCommand('stop'); onUnarm() })
 
   // ── Track currentTime for subtitle display ────────────────────────────────
 
