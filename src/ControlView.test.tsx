@@ -6480,6 +6480,69 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
 
     expect(document.querySelector('.ctrl-display-row')).toBeNull()
   })
+
+  // §10 — segmented toggle + default Small
+  it('Small segment is selected by default (aria-pressed=true) when song has a video and no size stored', async () => {
+    setupWithVideoSong()
+    sessionStorage.removeItem('liveLyricScreenSize')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.getByRole('button', { name: 'Small' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Big' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('selecting Big sets aria-pressed=true on Big and false on Small', async () => {
+    setupWithVideoSong()
+    sessionStorage.removeItem('liveLyricScreenSize')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Big' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Big' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Small' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('selecting Small from Big moves aria-pressed back to Small', async () => {
+    setupWithVideoSong()
+    sessionStorage.setItem('liveLyricScreenSize', 'big')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Small' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Small' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Big' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('activates small-canvas profile by default when song has a video and no size stored', async () => {
+    setupWithVideoSong()
+    sessionStorage.removeItem('liveLyricScreenSize')
+    localStorage.removeItem(DISPLAY_PROFILE_STORAGE_KEY)
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await waitFor(() => {
+      expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
+    }, { timeout: WAIT_TIMEOUT })
+  })
 })
 
 describe('§5 video armed screen — End Card absent', () => {
