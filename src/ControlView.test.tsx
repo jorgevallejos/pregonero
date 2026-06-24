@@ -4575,7 +4575,7 @@ describe('ControlView performer state flow', () => {
       })
     })
 
-    describe('camera icon + link video dialog (§3)', () => {
+    describe('camera button — direct picker (§3)', () => {
       function seedSetlistWithSong() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         const snap = {
@@ -4616,107 +4616,10 @@ describe('ControlView performer state flow', () => {
         expect(within(row).getByRole('button', { name: /Link video for Duelo/i })).toBeTruthy()
       })
 
-      it('clicking the camera button opens the link video dialog', async () => {
+      it('choosing a .mov file alerts a web-playable warning', async () => {
         clearStorage()
         seedSetlistWithSong()
-        renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        await act(async () => {
-          fireEvent.click(within(row).getByRole('button', { name: /Link video for Duelo/i }))
-        })
-        const dialog = screen.getByTestId('link-video-dialog')
-        expect(dialog).toBeTruthy()
-        expect(within(dialog).getByRole('button', { name: /Choose file.*Big/i })).toBeTruthy()
-        expect(within(dialog).getByRole('button', { name: /Choose file.*Small/i })).toBeTruthy()
-      })
-
-      it('link dialog has a Close button that dismisses it', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
-            })
-          )
-        })
-        expect(screen.getByTestId('link-video-dialog')).toBeTruthy()
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Close/i }))
-        })
-        expect(screen.queryByTestId('link-video-dialog')).toBeNull()
-      })
-
-      it('Choose file (Small) sets song.media and registers the path', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        const chosenPath = '/Users/jorge/videos/duelo_small.mp4'
-        renderManageSetlists(() => Promise.resolve(chosenPath))
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
-            })
-          )
-        })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Ss]mall/i }))
-        })
-        await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.src).toBe('duelo_small.mp4')
-          expect(song.media?.type).toBe('video')
-        })
-        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-        expect(paths['duelo_small.mp4']).toBe(chosenPath)
-      })
-
-      it('Choose file (Big) sets song.media and registers the path', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        const chosenPath = '/Users/jorge/videos/duelo_big.mp4'
-        renderManageSetlists(() => Promise.resolve(chosenPath))
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
-            })
-          )
-        })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Bb]ig/i }))
-        })
-        await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.src).toBe('duelo_big.mp4')
-          expect(song.media?.type).toBe('video')
-        })
-        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-        expect(paths['duelo_big.mp4']).toBe(chosenPath)
-      })
-
-      it('shows a .mov warning inline when a .mov file is chosen', async () => {
-        clearStorage()
-        seedSetlistWithSong()
+        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
         renderManageSetlists(() => Promise.resolve('/Users/jorge/videos/duelo.mov'))
 
         await waitFor(() => {
@@ -4729,31 +4632,37 @@ describe('ControlView performer state flow', () => {
             })
           )
         })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Choose file.*[Ss]mall/i }))
-        })
         await waitFor(() => {
-          expect(screen.getByText(/ProRes.*MOV|MOV.*ProRes|not web-playable/i)).toBeTruthy()
+          expect(alertMock).toHaveBeenCalledWith(expect.stringMatching(/ProRes.*MOV|MOV.*ProRes|not web-playable/i))
         })
+        alertMock.mockRestore()
       })
 
-      it('Clear removes song.media from the store', async () => {
+      it('clicking the camera button calls openFileDialog directly without showing a dialog', async () => {
         clearStorage()
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 6 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: {
-            songs: [{
-              id: 'duelo',
-              title: 'Duelo',
-              items: [line],
-              media: { type: 'video', src: 'duelo_small.mp4' },
-            }],
-          },
+        seedSetlistWithSong()
+        const openFileMock = vi.fn().mockResolvedValue(null)
+        renderManageSetlists(() => openFileMock())
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
-        renderManageSetlists()
+        await act(async () => {
+          fireEvent.click(
+            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
+              name: /Link video for Duelo/i,
+            })
+          )
+        })
+        expect(screen.queryByTestId('link-video-dialog')).toBeNull()
+        expect(openFileMock).toHaveBeenCalledTimes(1)
+      })
+
+      it('choosing a file via camera button sets song.media and registers the path', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        const chosenPath = '/Users/jorge/videos/duelo.mp4'
+        renderManageSetlists(() => Promise.resolve(chosenPath))
 
         await waitFor(() => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
@@ -4766,22 +4675,52 @@ describe('ControlView performer state flow', () => {
           )
         })
         await waitFor(() => {
-          expect(screen.getByText('duelo_small.mp4')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Clear.*[Ss]mall|[Ss]mall.*[Cc]lear/i }))
-        })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: /Close/i }))
-        })
-        await act(async () => {
-          fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-        })
-        await waitFor(() => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media).toBeUndefined()
+          expect(song.media?.src).toBe('duelo.mp4')
+          expect(song.media?.type).toBe('video')
         })
+        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+        expect(paths['duelo.mp4']).toBe(chosenPath)
+      })
+
+      it('camera button has --linked class when song already has media', async () => {
+        clearStorage()
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: {
+            songs: [{
+              id: 'duelo',
+              title: 'Duelo',
+              items: [line],
+              media: { type: 'video', src: 'duelo.mp4' },
+            }],
+          },
+        })
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
+      })
+
+      it('camera button does not have --linked class when song has no media', async () => {
+        clearStorage()
+        seedSetlistWithSong()
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
       })
     })
   })
