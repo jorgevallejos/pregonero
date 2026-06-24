@@ -992,6 +992,10 @@ html, body, #root {
   line-height: 1;
 }
 
+.manage-setlists-icon-btn--linked {
+  color: #34c759;
+}
+
 .manage-setlists-icon-svg {
   display: block;
   flex-shrink: 0;
