@@ -44,6 +44,7 @@ import {
   type SetlistStoreSnapshot,
 } from './setlistStore'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
+import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -6171,6 +6172,157 @@ describe('§6 non-video armed screen', () => {
     })
 
     expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+})
+
+describe('§6 Projection display-format toggle (Big/Small)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithVideoSong() {
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  function setupWithPlainSong() {
+    const plainSong = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+    }
+    saveSetlistStore(createInitialSnapshot([plainSong]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  it('shows Big and Small buttons in Projection row when song has a video', async () => {
+    setupWithVideoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
+      .find((s) => s.querySelector('.control-setup-label')?.textContent === 'Projection')
+    expect(projectionSection).toBeTruthy()
+    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Big' })).toBeTruthy()
+    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Small' })).toBeTruthy()
+  })
+
+  it('does not show Big or Small buttons when song has no video', async () => {
+    setupWithPlainSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.queryByRole('button', { name: 'Big' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Small' })).toBeNull()
+  })
+
+  it('clicking Big activates big-screen profile and stores big screen size', async () => {
+    setupWithVideoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Big' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big' }))
+    })
+
+    expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
+    expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('big')
+  })
+
+  it('clicking Small activates small-canvas profile and stores small screen size', async () => {
+    setupWithVideoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Small' }))
+    })
+
+    expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
+    expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('small')
+  })
+
+  it('does not render the old Display profile row (ctrl-display-row) with a video song', async () => {
+    setupWithVideoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(document.querySelector('.ctrl-display-row')).toBeNull()
+  })
+
+  it('does not render the old Display profile row (ctrl-display-row) with a plain song', async () => {
+    setupWithPlainSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(document.querySelector('.ctrl-display-row')).toBeNull()
   })
 })
 
