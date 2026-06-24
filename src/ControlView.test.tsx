@@ -26,7 +26,7 @@ import {
   parseSongFile,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
-import { KEY_END_CARD_VISIBLE, getEndCardVisible } from './endCardState'
+import { KEY_END_CARD_VISIBLE } from './endCardState'
 import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
@@ -6133,7 +6133,7 @@ describe('End Card — control view', () => {
     localStorage.removeItem(KEY_END_CARD_VISIBLE)
   })
 
-  it('End Card button is visible in ARMED state', async () => {
+  it('End Card button is NOT rendered in the armed footer', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
 
@@ -6144,84 +6144,8 @@ describe('End Card — control view', () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByRole('button', { name: /end card/i })).toBeTruthy()
-  })
-
-  it('End Card button is NOT visible in SETUP or READY_TO_ARM state', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-
+    expect(screen.queryByTestId('end-card-btn')).toBeNull()
     expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
-  })
-
-  it('clicking End Card sets the localStorage key and changes button label to Hide End Card', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
-    })
-
-    expect(getEndCardVisible()).toBe(true)
-    expect(screen.getByRole('button', { name: /hide end card/i })).toBeTruthy()
-  })
-
-  it('clicking Hide End Card removes the localStorage key and reverts label', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
-    })
-    expect(getEndCardVisible()).toBe(true)
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /hide end card/i }))
-    })
-
-    expect(getEndCardVisible()).toBe(false)
-    expect(screen.getByRole('button', { name: /^End Card$/i })).toBeTruthy()
-  })
-
-  it('unarming automatically hides the end card', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^End Card$/i }))
-    })
-    expect(getEndCardVisible()).toBe(true)
-
-    vi.useFakeTimers()
-    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
-    await act(async () => { fireEvent.pointerDown(unarmBtn) })
-    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
-    vi.useRealTimers()
-
-    expect(getEndCardVisible()).toBe(false)
   })
 })
 
@@ -6240,7 +6164,7 @@ describe('§6 non-video armed screen', () => {
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 
-  it('End Card button is visible in the non-video armed screen', async () => {
+  it('End Card button is NOT rendered in the non-video armed screen', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
 
@@ -6251,7 +6175,8 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    expect(screen.getByRole('button', { name: /end card/i })).toBeTruthy()
+    expect(screen.queryByTestId('end-card-btn')).toBeNull()
+    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
   })
 
   it('Previous, Next, Restart, Unarm are all present in non-video armed screen', async () => {
