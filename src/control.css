@@ -1874,6 +1874,42 @@ html, body, #root {
   min-width: auto;
 }
 
+/* ---- Video performance panel (performer view, armed + video-mode song) ---- */
+
+.video-perf-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.video-perf-video-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.video-perf-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.video-perf-lyric-row {
+  flex: 0 0 auto;
+}
+
+.video-perf-bottom-bar {
+  display: flex;
+  gap: 0.75em;
+  flex-wrap: wrap;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0.6em 0;
+}
+
 /* ── BeatCircle — shared beat indicator, sized like the gig-time circle ── */
 
 .beat-circle {
