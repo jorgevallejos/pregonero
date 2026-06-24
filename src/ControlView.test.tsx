@@ -4724,6 +4724,162 @@ describe('ControlView performer state flow', () => {
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
       })
     })
+
+    describe('camera button — library rows + empty-state affordance (§9)', () => {
+      function seedLibraryOnly() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [],
+          activeSetlistId: '',
+          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
+        })
+      }
+
+      function seedLibraryOnlyWithMedia() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [],
+          activeSetlistId: '',
+          songLibrary: {
+            songs: [{ id: 'duelo', title: 'Duelo', items: [line], media: { type: 'video' as const, src: 'duelo.mp4' } }],
+          },
+        })
+      }
+
+      function seedSetlistWithMediaSong() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: {
+            songs: [{ id: 'duelo', title: 'Duelo', items: [line], media: { type: 'video' as const, src: 'duelo.mp4' } }],
+          },
+        })
+      }
+
+      function seedSetlistWithNoMediaSong() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
+        })
+      }
+
+      function renderManageSetlists9(openFileDialogImpl?: () => Promise<string | null>) {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
+        ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+          isProjectionOpen: vi.fn().mockResolvedValue(false),
+          onProjectionOpened: vi.fn(() => vi.fn()),
+          onProjectionClosed: vi.fn(() => vi.fn()),
+          openProjection: vi.fn().mockResolvedValue(undefined),
+          closeProjection: vi.fn().mockResolvedValue(undefined),
+          openFileDialog: openFileDialogImpl ?? vi.fn().mockResolvedValue(null),
+        }
+        window.location.hash = '#/songs/manage-setlists'
+        sessionStorage.setItem('liveLyricLaunched', '1')
+        render(<App />)
+      }
+
+      it('library song row has a video-link camera button', async () => {
+        clearStorage()
+        seedLibraryOnly()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        expect(within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })).toBeTruthy()
+      })
+
+      it('clicking library camera button calls openFileDialog and links the video', async () => {
+        clearStorage()
+        seedLibraryOnly()
+        const chosenPath = '/Users/jorge/videos/duelo.mp4'
+        renderManageSetlists9(() => Promise.resolve(chosenPath))
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        await act(async () => {
+          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i }))
+        })
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.media?.src).toBe('duelo.mp4')
+          expect(song.media?.type).toBe('video')
+        })
+        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+        expect(paths['duelo.mp4']).toBe(chosenPath)
+      })
+
+      it('library camera button has --linked class when song already has media', async () => {
+        clearStorage()
+        seedLibraryOnlyWithMedia()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
+      })
+
+      it('library camera button does not have --linked class when song has no media', async () => {
+        clearStorage()
+        seedLibraryOnly()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
+      })
+
+      it('setlist camera button has --add class when song has no media', async () => {
+        clearStorage()
+        seedSetlistWithNoMediaSong()
+        renderManageSetlists9()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
+      })
+
+      it('setlist camera button does not have --add class when song has media', async () => {
+        clearStorage()
+        seedSetlistWithMediaSong()
+        renderManageSetlists9()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
+      })
+
+      it('library camera button has --add class when song has no media', async () => {
+        clearStorage()
+        seedLibraryOnly()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
+      })
+
+      it('library camera button does not have --add class when song has media', async () => {
+        clearStorage()
+        seedLibraryOnlyWithMedia()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
+      })
+    })
   })
 
   describe('Played song indicator', () => {

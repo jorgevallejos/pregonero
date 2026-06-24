@@ -987,6 +987,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   font-size: 1.1em;
   font-weight: 600;
   line-height: 1;
@@ -994,6 +995,16 @@ html, body, #root {
 
 .manage-setlists-icon-btn--linked {
   color: #34c759;
+}
+
+.manage-setlists-icon-btn--add .video-link-btn-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.5em;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .manage-setlists-icon-svg {
