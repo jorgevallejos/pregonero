@@ -6549,3 +6549,73 @@ describe('§5 video armed screen — End Card absent', () => {
     expect(screen.getByRole('button', { name: /^unarm$/i })).toBeTruthy()
   })
 })
+
+describe('§12 Beat-indicator on/off toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithTempoSong() {
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+  }
+
+  it('renders a Beat indicator toggle button with aria-pressed=true by default', async () => {
+    setupWithTempoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.getByRole('button', { name: 'Beat indicator' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('clicking the toggle flips aria-pressed to false', async () => {
+    setupWithTempoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Beat indicator' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('non-video armed view: BeatCircle absent when beat indicator toggled off before arming', async () => {
+    setupWithTempoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+})
