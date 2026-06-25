@@ -4879,6 +4879,245 @@ describe('ControlView performer state flow', () => {
         const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
       })
+
+      it('camera button linked state has a checkmark badge', async () => {
+        clearStorage()
+        seedLibraryOnlyWithMedia()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.textContent).toContain('✓')
+      })
+
+      it('camera button without media has "+" badge and no checkmark', async () => {
+        clearStorage()
+        seedLibraryOnly()
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        expect(cameraBtn.textContent).toContain('+')
+        expect(cameraBtn.textContent).not.toContain('✓')
+      })
+    })
+
+    describe('timeline-import button (§16)', () => {
+      function seedSetlistSongNoTimeline() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
+        })
+      }
+
+      function seedSetlistSongWithTimeline() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
+          activeSetlistId: 'sl-1',
+          songLibrary: {
+            songs: [{ id: 'duelo', title: 'Duelo', items: [line], timeline: [{ start: 0, end: 1 }] }],
+          },
+        })
+      }
+
+      function seedLibrarySongNoTimeline() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [],
+          activeSetlistId: '',
+          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
+        })
+      }
+
+      function seedLibrarySongWithTimeline() {
+        const line: SongItem = { languages: { es: 'a', en: 'b' } }
+        saveSetlistStore({
+          version: 6 as const,
+          setlists: [],
+          activeSetlistId: '',
+          songLibrary: {
+            songs: [{ id: 'duelo', title: 'Duelo', items: [line], timeline: [{ start: 0, end: 1 }] }],
+          },
+        })
+      }
+
+      function renderManageSetlists16() {
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
+        ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+          isProjectionOpen: vi.fn().mockResolvedValue(false),
+          onProjectionOpened: vi.fn(() => vi.fn()),
+          onProjectionClosed: vi.fn(() => vi.fn()),
+          openProjection: vi.fn().mockResolvedValue(undefined),
+          closeProjection: vi.fn().mockResolvedValue(undefined),
+          openFileDialog: vi.fn().mockResolvedValue(null),
+        }
+        window.location.hash = '#/songs/manage-setlists'
+        sessionStorage.setItem('liveLyricLaunched', '1')
+        render(<App />)
+      }
+
+      it('setlist song row has a timeline-import button when song has no timeline (--add class)', async () => {
+        clearStorage()
+        seedSetlistSongNoTimeline()
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const btn = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btn).toBeTruthy()
+        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
+        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
+      })
+
+      it('setlist song row timeline button has --linked class when song has a timeline', async () => {
+        clearStorage()
+        seedSetlistSongWithTimeline()
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const btn = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
+        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
+      })
+
+      it('timeline button has "+" badge when no timeline and "✓" badge when has timeline on setlist rows', async () => {
+        clearStorage()
+        seedSetlistSongNoTimeline()
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        const btnNoTl = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btnNoTl.textContent).toContain('+')
+        expect(btnNoTl.textContent).not.toContain('✓')
+        cleanup()
+
+        clearStorage()
+        seedSetlistSongWithTimeline()
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row2 = screen.getByTestId('manage-setlist-song-row-duelo')
+        const btnTl = within(row2).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btnTl.textContent).toContain('✓')
+        expect(btnTl.textContent).not.toContain('+')
+      })
+
+      it('library song row has a timeline-import button with --add class when no timeline', async () => {
+        clearStorage()
+        seedLibrarySongNoTimeline()
+        renderManageSetlists16()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const btn = within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
+      })
+
+      it('library song row timeline button has --linked class when song has a timeline', async () => {
+        clearStorage()
+        seedLibrarySongWithTimeline()
+        renderManageSetlists16()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        const btn = within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i })
+        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
+      })
+
+      it('clicking setlist timeline button then selecting a valid JSON file writes timeline to the song', async () => {
+        clearStorage()
+        seedSetlistSongNoTimeline()
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        await act(async () => {
+          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
+        })
+
+        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 1 }] })
+        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
+        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
+        await act(async () => {
+          fireEvent.change(input, { target: { files: [mockFile] } })
+        })
+
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.timeline).toEqual([{ start: 0, end: 1 }])
+        })
+      })
+
+      it('clicking library timeline button then selecting a valid JSON file writes timeline to the song', async () => {
+        clearStorage()
+        seedLibrarySongNoTimeline()
+        renderManageSetlists16()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        await act(async () => {
+          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i }))
+        })
+
+        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 2 }, { start: 2, end: 4 }] })
+        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
+        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
+        await act(async () => {
+          fireEvent.change(input, { target: { files: [mockFile] } })
+        })
+
+        await waitFor(() => {
+          const store = loadSetlistStore()!
+          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+          expect(song.timeline).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }])
+        })
+      })
+
+      it('importing an invalid JSON file shows an alert and does not change the song', async () => {
+        clearStorage()
+        seedSetlistSongNoTimeline()
+        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        await act(async () => {
+          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
+        })
+
+        const mockFile = new File(['not valid json'], 'timeline.json', { type: 'application/json' })
+        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
+        await act(async () => {
+          fireEvent.change(input, { target: { files: [mockFile] } })
+        })
+
+        await waitFor(() => {
+          expect(alertMock).toHaveBeenCalledWith(expect.stringMatching(/invalid timeline/i))
+        })
+
+        const store = loadSetlistStore()!
+        const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+        expect(song.timeline).toBeUndefined()
+        alertMock.mockRestore()
+      })
     })
   })
 
