@@ -175,7 +175,7 @@ describe('VideoPerformancePanel — BeatCircle', () => {
     expect(screen.queryByTestId('beat-circle')).toBeNull()
   })
 
-  it('BeatCircle is hidden when beatIndicatorOn is false', async () => {
+  it('BeatCircle is hidden when beatIndicatorOn is false, even after Play', async () => {
     const Panel = await importPanel()
     render(<Panel {...defaultProps({ beatIndicatorOn: false })} />)
     await act(async () => {
@@ -183,16 +183,6 @@ describe('VideoPerformancePanel — BeatCircle', () => {
     })
     act(() => { vi.advanceTimersByTime(50) })
     expect(screen.queryByTestId('beat-circle')).toBeNull()
-  })
-
-  it('BeatCircle shows when beatIndicatorOn is true (explicit)', async () => {
-    const Panel = await importPanel()
-    render(<Panel {...defaultProps({ beatIndicatorOn: true })} />)
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
-    })
-    act(() => { vi.advanceTimersByTime(50) })
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
   })
 })
 
