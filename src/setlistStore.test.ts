@@ -33,10 +33,13 @@ import {
   getSetlistNamesContainingSongInSnapshot,
   updateSongTimeline,
   getActiveMediaFile,
+  patchSongTimelineInSnapshot,
+  parseTimelineFromJsonText,
   type LibrarySong,
   type Setlist,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import type { TimelineEntry } from './songState'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -1388,6 +1391,107 @@ describe('setlistStore', () => {
     it('returns undefined when the song has no media field', () => {
       const song: LibrarySong = { id: 'x', title: 'X', items: [LYRIC] }
       expect(getActiveMediaFile(song)).toBeUndefined()
+    })
+  })
+
+  describe('patchSongTimelineInSnapshot', () => {
+    function makeSnap(timeline?: TimelineEntry[]): SetlistStoreSnapshot {
+      return {
+        version: SETLIST_STORE_VERSION,
+        songLibrary: {
+          songs: [
+            { id: 'a', title: 'A', items: [LYRIC], ...(timeline !== undefined ? { timeline } : {}) },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+    }
+
+    it('sets a timeline on a song that has none', () => {
+      const snap = makeSnap()
+      const tl: TimelineEntry[] = [{ start: 0, end: 1 }]
+      const next = patchSongTimelineInSnapshot(snap, 'a', tl)
+      expect(next).not.toBeNull()
+      expect(next!.songLibrary.songs[0]!.timeline).toEqual(tl)
+    })
+
+    it('replaces an existing timeline', () => {
+      const snap = makeSnap([{ start: 0, end: 2 }])
+      const newTl: TimelineEntry[] = [{ start: 0, end: 1 }, { start: 1, end: 3 }]
+      const next = patchSongTimelineInSnapshot(snap, 'a', newTl)
+      expect(next!.songLibrary.songs[0]!.timeline).toEqual(newTl)
+    })
+
+    it('clears the timeline when passed undefined', () => {
+      const snap = makeSnap([{ start: 0, end: 1 }])
+      const next = patchSongTimelineInSnapshot(snap, 'a', undefined)
+      expect(next!.songLibrary.songs[0]!.timeline).toBeUndefined()
+    })
+
+    it('returns null for unknown songId', () => {
+      const snap = makeSnap()
+      expect(patchSongTimelineInSnapshot(snap, 'ghost', [])).toBeNull()
+    })
+
+    it('does not mutate the original snapshot', () => {
+      const snap = makeSnap()
+      const tl: TimelineEntry[] = [{ start: 0, end: 1 }]
+      patchSongTimelineInSnapshot(snap, 'a', tl)
+      expect(snap.songLibrary.songs[0]!.timeline).toBeUndefined()
+    })
+  })
+
+  describe('parseTimelineFromJsonText', () => {
+    it('parses a valid { timeline: [...] } JSON', () => {
+      const text = JSON.stringify({ timeline: [{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }] })
+      const entries = parseTimelineFromJsonText(text)
+      expect(entries).toEqual([{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }])
+    })
+
+    it('accepts an empty timeline array', () => {
+      const text = JSON.stringify({ timeline: [] })
+      expect(parseTimelineFromJsonText(text)).toEqual([])
+    })
+
+    it('throws on non-JSON input', () => {
+      expect(() => parseTimelineFromJsonText('not json')).toThrow(/JSON/i)
+    })
+
+    it('throws when root is not an object', () => {
+      expect(() => parseTimelineFromJsonText('[]')).toThrow()
+    })
+
+    it('throws when "timeline" key is missing', () => {
+      expect(() => parseTimelineFromJsonText(JSON.stringify({ foo: [] }))).toThrow(/timeline/)
+    })
+
+    it('throws when "timeline" is not an array', () => {
+      expect(() => parseTimelineFromJsonText(JSON.stringify({ timeline: 42 }))).toThrow(/timeline/)
+    })
+
+    it('throws when an entry is not an object', () => {
+      expect(() => parseTimelineFromJsonText(JSON.stringify({ timeline: [42] }))).toThrow()
+    })
+
+    it('throws when an entry has non-numeric start/end', () => {
+      expect(() =>
+        parseTimelineFromJsonText(JSON.stringify({ timeline: [{ start: 'a', end: 1 }] }))
+      ).toThrow(/start.*end|number/i)
+    })
+
+    it('throws on negative time values', () => {
+      expect(() =>
+        parseTimelineFromJsonText(JSON.stringify({ timeline: [{ start: -1, end: 1 }] }))
+      ).toThrow(/non-negative/i)
+    })
+
+    it('throws when entries are not monotonic', () => {
+      expect(() =>
+        parseTimelineFromJsonText(
+          JSON.stringify({ timeline: [{ start: 0, end: 2 }, { start: 1, end: 3 }] })
+        )
+      ).toThrow(/monotonic/i)
     })
   })
 })

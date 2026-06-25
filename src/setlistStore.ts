@@ -714,6 +714,66 @@ export function patchSongMediaInSnapshot(
   return { ...snap, songLibrary: { songs } }
 }
 
+/** Pure snapshot update: set (or clear) the timeline field for a library song. Returns null if songId unknown. */
+export function patchSongTimelineInSnapshot(
+  snap: SetlistStoreSnapshot,
+  songId: string,
+  timeline: TimelineEntry[] | undefined
+): SetlistStoreSnapshot | null {
+  if (!snap.songLibrary.songs.some((s) => s.id === songId)) return null
+  const songs = snap.songLibrary.songs.map((s) => {
+    if (s.id !== songId) return s
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { timeline: _, ...rest } = s
+    return timeline !== undefined ? { ...rest, timeline } : rest
+  })
+  return { ...snap, songLibrary: { songs } }
+}
+
+/**
+ * Parses a standalone timeline JSON file (format: `{ "timeline": [...] }`).
+ * Each entry must have numeric non-negative monotonic `start` and `end`.
+ * Throws with a descriptive message on any parse or validation error.
+ */
+export function parseTimelineFromJsonText(text: string): TimelineEntry[] {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new Error('File is not valid JSON')
+  }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Timeline file must be a JSON object with a "timeline" key')
+  }
+  const obj = raw as Record<string, unknown>
+  if (!Object.prototype.hasOwnProperty.call(obj, 'timeline') || !Array.isArray(obj.timeline)) {
+    throw new Error('Timeline file must contain a "timeline" array')
+  }
+  const arr = obj.timeline as unknown[]
+  const entries: TimelineEntry[] = []
+  let previousEnd = -Infinity
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i]
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error(`timeline[${i}]: must be an object with "start" and "end"`)
+    }
+    const entry = item as Record<string, unknown>
+    const { start, end } = entry
+    if (typeof start !== 'number' || typeof end !== 'number') {
+      throw new Error(`timeline[${i}]: "start" and "end" must be numbers`)
+    }
+    if (start < 0 || end < 0) {
+      throw new Error(`timeline[${i}]: times must be non-negative`)
+    }
+    if (start < previousEnd) {
+      throw new Error(`timeline[${i}]: times must be monotonic (start >= previous end)`)
+    }
+    entries.push({ start, end })
+    previousEnd = end
+  }
+  return entries
+}
+
 /** Pure snapshot update: append one library row. Returns null if duplicate id or invalid song. */
 export function appendSongToLibraryInSnapshot(
   snap: SetlistStoreSnapshot,
