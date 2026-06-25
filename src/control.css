@@ -1016,7 +1016,8 @@ html, body, #root {
   color: #34c759;
 }
 
-.manage-setlists-icon-btn--add .video-link-btn-badge {
+.manage-setlists-icon-btn--add .video-link-btn-badge,
+.manage-setlists-icon-btn--linked .video-link-btn-badge {
   position: absolute;
   top: 2px;
   right: 2px;
