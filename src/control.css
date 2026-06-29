@@ -516,21 +516,35 @@ html, body, #root {
   overflow: hidden;
 }
 
-.ctrl-segmented-control .ctrl-screen-size {
+/* ── 3-way display mode toggle (None/Small/Big) — Prompt 13 ──────────────── */
+.ctrl-display-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.4em;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ctrl-display-mode-seg {
   flex: 1;
   border-radius: 0;
   opacity: 0.55;
+  padding: 0.3em 0.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
 }
 
-.ctrl-segmented-control .ctrl-screen-size:first-child {
+.ctrl-display-mode-seg:first-child {
   border-radius: 6px 0 0 6px;
 }
 
-.ctrl-segmented-control .ctrl-screen-size:last-child {
+.ctrl-display-mode-seg:last-child {
   border-radius: 0 6px 6px 0;
 }
 
-.ctrl-screen-size--selected {
+.ctrl-display-mode-seg--selected {
   opacity: 1;
   border-color: #fff;
   background-color: rgba(255, 255, 255, 0.15);
