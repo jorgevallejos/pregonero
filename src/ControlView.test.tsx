@@ -6451,7 +6451,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByText(/cue →/i)).toBeNull()
   })
 
-  it('BeatCircle is NOT rendered immediately on arm — the clock starts idle until Start is pressed (A2.1)', async () => {
+  it('BeatCircle is NOT rendered on arm and there is NO standalone Start/Pause/Restart beat trio — the beat clock starts on the first Next', async () => {
     // Set up a library with a song that has tempo
     const songWithTempo = {
       id: 'duelo',
@@ -6461,6 +6461,7 @@ describe('§6 non-video armed screen', () => {
     }
     const snapshot = createInitialSnapshot([songWithTempo, { id: 'pimiento', title: 'Pimiento', items: VALID_LINES }])
     saveSetlistStore(snapshot)
+    setCurrentSongId('duelo')
 
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -6476,9 +6477,11 @@ describe('§6 non-video armed screen', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     vi.useRealTimers()
 
-    // No auto-start: the beat circle stays absent until the performer presses Start.
+    // No auto-start on arm, and no dedicated beat controls overlaying the phrases.
     expect(screen.queryByTestId('beat-circle')).toBeNull()
-    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^pause$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /restart beat/i })).toBeNull()
   })
 
   it('BeatCircle is NOT rendered when the loaded song has no tempo (and there is no Start button)', async () => {
@@ -6497,9 +6500,10 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
   })
 
-  it('pressing Start begins the beat clock and BeatCircle appears and keeps ticking (A2.1 regression, Luz y sal repro)', async () => {
-    // Repro for Luz y sal: tempo present, no media. Once Start is pressed the beat indicator
-    // must appear and keep ticking (not just render once and freeze).
+  it('the first Next begins the beat clock and BeatCircle appears and keeps ticking (Luz y sal repro)', async () => {
+    // Repro for Luz y sal: tempo present, no media. The beat clock is driven by the existing
+    // Next control — the first Next reveals the first line AND starts the beat, which must then
+    // keep ticking (not just render once and freeze).
     const songWithTempo = {
       id: 'luz-y-sal',
       title: 'Luz y sal',
@@ -6518,10 +6522,15 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
+    // Idle before the first Next: no beat circle yet.
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
     })
 
+    // First line revealed AND the beat clock started.
+    expect(getSongIndex()).toBe(0)
     await waitFor(() => {
       expect(screen.getByTestId('beat-circle')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
@@ -6534,11 +6543,9 @@ describe('§6 non-video armed screen', () => {
 
     // Still visible — this is the regression: it must not disappear or freeze.
     expect(screen.getByTestId('beat-circle')).toBeTruthy()
-    // Once running, the control relabels to Restart.
-    expect(screen.getByRole('button', { name: /^restart beat$/i })).toBeTruthy()
   })
 
-  it('pressing Next while beat clock is idle does NOT auto-start the beat clock, and vice versa: Start does not auto-advance lyrics', async () => {
+  it('subsequent Next presses advance lyrics without stopping the beat clock', async () => {
     const songWithTempo = {
       id: 'duelo',
       title: 'Duelo',
@@ -6557,52 +6564,60 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
+    // First Next starts the beat and reveals line 0.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+
+    // Second Next advances to line 1; the beat clock keeps running (circle still present).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(1)
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+  })
+
+  it('the bottom-bar Restart button (re)starts the beat clock', async () => {
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
     })
 
+    // Idle after arm — no beat circle yet.
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+
+    // Hold the bottom-bar Restart to confirm; it must (re)start the beat clock.
+    const restartButton = screen.getByRole('button', { name: /^restart$/i })
     vi.useFakeTimers()
-    // Advance well past the count-in (4 beats @ 120bpm = 2000ms) — begin fires, but the
-    // lyric index must NOT auto-advance (that coupling is removed per A2.1/Prompt 5).
-    act(() => { vi.advanceTimersByTime(3000) })
+    await act(async () => {
+      fireEvent.pointerDown(restartButton)
+    })
+    act(() => {
+      vi.advanceTimersByTime(HOLD_CONFIRM_MS)
+    })
+    await act(async () => {
+      fireEvent.pointerUp(restartButton)
+    })
     vi.useRealTimers()
 
-    expect(getSongIndex()).toBe(-1)
-    expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
-  })
-
-  it('Pause halts the beat clock and Start (resume) continues it', async () => {
-    const songWithTempo = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
-    }
-    saveSetlistStore(createInitialSnapshot([songWithTempo]))
-    setupControlViewWithReadinessPassing()
-    setCurrentSongId('duelo')
-    render(<App initialHash="#/" />)
-
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(screen.getByTestId('beat-circle')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
-    })
-
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^pause$/i }))
-    })
-
-    // Paused control should offer Start (resume) again — still shows the frozen circle.
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
   })
 })
 
