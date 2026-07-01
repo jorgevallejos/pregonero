@@ -186,12 +186,17 @@ html, body, #root {
   width: 100%;
   max-width: none;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Song / Language / Projection / Arm — Projection gets extra width for its
+     4-control toggle row (display-size segmented control + beat toggle);
+     Arm is narrowed slightly to make room since it holds a single button. */
+  grid-template-columns: 1fr 1fr 1.15fr 0.85fr;
   gap: 1.5em 2em;
   align-items: stretch;
   padding: 1.5em 1.5em 2em;
   min-height: 0;
-  /* 3 vertical separator lines centered in the gaps between the 4 columns (not on column edges) */
+  /* 3 vertical separator lines centered in the gaps between the 4 columns (not on column edges).
+     Columns are unequal (1fr 1fr 1.15fr 0.85fr, 4fr total) so each line position is expressed
+     directly in fr-units-so-far rather than assuming equal column width. */
   --_gap: 2em;
   --_col: calc((100% - 3 * var(--_gap)) / 4);
   background-image:
@@ -201,9 +206,9 @@ html, body, #root {
   background-size: 1px 100%;
   background-repeat: no-repeat;
   background-position:
-    calc(var(--_col) + var(--_gap) / 2 - 0.5px) 0,
+    calc(1 * var(--_col) + 0.5 * var(--_gap) - 0.5px) 0,
     calc(2 * var(--_col) + 1.5 * var(--_gap) - 0.5px) 0,
-    calc(3 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
+    calc(3.15 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
 }
 
 /* Allow grid columns to shrink below content size; prevent overlap into adjacent columns */
@@ -359,6 +364,28 @@ html, body, #root {
   justify-content: center;
   align-items: center;
   gap: 0.75em;
+}
+
+/* Projection column: display-size segmented control + beat/timer toggle share one
+   compact row above the Open button, reinforcing their secondary status. */
+.control-setup-toggle-row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.control-setup-toggle-row .ctrl-display-mode-toggle {
+  margin-bottom: 0;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.control-setup-toggle-row .ctrl-beat-indicator-toggle {
+  flex-shrink: 0;
 }
 
 .control-setup-button-row .ctrl-btn {
@@ -529,10 +556,10 @@ html, body, #root {
   flex: 1;
   border-radius: 0;
   opacity: 0.55;
-  padding: 0.2em 0.35em;
-  min-height: 1.8em;
+  padding: 0.15em 0.3em;
+  min-height: 1.6em;
   min-width: 0;
-  font-size: 0.8125em;
+  font-size: 0.75em;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -561,10 +588,10 @@ html, body, #root {
 
 /* Beat-indicator toggle: on = green, off = gray (inherits base .ctrl-btn) */
 .ctrl-beat-indicator-toggle {
-  min-width: 2em;
-  min-height: 1.8em;
-  padding: 0.2em 0.35em;
-  font-size: 0.8125em;
+  min-width: 1.8em;
+  min-height: 1.6em;
+  padding: 0.15em 0.3em;
+  font-size: 0.75em;
 }
 
 .ctrl-beat-indicator-toggle--on {
