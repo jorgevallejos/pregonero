@@ -46,6 +46,7 @@ import {
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 import { clearStoredDisplayMode } from './screenSizeState'
+import { getAutoBlackout } from './autoBlackout'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -7368,6 +7369,12 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
       fireEvent.click(screen.getByRole('button', { name: 'No video' }))
     })
 
+    // This timeline song defaults to Auto; select Manual so we exercise the manual (non-video)
+    // performer flow with Next/Previous (T2: Auto would show Play/Pause transport instead).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Manual' }))
+    })
+
     await waitFor(() => {
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
     }, { timeout: WAIT_TIMEOUT })
@@ -7377,8 +7384,7 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
 
     // Manual performer stage present (non-video path)
     expect(screen.getByTestId('performing-content')).toBeTruthy()
-    // Video performance panel controls (Play/Pause) must be absent
-    expect(screen.queryByRole('button', { name: /^play$/i })).toBeNull()
+    // Video performance panel controls must be absent
     expect(screen.queryByTestId('video-perf-no-path')).toBeNull()
     // Manual Next/Previous/Restart present
     expect(screen.getByRole('button', { name: /^next$/i })).toBeTruthy()
@@ -7543,7 +7549,21 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(getSongIndex()).toBe(0)
   })
 
-  it('Auto mode: after the first Next starts the clock, lines advance automatically per the timeline', async () => {
+  it('T2: Auto armed shows Play/Pause/Restart transport, not Previous/Next', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.queryByRole('button', { name: /^previous$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^play$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^pause$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+  })
+
+  it('T2: Auto mode — pressing Play (not Next) drives the lines automatically per the timeline', async () => {
     vi.useFakeTimers()
     setupWithTimelineSong()
     await armAndReachSetupFakeTimers()
@@ -7552,19 +7572,23 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       fireEvent.click(getArmButton())
     })
 
-    // First Next starts the beat clock (existing behavior) and reveals line 0.
+    // Before Play, nothing is showing (index -1).
+    expect(getSongIndex()).toBe(-1)
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
     })
+
+    // Count-in is 2000ms; a tick past it starts song time and the first cue [0,2)s → line 0.
+    act(() => { vi.advanceTimersByTime(2000 + 100) })
     expect(getSongIndex()).toBe(0)
 
-    // Advance past the count-in (2000ms) plus into the second timeline window (>= 2s song time).
-    act(() => { vi.advanceTimersByTime(2000 + 2500) })
-
+    // Into the second timeline window (>= 2s song time) → line 1.
+    act(() => { vi.advanceTimersByTime(2500) })
     expect(getSongIndex()).toBe(1)
   })
 
-  it('Auto mode: manual Next/Prev overrides mid-song, and Auto resumes tracking elapsed time afterwards', async () => {
+  it('T2: Auto Play broadcasts an audience blackout (dark during count-in / before first cue)', async () => {
     vi.useFakeTimers()
     setupWithTimelineSong()
     await armAndReachSetupFakeTimers()
@@ -7572,44 +7596,57 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       fireEvent.click(getArmButton())
     })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
-    })
-    expect(getSongIndex()).toBe(0)
-
-    // Manually jump ahead with Next before Auto would have moved on its own.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
-    })
-    expect(getSongIndex()).toBe(1)
-
-    // Manual Previous overrides back.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^previous$/i }))
-    })
-    expect(getSongIndex()).toBe(0)
-
-    // Once elapsed time (since begin) passes 2s, Auto drives it back to line 1 again.
-    act(() => { vi.advanceTimersByTime(2000 + 2500) })
-    expect(getSongIndex()).toBe(1)
-  })
-
-  it('Auto mode does not drive the index during the count-in (before begin fires)', async () => {
-    vi.useFakeTimers()
-    setupWithTimelineSong()
-    await armAndReachSetupFakeTimers()
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
+    // On arm, no blackout — audience shows the intro/title.
+    expect(getAutoBlackout()).toBe(false)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
     })
-    expect(getSongIndex()).toBe(0)
-
-    // Still within the 2000ms count-in window — Auto must not have moved anything yet
-    // beyond what the manual Next already set.
+    // Play → audience goes black immediately (count-in shows only on the performer beat clock).
+    expect(getAutoBlackout()).toBe(true)
+    // Still black through the count-in, index not yet driven.
     act(() => { vi.advanceTimersByTime(1000) })
+    expect(getSongIndex()).toBe(-1)
+    expect(getAutoBlackout()).toBe(true)
+  })
+
+  it('T2: Auto Restart clears the blackout and returns to the pre-Play intro (index -1)', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(2000 + 200) })
     expect(getSongIndex()).toBe(0)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
+    })
+    expect(getAutoBlackout()).toBe(false)
+    expect(getSongIndex()).toBe(-1)
+    // Clock reset: further time does not drive the index until Play is pressed again.
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(getSongIndex()).toBe(-1)
+  })
+
+  it('T2: Auto mode does not drive the index during the count-in (before begin fires)', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+
+    // Still within the 2000ms count-in window — Auto must not have advanced past intro.
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(getSongIndex()).toBe(-1)
   })
 })

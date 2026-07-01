@@ -19,6 +19,7 @@ import {
 import type { SongItem } from './songState'
 import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
 import { KEY_ARMED_BROADCAST } from './performanceState'
+import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
 
 function createStorage(): Storage {
@@ -425,6 +426,49 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     setBlank(true)
     window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
 
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+  })
+
+  it('T2: audience is black (intro suppressed) while the Auto blackout is active at index -1', async () => {
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    // Reset to intro (index -1) — normally shows the intro/title screen.
+    setSongIndex(-1)
+    setBlank(true)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    // Activate the Auto blackout → intro suppressed (audience goes black).
+    act(() => {
+      setAutoBlackout(true)
+      window.dispatchEvent(new StorageEvent('storage', { key: AUTO_BLACKOUT_KEY, newValue: 'x' }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    }, { timeout: 3000 })
+
+    // Clearing the blackout restores the intro (e.g. Restart).
+    act(() => {
+      setAutoBlackout(false)
+      window.dispatchEvent(new StorageEvent('storage', { key: AUTO_BLACKOUT_KEY, newValue: 'y' }))
+    })
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: 3000 })
