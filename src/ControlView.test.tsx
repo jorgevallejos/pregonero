@@ -6950,6 +6950,15 @@ describe('§12 Beat-indicator on/off toggle', () => {
     expect(screen.getByRole('button', { name: 'Beat indicator' }).getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('T1: shows a "Beat indicator" label above the beat toggle for a tempo song', async () => {
+    setupWithTempoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Beat indicator')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
   it('clicking the toggle flips aria-pressed to false', async () => {
     setupWithTempoSong()
     render(<App initialHash="#/" />)
@@ -7054,6 +7063,28 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
     return mockApi
   }
+
+  it('T1: shows a "Display format" label above the display-mode toggle for a video song', async () => {
+    setupWithVideoSong13()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.getByText('Display format')).toBeTruthy()
+  })
+
+  it('T1: does NOT show a "Display format" label for a plain (non-video) song', async () => {
+    setupWithPlainSong13()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.queryByText('Display format')).toBeNull()
+  })
 
   it('renders three display-mode segments (None/Small/Big) when song has a video', async () => {
     setupWithVideoSong13()
@@ -7446,14 +7477,20 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(screen.getByRole('button', { name: 'Advance: Auto' })).toBeTruthy()
   })
 
-  it('renders the toggle (Auto disabled) even when the song has no timeline', async () => {
+  it('T1: shows a "Transitions" label above the advance-mode toggle for a timeline song', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    expect(screen.getByText('Transitions')).toBeTruthy()
+  })
+
+  it('does NOT render the Transitions toggle when the song has no timeline', async () => {
     setupWithNoTimelineSong()
     await armAndReachSetup()
 
-    expect(screen.getByRole('button', { name: 'Advance: Manual' })).toBeTruthy()
-    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' })
-    expect(autoBtn).toBeTruthy()
-    expect(autoBtn.hasAttribute('disabled')).toBe(true)
+    // T1: the Transitions row only appears for songs with a timeline (Auto needs one).
+    expect(screen.queryByRole('button', { name: 'Advance: Manual' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
   })
 
   it('defaults to Auto selected when the song has a non-empty timeline', async () => {
@@ -7462,14 +7499,6 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
     expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('defaults to Manual selected when the song has no timeline', async () => {
-    setupWithNoTimelineSong()
-    await armAndReachSetup()
-
-    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('clicking Manual switches selection to Manual even on a timeline song', async () => {
@@ -7482,17 +7511,6 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
     expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('clicking the disabled Auto button on a no-timeline song does not select it', async () => {
-    setupWithNoTimelineSong()
-    await armAndReachSetup()
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
-    })
-
-    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('Manual mode (unchanged): first lyric only appears on explicit Next, and count-in alone does not advance', async () => {

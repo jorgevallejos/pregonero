@@ -186,17 +186,14 @@ html, body, #root {
   width: 100%;
   max-width: none;
   display: grid;
-  /* Song / Language / Projection / Arm — Projection gets extra width for its
-     4-control toggle row (display-size segmented control + beat toggle);
-     Arm is narrowed slightly to make room since it holds a single button. */
-  grid-template-columns: 1fr 1fr 1.15fr 0.85fr;
+  /* Song / Language / Projection / Arm — four EQUAL columns (T1: reverted from the
+     1fr 1fr 1.15fr 0.85fr weighting now the Projection toggle cluster is compact). */
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 1.5em 2em;
   align-items: stretch;
   padding: 1.5em 1.5em 2em;
   min-height: 0;
-  /* 3 vertical separator lines centered in the gaps between the 4 columns (not on column edges).
-     Columns are unequal (1fr 1fr 1.15fr 0.85fr, 4fr total) so each line position is expressed
-     directly in fr-units-so-far rather than assuming equal column width. */
+  /* 3 vertical separator lines centered in the gaps between the 4 equal columns. */
   --_gap: 2em;
   --_col: calc((100% - 3 * var(--_gap)) / 4);
   background-image:
@@ -208,7 +205,7 @@ html, body, #root {
   background-position:
     calc(1 * var(--_col) + 0.5 * var(--_gap) - 0.5px) 0,
     calc(2 * var(--_col) + 1.5 * var(--_gap) - 0.5px) 0,
-    calc(3.15 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
+    calc(3 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
 }
 
 /* Allow grid columns to shrink below content size; prevent overlap into adjacent columns */
@@ -366,32 +363,55 @@ html, body, #root {
   gap: 0.75em;
 }
 
-/* Projection column: display-size segmented control + beat/timer toggle share one
-   compact row above the Open button, reinforcing their secondary status. */
-.control-setup-toggle-row {
+/* Projection column toggle cluster (T1): two labelled rows above the Open button.
+   Row A = display-format toggle; Row B = Transitions toggle (left) + Beat indicator
+   button (right). Sized in FIXED px (not em) so the controls don't rescale with the
+   fluid column font — Jorge runs this full-size on an iPad Pro; only the container
+   reflows width. */
+.control-setup-toggle-area {
   width: 100%;
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  gap: 0.4em;
+  gap: 8px;
 }
 
-.control-setup-toggle-row .ctrl-display-mode-toggle {
-  margin-bottom: 0;
-  flex-shrink: 1;
+/* Each control sits in a group under its tiny label */
+.ctrl-toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
 }
 
-.control-setup-toggle-row .ctrl-advance-mode-toggle {
-  margin-bottom: 0;
-  flex-shrink: 1;
-  min-width: 0;
+/* Tiny muted labels (same family as column headers, smaller) */
+.ctrl-toggle-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8e8e93;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.control-setup-toggle-row .ctrl-beat-indicator-toggle {
+/* Row B holds the Transitions group and the Beat indicator group side by side */
+.ctrl-toggle-row-b {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* Icons are a constant px size regardless of window; never flex-shrink */
+.ctrl-toggle-icon {
   flex-shrink: 0;
+}
+
+.control-setup-toggle-area .ctrl-segmented-control {
+  margin-bottom: 0;
 }
 
 .control-setup-button-row .ctrl-btn {
@@ -438,15 +458,31 @@ html, body, #root {
   grid-row: 3;
 }
 
-/* Toggle buttons (display-format segmented control + beat/timer icon) read as
-   SECONDARY to the four main column buttons: ~2/3 of the primary setup-button
-   footprint. Needs higher specificity than
-   `.control-center-setup .control-setup-section .ctrl-btn` (which otherwise forces
-   them to the full 2.75em min-height / 1.0625em size), so the compact sizing wins. */
-.control-center-setup .control-setup-toggle-row .ctrl-btn {
-  min-height: 1.83em;
-  padding: 0.4em 0.6em;
+/* All toggle buttons (display-format segs, transitions segs, beat button) share ONE
+   FIXED height in px — the height the display-format toggle used — so nothing rescales
+   with the window and every toggle button lines up. Needs higher specificity than
+   `.control-center-setup .control-setup-section .ctrl-btn` (which otherwise forces the
+   full 2.75em min-height / 1.0625em size), so the fixed px sizing wins. */
+.control-center-setup .control-setup-toggle-area .ctrl-btn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 8px;
   min-width: 0;
+  font-size: 12px;
+}
+
+/* Segments size to their fixed-px icon + padding (not fluid em) */
+.control-center-setup .control-setup-toggle-area .ctrl-display-mode-seg,
+.control-center-setup .control-setup-toggle-area .ctrl-advance-mode-seg {
+  flex: 0 0 auto;
+  min-width: 34px;
+}
+
+/* Beat indicator: fixed square-ish icon button, same height as the segments */
+.control-center-setup .control-setup-toggle-area .ctrl-beat-indicator-toggle {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
 }
 
 .ctrl-setup-link {
