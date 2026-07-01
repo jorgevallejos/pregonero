@@ -6451,7 +6451,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByText(/cue →/i)).toBeNull()
   })
 
-  it('BeatCircle is rendered when the loaded song has a tempo', async () => {
+  it('BeatCircle is NOT rendered immediately on arm — the clock starts idle until Start is pressed (A2.1)', async () => {
     // Set up a library with a song that has tempo
     const songWithTempo = {
       id: 'duelo',
@@ -6473,14 +6473,15 @@ describe('§6 non-video armed screen', () => {
     })
 
     vi.useFakeTimers()
-    // Advance timers so the beat clock ticks at least once
-    act(() => { vi.advanceTimersByTime(100) })
+    act(() => { vi.advanceTimersByTime(5000) })
+    vi.useRealTimers()
 
-    // BeatCircle should be rendered (the §7 component)
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    // No auto-start: the beat circle stays absent until the performer presses Start.
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
   })
 
-  it('BeatCircle is NOT rendered when the loaded song has no tempo', async () => {
+  it('BeatCircle is NOT rendered when the loaded song has no tempo (and there is no Start button)', async () => {
     // Standard library (no tempo on songs)
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
@@ -6493,6 +6494,115 @@ describe('§6 non-video armed screen', () => {
     })
 
     expect(screen.queryByTestId('beat-circle')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
+  })
+
+  it('pressing Start begins the beat clock and BeatCircle appears and keeps ticking (A2.1 regression, Luz y sal repro)', async () => {
+    // Repro for Luz y sal: tempo present, no media. Once Start is pressed the beat indicator
+    // must appear and keep ticking (not just render once and freeze).
+    const songWithTempo = {
+      id: 'luz-y-sal',
+      title: 'Luz y sal',
+      items: VALID_LINES,
+      tempo: { bpm: 140, numerator: 3, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('luz-y-sal')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    vi.useFakeTimers()
+    // Advance well past the single count-in bar (3 beats at 140bpm ≈ 1286ms) so the
+    // clock must have ticked many times via setInterval, not just the initial sync tick().
+    act(() => { vi.advanceTimersByTime(5000) })
+    vi.useRealTimers()
+
+    // Still visible — this is the regression: it must not disappear or freeze.
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    // Once running, the control relabels to Restart.
+    expect(screen.getByRole('button', { name: /^restart beat$/i })).toBeTruthy()
+  })
+
+  it('pressing Next while beat clock is idle does NOT auto-start the beat clock, and vice versa: Start does not auto-advance lyrics', async () => {
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+
+    vi.useFakeTimers()
+    // Advance well past the count-in (4 beats @ 120bpm = 2000ms) — begin fires, but the
+    // lyric index must NOT auto-advance (that coupling is removed per A2.1/Prompt 5).
+    act(() => { vi.advanceTimersByTime(3000) })
+    vi.useRealTimers()
+
+    expect(getSongIndex()).toBe(-1)
+    expect(screen.getByText(/Press Next to reveal the first line/)).toBeTruthy()
+  })
+
+  it('Pause halts the beat clock and Start (resume) continues it', async () => {
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^pause$/i }))
+    })
+
+    // Paused control should offer Start (resume) again — still shows the frozen circle.
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
   })
 })
 
@@ -7154,5 +7264,102 @@ describe('§14 Beat indicator toggle visual state', () => {
     const btn = screen.getByRole('button', { name: 'Beat indicator' })
     expect(btn.classList.contains('ctrl-beat-indicator-toggle--off')).toBe(true)
     expect(btn.classList.contains('ctrl-beat-indicator-toggle--on')).toBe(false)
+  })
+})
+
+describe('§16 A2.2 — video song armed with display mode "none" behaves like a non-video song (performer view)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    clearStoredDisplayMode()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithVideoSongDisplayNone() {
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  it('performer view shows manual (non-video) flow, not VideoPerformancePanel, when armed with display mode None', async () => {
+    setupWithVideoSongDisplayNone()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Manual performer stage present (non-video path)
+    expect(screen.getByTestId('performing-content')).toBeTruthy()
+    // Video performance panel controls (Play/Pause) must be absent
+    expect(screen.queryByRole('button', { name: /^play$/i })).toBeNull()
+    expect(screen.queryByTestId('video-perf-no-path')).toBeNull()
+    // Manual Next/Previous/Restart present
+    expect(screen.getByRole('button', { name: /^next$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^previous$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+  })
+
+  it('performer view shows VideoPerformancePanel (not manual flow) when the same video song is armed with display mode Small', async () => {
+    setupWithVideoSongDisplayNone()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Small' }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(screen.getByRole('button', { name: /^play$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
   })
 })

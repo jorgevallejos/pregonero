@@ -783,3 +783,114 @@ describe('Non-video projection layout (regression guard: centered full-screen, n
     expect(screen_.style.justifyContent).toBe('center')
   })
 })
+
+describe('A2.3 — intro screen shows in video mode too (over the pre-play black cover)', () => {
+  const WAIT_TIMEOUT = 3000
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  async function setupVideoSongArmed(song: {
+    id: string
+    title: string
+    items: SongItem[]
+    title_translations?: Record<string, string>
+    intro?: Record<string, string>
+  }) {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    saveSetlistStore(createInitialSnapshot([{
+      ...song,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(song.items)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(song.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+  }
+
+  it('shows the song title intro screen on arm for a video song (small/big display mode)', async () => {
+    await setupVideoSongArmed({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
+  })
+
+  it('shows translated title and tagline on the video intro screen', async () => {
+    await setupVideoSongArmed({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+      title_translations: { en: 'Tragedy of Roasted Pig' },
+      intro: { en: 'Fight your destiny.' },
+    })
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.getByText('(Tragedy of Roasted Pig)')).toBeTruthy()
+    expect(screen.getByText('Fight your destiny.')).toBeTruthy()
+  })
+
+  it('intro screen is still rendered inside the video projection-screen (not the non-video path)', async () => {
+    await setupVideoSongArmed({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    // Confirms we're in the video compositor path, not the centered non-video layout.
+    expect(document.querySelector('.projection-animation-region')).toBeTruthy()
+  })
+
+  it('intro screen disappears once a play transport command arrives (video starts)', async () => {
+    const { VIDEO_TRANSPORT_KEY } = await import('./VideoProjectionRegion')
+    await setupVideoSongArmed({
+      id: 'tragedia',
+      title: 'Tragedia de cerdo asado',
+      items: SONG_LINES,
+    })
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: VIDEO_TRANSPORT_KEY,
+        newValue: JSON.stringify({ action: 'play', nonce: Date.now() }),
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    }, { timeout: WAIT_TIMEOUT })
+  })
+})

@@ -16,61 +16,100 @@ describe('useBeatClock', () => {
     vi.useRealTimers()
   })
 
-  it('returns null phase when not active', () => {
+  it('returns null phase and idle playState when not armed', () => {
     const { result } = renderHook(() => useBeatClock(undefined, false))
     expect(result.current.phase).toBeNull()
     expect(result.current.beginFiredOnce).toBe(false)
+    expect(result.current.playState).toBe('idle')
   })
 
-  it('returns null phase when active but tempo is undefined', () => {
-    const { result } = renderHook(() => useBeatClock(undefined, true))
-    act(() => { vi.advanceTimersByTime(100) })
-    expect(result.current.phase).toBeNull()
-    expect(result.current.beginFiredOnce).toBe(false)
-  })
-
-  it('returns a phase immediately on activation', () => {
+  it('does not tick just from being armed — stays idle until start() is called (A2.1 fix)', () => {
     const { result } = renderHook(() => useBeatClock(TEMPO, true))
-    act(() => { vi.advanceTimersByTime(0) })
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(result.current.playState).toBe('idle')
+    expect(result.current.phase).toBeNull()
+  })
+
+  it('start() begins the count-in when tempo has countInBars > 0', () => {
+    const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
+    expect(result.current.playState).toBe('count-in')
     expect(result.current.phase).not.toBeNull()
     expect(result.current.phase?.inCountIn).toBe(true)
     expect(result.current.phase?.beatInBar).toBe(1)
   })
 
-  it('advances beat as time progresses', () => {
+  it('advances beat as time progresses after start()', () => {
     const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(500) })
     expect(result.current.phase?.beatInBar).toBe(2)
   })
 
-  it('beginFiredOnce becomes true after count-in completes', () => {
+  it('transitions playState from count-in to playing once beginFired, and beginFiredOnce becomes true', () => {
     const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(1999) })
     expect(result.current.beginFiredOnce).toBe(false)
+    expect(result.current.playState).toBe('count-in')
     act(() => { vi.advanceTimersByTime(1) })
     expect(result.current.beginFiredOnce).toBe(true)
+    expect(result.current.playState).toBe('playing')
   })
 
-  it('beginFiredOnce stays true once set (does not toggle)', () => {
+  it('does NOT auto-advance any external index — beginFiredOnce is just a flag callers may react to', () => {
     const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(result.current.beginFiredOnce).toBe(true)
+    // No further assertions needed here beyond the hook's own state — App.tsx no longer
+    // auto-fires handleNext on this flag (see ControlView.test.tsx A2.1 coverage).
+  })
+
+  it('pause() halts the clock and freezes the phase', () => {
+    const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
+    act(() => { vi.advanceTimersByTime(500) })
+    const frozenPhase = result.current.phase
+    act(() => { result.current.pause() })
+    expect(result.current.playState).toBe('paused')
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(result.current.phase).toEqual(frozenPhase)
+  })
+
+  it('start() after pause() resumes the clock from where it left off', () => {
+    const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
+    act(() => { vi.advanceTimersByTime(500) })
+    act(() => { result.current.pause() })
+    act(() => { vi.advanceTimersByTime(5000) }) // time passes while paused — must not count
+    act(() => { result.current.start() })
+    expect(result.current.playState).toBe('count-in')
+    act(() => { vi.advanceTimersByTime(1) })
+    // Only ~501ms of "real" elapsed time should have passed for the beat clock, so still beat 2.
+    expect(result.current.phase?.beatInBar).toBe(2)
+  })
+
+  it('restart() resets phase/beginFiredOnce and immediately begins a fresh count-in', () => {
+    const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(3000) })
     expect(result.current.beginFiredOnce).toBe(true)
-    act(() => { vi.advanceTimersByTime(2000) })
-    expect(result.current.beginFiredOnce).toBe(true)
+    expect(result.current.playState).toBe('playing')
+
+    act(() => { result.current.restart() })
+    expect(result.current.playState).toBe('count-in')
+    expect(result.current.beginFiredOnce).toBe(false)
+    expect(result.current.phase?.inCountIn).toBe(true)
+    expect(result.current.phase?.beatInBar).toBe(1)
   })
 
-  it('phase shows inCountIn=false after count-in', () => {
-    const { result } = renderHook(() => useBeatClock(TEMPO, true))
-    act(() => { vi.advanceTimersByTime(2000) })
-    expect(result.current.phase?.inCountIn).toBe(false)
-    expect(result.current.phase?.beginFired).toBe(true)
-  })
-
-  it('resets phase and beginFiredOnce when deactivated', () => {
+  it('resets phase/playState to idle when de-armed', () => {
     const { result, rerender } = renderHook(
       ({ active }: { active: boolean }) => useBeatClock(TEMPO, active),
       { initialProps: { active: true } }
     )
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(3000) })
     expect(result.current.beginFiredOnce).toBe(true)
 
@@ -78,13 +117,15 @@ describe('useBeatClock', () => {
     act(() => { vi.advanceTimersByTime(100) })
     expect(result.current.phase).toBeNull()
     expect(result.current.beginFiredOnce).toBe(false)
+    expect(result.current.playState).toBe('idle')
   })
 
-  it('resets and restarts when reactivated after deactivation', () => {
+  it('resets to idle when reactivated after de-arming (does not auto-start)', () => {
     const { result, rerender } = renderHook(
       ({ active }: { active: boolean }) => useBeatClock(TEMPO, active),
       { initialProps: { active: true } }
     )
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(3000) })
     expect(result.current.beginFiredOnce).toBe(true)
 
@@ -92,19 +133,22 @@ describe('useBeatClock', () => {
     act(() => { vi.advanceTimersByTime(100) })
 
     rerender({ active: true })
-    act(() => { vi.advanceTimersByTime(0) })
-    expect(result.current.phase?.inCountIn).toBe(true)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(result.current.playState).toBe('idle')
+    expect(result.current.phase).toBeNull()
     expect(result.current.beginFiredOnce).toBe(false)
   })
 
-  it('reset() function clears phase and beginFiredOnce mid-run', () => {
+  it('reset() function clears phase, beginFiredOnce, and playState mid-run', () => {
     const { result } = renderHook(() => useBeatClock(TEMPO, true))
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(3000) })
     expect(result.current.beginFiredOnce).toBe(true)
 
     act(() => { result.current.reset() })
     expect(result.current.phase).toBeNull()
     expect(result.current.beginFiredOnce).toBe(false)
+    expect(result.current.playState).toBe('idle')
   })
 
   it('re-render with a new-but-equal tempo object does not restart the interval', () => {
@@ -114,6 +158,7 @@ describe('useBeatClock', () => {
       ({ tempo }: { tempo: SongTempo }) => useBeatClock(tempo, true),
       { initialProps: { tempo: TEMPO } }
     )
+    act(() => { result.current.start() })
     act(() => { vi.advanceTimersByTime(1000) })
     expect(result.current.phase?.beatInBar).toBe(3)
 
@@ -124,5 +169,13 @@ describe('useBeatClock', () => {
     // If the interval had been reset, startMs would restart from 1000ms fake-time,
     // giving elapsed=500ms → beat 2. Correct behaviour continues to beat 4.
     expect(result.current.phase?.beatInBar).toBe(4)
+  })
+
+  it('start() with no count-in (countInBars 0) goes straight to playing', () => {
+    const noCountIn: SongTempo = { bpm: 120, numerator: 4, denominator: 4, countInBars: 0 }
+    const { result } = renderHook(() => useBeatClock(noCountIn, true))
+    act(() => { result.current.start() })
+    expect(result.current.playState).toBe('playing')
+    expect(result.current.beginFiredOnce).toBe(true)
   })
 })
