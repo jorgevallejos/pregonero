@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5174 && cross-env VITE_DEV_SERVER_URL=http://localhost:5174 electron .\"",
     "build": "vite build",
-    "pack": "electron-builder --mac",
+    "pack": "npm run build && electron-builder --mac",
     "lint": "eslint src",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -50,15 +50,30 @@
   },
   "build": {
     "appId": "com.live-lyric-translator.app",
+    "productName": "Live Lyric Translator",
     "publish": null,
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
     "mac": {
       "category": "public.app-category.utilities",
+      "icon": "build/icon.png",
+      "identity": null,
       "target": [
+        "dmg",
         "zip"
       ]
+    },
+    "afterSign": "build/adhoc-sign.cjs",
+    "dmg": {
+      "title": "Live Lyric Translator",
+      "artifactName": "Live-Lyric-Translator-${version}.${ext}"
     }
   }
 }
