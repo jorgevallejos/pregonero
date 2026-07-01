@@ -507,6 +507,48 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     }, { timeout: 3000 })
   })
 
+  it('R1: audience shows the driven lyric (not black) when an Auto cue arrives via storage while the blackout is active', async () => {
+    // The Auto blackout blacks out the audience during the count-in / before the first cue.
+    // When the first cue is due, the Control window writes index 0 / blank false to the shared
+    // localStorage; the Projection re-reads it on the storage event. The lyric must appear even
+    // though the blackout flag is still set (blackout only suppresses the intro at index -1, so
+    // gaps between cues stay black — it must NOT suppress a real cue).
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    // Play pressed → blackout active, still at the pre-first-cue intro (index -1).
+    act(() => {
+      setAutoBlackout(true)
+      window.dispatchEvent(new StorageEvent('storage', { key: AUTO_BLACKOUT_KEY, newValue: 'x' }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    }, { timeout: 3000 })
+
+    // First cue due → Control writes index 0 / blank false to the shared localStorage.
+    act(() => {
+      setSongIndex(0)
+      setBlank(false)
+      window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: 3000 })
+  })
+
   it('shows logo again after unmount and remount during performing', async () => {
     saveSetlistStore(createInitialSnapshot([PERF_SONG]))
     sessionStorage.setItem('liveLyricLaunched', '1')
