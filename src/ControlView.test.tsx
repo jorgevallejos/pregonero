@@ -7527,6 +7527,63 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
   })
 
+  it('T3: turning the beat indicator OFF disables Auto and forces Manual', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    // Defaults to Auto (timeline song).
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('true')
+
+    // Turn the beat indicator off.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+
+    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' }) as HTMLButtonElement
+    const manualBtn = screen.getByRole('button', { name: 'Advance: Manual' })
+    // Auto is disabled (greyed, not selectable) and Manual is forced/selected.
+    expect(autoBtn.disabled).toBe(true)
+    expect(autoBtn.getAttribute('aria-pressed')).toBe('false')
+    expect(manualBtn.getAttribute('aria-pressed')).toBe('true')
+    // A hint explains why Auto is unavailable.
+    expect(screen.getByLabelText('Auto needs the beat indicator on.')).toBeTruthy()
+  })
+
+  it('T3: clicking the disabled Auto while beat is off does not switch to Auto', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('T3: turning the beat back ON re-enables Auto and restores the default advance mode', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    // Off → forced Manual, then on again.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+
+    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' }) as HTMLButtonElement
+    expect(autoBtn.disabled).toBe(false)
+    // Default for a timeline song is Auto — restored once the beat is back on.
+    expect(autoBtn.getAttribute('aria-pressed')).toBe('true')
+    // Hint is gone.
+    expect(screen.queryByLabelText('Auto needs the beat indicator on.')).toBeNull()
+  })
+
   it('Manual mode (unchanged): first lyric only appears on explicit Next, and count-in alone does not advance', async () => {
     vi.useFakeTimers()
     setupWithTimelineSong()

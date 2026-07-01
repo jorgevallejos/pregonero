@@ -708,6 +708,18 @@ html, body, #root {
 
 /* --off inherits .ctrl-btn base (gray) — no extra rules needed */
 
+/* T3: tiny link-glyph hint between the Transitions toggle and the Beat button,
+   shown when the beat is off (Auto disabled + forced Manual). Nudged down so it
+   aligns with the button row rather than the labels above them. */
+.ctrl-advance-beat-hint {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 18px;
+  color: #8e8e93;
+  cursor: help;
+}
+
 .control-setup-button-row {
   display: flex;
   gap: 0.5em;
