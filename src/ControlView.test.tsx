@@ -6452,7 +6452,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByText(/cue →/i)).toBeNull()
   })
 
-  it('BeatCircle is NOT rendered on arm and there is NO standalone Start/Pause/Restart beat trio — the beat clock starts on the first Next', async () => {
+  it('BeatCircle is NOT rendered on arm (beat clock idle until the bottom-bar Start), and there is NO standalone Pause / restart-beat overlay trio', async () => {
     // Set up a library with a song that has tempo
     const songWithTempo = {
       id: 'duelo',
@@ -6478,9 +6478,11 @@ describe('§6 non-video armed screen', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     vi.useRealTimers()
 
-    // No auto-start on arm, and no dedicated beat controls overlaying the phrases.
+    // No auto-start on arm: the beat clock stays idle until the performer presses Start.
     expect(screen.queryByTestId('beat-circle')).toBeNull()
-    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
+    // R2: the pre-count-in control is the bottom-bar Start button (relabelled Restart).
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
+    // But there is still NO standalone Pause / dedicated beat-restart control overlaying phrases.
     expect(screen.queryByRole('button', { name: /^pause$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /restart beat/i })).toBeNull()
   })
@@ -6501,10 +6503,11 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
   })
 
-  it('the first Next begins the beat clock and BeatCircle appears and keeps ticking (Luz y sal repro)', async () => {
-    // Repro for Luz y sal: tempo present, no media. The beat clock is driven by the existing
-    // Next control — the first Next reveals the first line AND starts the beat, which must then
-    // keep ticking (not just render once and freeze).
+  it('R2: Start begins the beat clock (before any lyric) and BeatCircle appears and keeps ticking (Luz y sal repro)', async () => {
+    // Repro for Luz y sal: tempo present, no media. R2: the beat clock is started by the
+    // explicit Start step (a count-in bar BEFORE the first lyric), then must keep ticking
+    // (not just render once and freeze). The first Next reveals line 0 with the beat already
+    // running.
     const songWithTempo = {
       id: 'luz-y-sal',
       title: 'Luz y sal',
@@ -6523,18 +6526,24 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle before the first Next: no beat circle yet.
+    // Idle before Start: no beat circle yet, and Next is disabled (count-in must run first).
     expect(screen.queryByTestId('beat-circle')).toBeNull()
+    expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(true)
 
+    // Press Start → the beat clock (count-in) begins, still no lyric.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     })
-
-    // First line revealed AND the beat clock started.
-    expect(getSongIndex()).toBe(0)
+    expect(getSongIndex()).toBe(-1)
     await waitFor(() => {
       expect(screen.getByTestId('beat-circle')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
+
+    // First Next now reveals line 0 (beat already running).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
 
     vi.useFakeTimers()
     // Advance well past the single count-in bar (3 beats at 140bpm ≈ 1286ms) so the
@@ -6565,7 +6574,11 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // First Next starts the beat and reveals line 0.
+    // R2: Start begins the beat (count-in), then the first Next reveals line 0.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
     })
@@ -6580,7 +6593,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.getByTestId('beat-circle')).toBeTruthy()
   })
 
-  it('the bottom-bar Restart button (re)starts the beat clock', async () => {
+  it('R2: the bottom-bar Start button begins the beat clock and then becomes Restart', async () => {
     const songWithTempo = {
       id: 'duelo',
       title: 'Duelo',
@@ -6599,26 +6612,21 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle after arm — no beat circle yet.
+    // Idle after arm — no beat circle yet, and the pre-count-in control is Start (not Restart).
     expect(screen.queryByTestId('beat-circle')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^restart$/i })).toBeNull()
 
-    // Hold the bottom-bar Restart to confirm; it must (re)start the beat clock.
-    const restartButton = screen.getByRole('button', { name: /^restart$/i })
-    vi.useFakeTimers()
+    // Start (plain click) begins the beat clock.
     await act(async () => {
-      fireEvent.pointerDown(restartButton)
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     })
-    act(() => {
-      vi.advanceTimersByTime(HOLD_CONFIRM_MS)
-    })
-    await act(async () => {
-      fireEvent.pointerUp(restartButton)
-    })
-    vi.useRealTimers()
-
     await waitFor(() => {
       expect(screen.getByTestId('beat-circle')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
+
+    // Once started, the same button becomes Restart (Start is gone).
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
   })
 })
 
@@ -7533,6 +7541,11 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
     expect(getSongIndex()).toBe(-1)
 
+    // R2: this tempo song shows the Start step; press Start to run the count-in.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+
     // Time passing alone (even past the count-in and both timeline windows) must not advance
     // the index in Manual mode.
     act(() => { vi.advanceTimersByTime(10_000) })
@@ -7546,6 +7559,72 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
     act(() => { vi.advanceTimersByTime(10_000) })
     // Still 0 — Manual never auto-advances past the pressed Next.
+    expect(getSongIndex()).toBe(0)
+  })
+
+  it('R2: Manual Start step — after arm Next/Previous are disabled and the button is Start; Start enables Next and becomes Restart; Restart returns to pre-Start', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Manual' }))
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // Pre-Start: Previous + Next disabled, third button is Start (no Restart yet).
+    expect((screen.getByRole('button', { name: /^previous$/i }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^restart$/i })).toBeNull()
+
+    // Start → count-in begins, Next enabled, no lyric yet, button becomes Restart.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    })
+    expect(getSongIndex()).toBe(-1)
+    expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
+
+    // First Next reveals line 0 (beat already running).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    // Restart (hold to confirm) returns to the pre-Start state: index -1, Next disabled, Start back.
+    vi.useFakeTimers()
+    const restartBtn = screen.getByRole('button', { name: /^restart$/i })
+    await act(async () => { fireEvent.pointerDown(restartBtn) })
+    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+    await act(async () => { fireEvent.pointerUp(restartBtn) })
+    vi.useRealTimers()
+
+    expect(getSongIndex()).toBe(-1)
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
+    expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('R2 edge: Manual with the beat indicator OFF has no Start step — Next reveals line 1 immediately', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+    // Turn the beat indicator off (default is on).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /beat indicator/i }))
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // No Start step: Next is enabled from arm and the third button is Restart.
+    expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
     expect(getSongIndex()).toBe(0)
   })
 
