@@ -432,6 +432,17 @@ html, body, #root {
   grid-row: 3;
 }
 
+/* Toggle buttons (display-format segmented control + beat/timer icon) read as
+   SECONDARY to the four main column buttons: ~2/3 of the primary setup-button
+   footprint. Needs higher specificity than
+   `.control-center-setup .control-setup-section .ctrl-btn` (which otherwise forces
+   them to the full 2.75em min-height / 1.0625em size), so the compact sizing wins. */
+.control-center-setup .control-setup-toggle-row .ctrl-btn {
+  min-height: 1.83em;
+  padding: 0.4em 0.6em;
+  min-width: 0;
+}
+
 .ctrl-setup-link {
   min-width: 0;
   width: 100%;
