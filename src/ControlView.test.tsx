@@ -7588,6 +7588,30 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(getSongIndex()).toBe(1)
   })
 
+  it('R1: Auto drive to the first cue un-blanks the shared (cross-window) state so the audience shows the lyric', async () => {
+    // Regression: index/blank live in localStorage, which the Projection window re-reads on
+    // every storage event. Auto used applyCommand('setIndex') whose computeNavigationState
+    // branch PRESERVES the pre-Play blank (true), leaving blank=true in localStorage while the
+    // WS broadcast said blank=false — the Projection read blank=true and stayed BLACK. The
+    // fix writes blank=false for a real cue, matching manual Next.
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+
+    // Count-in 2000ms, then first cue [0,2)s → line 0.
+    act(() => { vi.advanceTimersByTime(2000 + 100) })
+
+    expect(getSongIndex()).toBe(0)
+    // The cross-window value the Projection reads: must be un-blanked so showContent is true.
+    expect(getBlank()).toBe(false)
+  })
+
   it('T2: Auto Play broadcasts an audience blackout (dark during count-in / before first cue)', async () => {
     vi.useFakeTimers()
     setupWithTimelineSong()
