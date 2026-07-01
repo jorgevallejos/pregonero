@@ -451,6 +451,7 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.intro !== undefined && Object.keys(s.intro).length > 0 ? { intro: s.intro } : {}),
     ...(s.media !== undefined ? { media: { ...s.media } } : {}),
     ...(s.tempo !== undefined ? { tempo: { ...s.tempo } } : {}),
+    ...(s.timeline !== undefined ? { timeline: s.timeline.map((entry) => ({ ...entry })) } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,

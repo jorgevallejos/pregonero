@@ -10,6 +10,13 @@ export type BeatClockResult = {
   beginFiredOnce: boolean
   /** idle (not started) | count-in | playing (count-in complete) | paused. */
   playState: BeatClockPlayState
+  /**
+   * Milliseconds elapsed since `begin` fired (i.e. since the song itself started, not the
+   * count-in). 0 while idle, during the count-in, or before the first begin. Freezes while
+   * paused; resets to 0 on restart()/reset()/de-arm. Intended for driving Auto lyric-advance
+   * off the song timeline (see `computeAutoAdvanceIndex` in `autoAdvanceState.ts`).
+   */
+  songElapsedMs: number
   /** Begins the clock: count-in first (if tempo has countInBars > 0), otherwise straight to playing. */
   start: () => void
   /** Halts the clock and freezes the current phase. */
@@ -47,12 +54,18 @@ export function useBeatClock(
   const [phase, setPhase] = useState<BeatPhaseResult | null>(null)
   const [beginFiredOnce, setBeginFiredOnce] = useState(false)
   const [playState, setPlayState] = useState<BeatClockPlayState>('idle')
+  const [songElapsedMs, setSongElapsedMs] = useState(0)
 
   // startMsRef holds the adjusted epoch so elapsed = Date.now() - startMsRef is correct
   // even after a pause/resume cycle.
   const startMsRef = useRef<number>(0)
   // How much time had elapsed when the clock was last paused.
   const pausedElapsedRef = useRef<number>(0)
+  // The `elapsed` value (relative to startMsRef) at the moment begin fired — i.e. the
+  // count-in's duration. null until begin has fired for the current run. Used to derive
+  // songElapsedMs = elapsed - beginElapsedMsRef.current, which is 0 right at the handoff
+  // and counts up from there, frozen during pause.
+  const beginElapsedMsRef = useRef<number | null>(null)
 
   // Always reflects the latest tempo without being listed in effect/callback deps.
   const tempoRef = useRef<SongTempo | undefined>(tempo)
@@ -67,9 +80,11 @@ export function useBeatClock(
   const reset = useCallback(() => {
     startMsRef.current = 0
     pausedElapsedRef.current = 0
+    beginElapsedMsRef.current = null
     setPhase(null)
     setBeginFiredOnce(false)
     setPlayState('idle')
+    setSongElapsedMs(0)
   }, [])
 
   // De-arming resets everything to idle.
@@ -88,8 +103,10 @@ export function useBeatClock(
       const p = getBeatPhase(tempoRef.current, elapsed)
       setPhase(p)
       if (p.beginFired) {
+        if (beginElapsedMsRef.current === null) beginElapsedMsRef.current = elapsed
         setBeginFiredOnce(true)
         setPlayState((prev) => (prev === 'count-in' ? 'playing' : prev))
+        setSongElapsedMs(elapsed - beginElapsedMsRef.current)
       }
     }
 
@@ -111,10 +128,13 @@ export function useBeatClock(
     startMsRef.current = Date.now()
     pausedElapsedRef.current = 0
     if (!hasCountIn(tempoRef.current)) {
+      beginElapsedMsRef.current = 0
       setPlayState('playing')
       setBeginFiredOnce(true)
       setPhase(tempoRef.current ? getBeatPhase(tempoRef.current, 0) : null)
+      setSongElapsedMs(0)
     } else {
+      beginElapsedMsRef.current = null
       setPlayState('count-in')
     }
   }, [isArmed, playState, beginFiredOnce])
@@ -129,15 +149,18 @@ export function useBeatClock(
     startMsRef.current = Date.now()
     pausedElapsedRef.current = 0
     setBeginFiredOnce(false)
+    setSongElapsedMs(0)
     if (!hasCountIn(tempoRef.current)) {
+      beginElapsedMsRef.current = 0
       setPlayState('playing')
       setBeginFiredOnce(true)
       setPhase(tempoRef.current ? getBeatPhase(tempoRef.current, 0) : null)
     } else {
+      beginElapsedMsRef.current = null
       setPlayState('count-in')
       setPhase(tempoRef.current ? getBeatPhase(tempoRef.current, 0) : null)
     }
   }, [])
 
-  return { phase, beginFiredOnce, playState, start, pause, restart, reset }
+  return { phase, beginFiredOnce, playState, songElapsedMs, start, pause, restart, reset }
 }

@@ -384,6 +384,12 @@ html, body, #root {
   min-width: 0;
 }
 
+.control-setup-toggle-row .ctrl-advance-mode-toggle {
+  margin-bottom: 0;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 .control-setup-toggle-row .ctrl-beat-indicator-toggle {
   flex-shrink: 0;
 }
@@ -595,6 +601,54 @@ html, body, #root {
 .ctrl-display-mode-seg--selected:hover {
   background: #3a5a3a;
   border-color: #4a6c4a;
+}
+
+/* ── Manual/Auto lyric-advance toggle — Prompt 14 ─────────────────────────── */
+.ctrl-advance-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.4em;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ctrl-advance-mode-seg {
+  flex: 1;
+  border-radius: 0;
+  opacity: 0.55;
+  padding: 0.15em 0.3em;
+  min-height: 1.6em;
+  min-width: 0;
+  font-size: 0.75em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctrl-advance-mode-seg:first-child {
+  border-radius: 5px 0 0 5px;
+}
+
+.ctrl-advance-mode-seg:last-child {
+  border-radius: 0 5px 5px 0;
+}
+
+/* Active/selected: same green token as the display-mode toggle and .ctrl-arm */
+.ctrl-advance-mode-seg--selected {
+  opacity: 1;
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.ctrl-advance-mode-seg--selected:hover:not(:disabled) {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+.ctrl-advance-mode-seg:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* Beat-indicator toggle: on = green, off = gray (inherits base .ctrl-btn) */

@@ -178,4 +178,79 @@ describe('useBeatClock', () => {
     expect(result.current.playState).toBe('playing')
     expect(result.current.beginFiredOnce).toBe(true)
   })
+
+  describe('songElapsedMs — elapsed time since begin fired (for Auto lyric-advance drive)', () => {
+    it('is 0 when idle', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('stays 0 during the count-in (song has not begun yet)', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(1999) })
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('starts counting from 0 the moment begin fires, not from count-in start', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(2000) }) // begin fires exactly at 2000ms
+      expect(result.current.beginFiredOnce).toBe(true)
+      expect(result.current.songElapsedMs).toBe(0)
+      act(() => { vi.advanceTimersByTime(750) })
+      expect(result.current.songElapsedMs).toBe(750)
+    })
+
+    it('freezes songElapsedMs while paused and resumes correctly', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(2500) }) // 500ms into the song
+      expect(result.current.songElapsedMs).toBe(500)
+      act(() => { result.current.pause() })
+      act(() => { vi.advanceTimersByTime(3000) }) // time passes while paused — must not count
+      expect(result.current.songElapsedMs).toBe(500)
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(result.current.songElapsedMs).toBe(700)
+    })
+
+    it('resets songElapsedMs to 0 on restart()', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(result.current.songElapsedMs).toBe(1000)
+      act(() => { result.current.restart() })
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('resets songElapsedMs to 0 on reset() and when de-armed', () => {
+      const { result, rerender } = renderHook(
+        ({ active }: { active: boolean }) => useBeatClock(TEMPO, active),
+        { initialProps: { active: true } }
+      )
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(result.current.songElapsedMs).toBeGreaterThan(0)
+
+      act(() => { result.current.reset() })
+      expect(result.current.songElapsedMs).toBe(0)
+
+      act(() => { result.current.start() })
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(result.current.songElapsedMs).toBeGreaterThan(0)
+
+      rerender({ active: false })
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('goes straight to counting elapsed time when there is no count-in', () => {
+      const noCountIn: SongTempo = { bpm: 120, numerator: 4, denominator: 4, countInBars: 0 }
+      const { result } = renderHook(() => useBeatClock(noCountIn, true))
+      act(() => { result.current.start() })
+      expect(result.current.songElapsedMs).toBe(0)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(result.current.songElapsedMs).toBe(400)
+    })
+  })
 })
