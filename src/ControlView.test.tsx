@@ -7049,4 +7049,110 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
     expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
   })
+
+  // §13.DOM — DOM order: Small first, Big second, None (No video) last
+  it('display-mode segments appear in order: Small → Big → No video (left to right)', async () => {
+    setupWithVideoSong13()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    const toggle = document.querySelector('.ctrl-display-mode-toggle')!
+    const segs = Array.from(toggle.querySelectorAll('.ctrl-display-mode-seg'))
+    expect(segs).toHaveLength(3)
+    expect(segs[0].getAttribute('aria-label')).toBe('Small')
+    expect(segs[1].getAttribute('aria-label')).toBe('Big')
+    expect(segs[2].getAttribute('aria-label')).toBe('No video')
+  })
+
+  // §13.GREEN — selected segment carries --selected class; others don't
+  it('selected segment has ctrl-display-mode-seg--selected class; others do not', async () => {
+    setupWithVideoSong13()
+    sessionStorage.removeItem('liveLyricDisplayMode')
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Small' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    // Default is Small
+    expect(screen.getByRole('button', { name: 'Small' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Big' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
+    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
+
+    // Click Big
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Big' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Small' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
+    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
+  })
+})
+
+describe('§14 Beat indicator toggle visual state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithTempoSong14() {
+    const songWithTempo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  it('beat indicator button does NOT have ctrl-beat-indicator-toggle--off when on (default)', async () => {
+    setupWithTempoSong14()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    const btn = screen.getByRole('button', { name: 'Beat indicator' })
+    expect(btn.classList.contains('ctrl-beat-indicator-toggle--off')).toBe(false)
+    expect(btn.classList.contains('ctrl-beat-indicator-toggle--on')).toBe(true)
+  })
+
+  it('beat indicator button has ctrl-beat-indicator-toggle--off class when toggled off', async () => {
+    setupWithTempoSong14()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Beat indicator' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Beat indicator' }))
+    })
+
+    const btn = screen.getByRole('button', { name: 'Beat indicator' })
+    expect(btn.classList.contains('ctrl-beat-indicator-toggle--off')).toBe(true)
+    expect(btn.classList.contains('ctrl-beat-indicator-toggle--on')).toBe(false)
+  })
 })

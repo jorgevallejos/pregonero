@@ -529,26 +529,56 @@ html, body, #root {
   flex: 1;
   border-radius: 0;
   opacity: 0.55;
-  padding: 0.3em 0.5em;
+  padding: 0.2em 0.35em;
+  min-height: 1.8em;
+  min-width: 0;
+  font-size: 0.8125em;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
 }
 
 .ctrl-display-mode-seg:first-child {
-  border-radius: 6px 0 0 6px;
+  border-radius: 5px 0 0 5px;
 }
 
 .ctrl-display-mode-seg:last-child {
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 5px 5px 0;
 }
 
+/* Active/selected: green token — same as .ctrl-arm and .ctrl-btn.languages-confirm */
 .ctrl-display-mode-seg--selected {
   opacity: 1;
-  border-color: #fff;
-  background-color: rgba(255, 255, 255, 0.15);
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
 }
+
+.ctrl-display-mode-seg--selected:hover {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+/* Beat-indicator toggle: on = green, off = gray (inherits base .ctrl-btn) */
+.ctrl-beat-indicator-toggle {
+  min-width: 2em;
+  min-height: 1.8em;
+  padding: 0.2em 0.35em;
+  font-size: 0.8125em;
+}
+
+.ctrl-beat-indicator-toggle--on {
+  background: #2d4a2d;
+  border-color: #3d5c3d;
+  color: #e8f0e8;
+}
+
+.ctrl-beat-indicator-toggle--on:hover:not(:disabled) {
+  background: #3a5a3a;
+  border-color: #4a6c4a;
+}
+
+/* --off inherits .ctrl-btn base (gray) — no extra rules needed */
 
 .control-setup-button-row {
   display: flex;
