@@ -7378,3 +7378,220 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
   })
 })
+
+describe('§P14 Manual/Auto lyric-advance toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithTimelineSong() {
+    const songWithTimeline = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+      // 120bpm, 1 bar count-in (4 beats) -> begin fires at 2000ms.
+      // Line 0 covers [0, 2)s of song time, line 1 covers [2, 100)s.
+      timeline: [{ start: 0, end: 2 }, { start: 2, end: 100 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithTimeline]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+  }
+
+  function setupWithNoTimelineSong() {
+    const songNoTimeline = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([songNoTimeline]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+  }
+
+  async function armAndReachSetup() {
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+  }
+
+  /**
+   * Fake-timer-safe variant of armAndReachSetup: avoids RTL's `waitFor` (which polls via
+   * setTimeout and hangs when fake timers are already active — the project convention seen
+   * in VideoPerformancePanel.test.tsx is to flush microtasks directly instead). Callers must
+   * have already called vi.useFakeTimers() before invoking this.
+   */
+  async function armAndReachSetupFakeTimers() {
+    render(<App initialHash="#/" />)
+    // isProjectionOpen() resolves a plain Promise (no real timers involved) — flush it.
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { await Promise.resolve() })
+  }
+
+  it('renders Manual/Auto toggle buttons in the setup screen when the song has a timeline', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    expect(screen.getByRole('button', { name: 'Advance: Manual' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Advance: Auto' })).toBeTruthy()
+  })
+
+  it('renders the toggle (Auto disabled) even when the song has no timeline', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+
+    expect(screen.getByRole('button', { name: 'Advance: Manual' })).toBeTruthy()
+    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' })
+    expect(autoBtn).toBeTruthy()
+    expect(autoBtn.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('defaults to Auto selected when the song has a non-empty timeline', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('defaults to Manual selected when the song has no timeline', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('clicking Manual switches selection to Manual even on a timeline song', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Manual' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('clicking the disabled Auto button on a no-timeline song does not select it', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('Manual mode (unchanged): first lyric only appears on explicit Next, and count-in alone does not advance', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Manual' }))
+    })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(getSongIndex()).toBe(-1)
+
+    // Time passing alone (even past the count-in and both timeline windows) must not advance
+    // the index in Manual mode.
+    act(() => { vi.advanceTimersByTime(10_000) })
+    expect(getSongIndex()).toBe(-1)
+
+    // Only explicit Next advances.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    act(() => { vi.advanceTimersByTime(10_000) })
+    // Still 0 — Manual never auto-advances past the pressed Next.
+    expect(getSongIndex()).toBe(0)
+  })
+
+  it('Auto mode: after the first Next starts the clock, lines advance automatically per the timeline', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    // Auto is already the default for this timeline song.
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    // First Next starts the beat clock (existing behavior) and reveals line 0.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    // Advance past the count-in (2000ms) plus into the second timeline window (>= 2s song time).
+    act(() => { vi.advanceTimersByTime(2000 + 2500) })
+
+    expect(getSongIndex()).toBe(1)
+  })
+
+  it('Auto mode: manual Next/Prev overrides mid-song, and Auto resumes tracking elapsed time afterwards', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    // Manually jump ahead with Next before Auto would have moved on its own.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(1)
+
+    // Manual Previous overrides back.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^previous$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    // Once elapsed time (since begin) passes 2s, Auto drives it back to line 1 again.
+    act(() => { vi.advanceTimersByTime(2000 + 2500) })
+    expect(getSongIndex()).toBe(1)
+  })
+
+  it('Auto mode does not drive the index during the count-in (before begin fires)', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+    })
+    expect(getSongIndex()).toBe(0)
+
+    // Still within the 2000ms count-in window — Auto must not have moved anything yet
+    // beyond what the manual Next already set.
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(getSongIndex()).toBe(0)
+  })
+})
