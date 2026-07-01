@@ -1345,11 +1345,12 @@ html, body, #root {
   font-family: 'EB Garamond', Georgia, serif;
   color: #fff;
   font-size: clamp(1.5em, 5.5vw, 5em);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   text-align: center;
   white-space: pre-line;
   padding: 1rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   transition: opacity 500ms ease;
 }
 
