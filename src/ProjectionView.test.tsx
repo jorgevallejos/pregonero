@@ -680,3 +680,106 @@ describe('End card screen on projection', () => {
     expect(screen.queryByText('Hello')).toBeNull()
   })
 })
+
+describe('Non-video projection layout (regression guard: centered full-screen, no split)', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  /**
+   * Non-video intro screen: the projection-animation-region / projection-subtitle-band
+   * split must NOT appear. Everything should render inside a single centered projection-screen
+   * (no split div structure).
+   */
+  it('non-video intro screen does NOT use the animation-region/subtitle-band split layout', async () => {
+    const { saveSetlistStore, createInitialSnapshot } = await import('./setlistStore')
+    saveSetlistStore(createInitialSnapshot([{
+      id: 'no-video-song',
+      title: 'No Video Song',
+      items: [{ languages: { es: 'Hola', en: 'Hello' } }],
+    }]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('no-video-song')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    // Intro screen should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    // The split layout divs must NOT exist for a non-video song
+    expect(document.querySelector('.projection-animation-region')).toBeNull()
+    expect(document.querySelector('.projection-subtitle-band')).toBeNull()
+  })
+
+  /**
+   * Non-video lyric phrase: the projection-animation-region / projection-subtitle-band
+   * split must NOT appear. The lyric should be centered on the full screen.
+   */
+  it('non-video lyric does NOT use the animation-region/subtitle-band split layout', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    setSongIndex(0)
+    setBlank(false)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    // The split layout divs must NOT exist for a non-video song
+    expect(document.querySelector('.projection-animation-region')).toBeNull()
+    expect(document.querySelector('.projection-subtitle-band')).toBeNull()
+  })
+
+  /**
+   * Non-video projection-screen should use centered flex layout (alignItems: center,
+   * justifyContent: center) — not a column-stacked split.
+   */
+  it('non-video projection-screen has centered flex layout (not column split)', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    const screen_ = document.querySelector('.projection-screen') as HTMLElement
+    expect(screen_).toBeTruthy()
+    // Should be centered (alignItems: center), not a column split
+    expect(screen_.style.alignItems).toBe('center')
+    expect(screen_.style.justifyContent).toBe('center')
+  })
+})
