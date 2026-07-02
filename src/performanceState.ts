@@ -39,12 +39,24 @@ function getArmedFromStorage(): boolean {
   return sessionStorage.getItem(KEY_ARMED) === '1'
 }
 
+// Monotonic tie-breaker appended to the broadcast nonce so two arms firing within the same
+// millisecond (e.g. in tests, or a very fast re-arm) still produce distinct values.
+let armedBroadcastCounter = 0
+
 function setArmedInStorage(armed: boolean): void {
   if (typeof sessionStorage === 'undefined') return
   if (armed) {
     sessionStorage.setItem(KEY_ARMED, '1')
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(KEY_ARMED_BROADCAST, '1')
+      // KEY_ARMED_BROADCAST must CHANGE on every arm, not just be truthy: it lives in
+      // localStorage, which persists across app launches, while KEY_ARMED lives in
+      // sessionStorage and is fresh every launch. A cross-window 'storage' event only fires
+      // when a key's value actually changes, so writing a constant ('1') would silently fail
+      // to notify the Projection window if a previous session left the broadcast key already
+      // set to '1' (e.g. the app quit while armed) — the projection would then stay stuck on
+      // the logo through the first arm of the new session. Write a changing nonce instead.
+      armedBroadcastCounter += 1
+      localStorage.setItem(KEY_ARMED_BROADCAST, `${Date.now()}-${armedBroadcastCounter}`)
     }
   } else {
     sessionStorage.removeItem(KEY_ARMED)

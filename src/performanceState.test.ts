@@ -1,10 +1,27 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
 import type { SongItem } from './songState'
 import {
   getPerformanceChecks,
   getPerformanceState,
+  setStoredArmed,
+  KEY_ARMED_BROADCAST,
   type PerformanceChecks,
 } from './performanceState'
+
+// jsdom's built-in localStorage/sessionStorage is unreliable in this environment (see the same
+// polyfill in setlistStore.test.ts / ProjectionView.test.tsx), so self-provide an in-memory
+// Storage implementation when the global one isn't fully functional.
+function createStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, value) },
+    removeItem: (key: string) => { store.delete(key) },
+    clear: () => { store.clear() },
+    key: (i: number) => [...store.keys()][i] ?? null,
+    get length() { return store.size },
+  }
+}
 
 const validLines: SongItem[] = [
   { languages: { es: 'Hola', en: 'Hello' } },
@@ -74,5 +91,56 @@ describe('getPerformanceState', () => {
   it('if checks do not all pass and index = -1 → state is "setup"', () => {
     expect(getPerformanceState(notAllPassChecks, -1, false)).toBe('setup')
     expect(getPerformanceState(notAllPassChecks, -1, true)).toBe('setup')
+  })
+})
+
+describe('setStoredArmed broadcast reliability (stuck-logo-on-first-launch bug)', () => {
+  beforeAll(() => {
+    if (
+      typeof globalThis.localStorage === 'undefined' ||
+      typeof globalThis.localStorage.setItem !== 'function'
+    ) {
+      vi.stubGlobal('localStorage', createStorage())
+    }
+    if (
+      typeof globalThis.sessionStorage === 'undefined' ||
+      typeof globalThis.sessionStorage.setItem !== 'function'
+    ) {
+      vi.stubGlobal('sessionStorage', createStorage())
+    }
+  })
+
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  // KEY_ARMED_BROADCAST lives in localStorage, which survives across app launches, while
+  // KEY_ARMED lives in sessionStorage and is fresh every launch. If a previous session left
+  // the broadcast key holding its "armed" value (e.g. the app quit while armed, or was force
+  // quit), the very first arm() of a new session must still produce a value that DIFFERS from
+  // what's already there — otherwise a real cross-window 'storage' event never fires (browsers
+  // only dispatch 'storage' when the value actually changes), and the Projection window stays
+  // stuck on the logo until an unarm/re-arm cycle.
+  it('writes a broadcast value that differs from a stale value already left over from a previous session', () => {
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1') // stale leftover from a prior launch
+
+    const staleValue = localStorage.getItem(KEY_ARMED_BROADCAST)
+    setStoredArmed(true)
+    const freshValue = localStorage.getItem(KEY_ARMED_BROADCAST)
+
+    expect(freshValue).not.toBeNull()
+    expect(freshValue).not.toBe(staleValue)
+  })
+
+  it('writes a broadcast value that differs across two separate arms in the same session', () => {
+    setStoredArmed(true)
+    const firstValue = localStorage.getItem(KEY_ARMED_BROADCAST)
+    setStoredArmed(false)
+    setStoredArmed(true)
+    const secondValue = localStorage.getItem(KEY_ARMED_BROADCAST)
+
+    expect(secondValue).not.toBeNull()
+    expect(secondValue).not.toBe(firstValue)
   })
 })

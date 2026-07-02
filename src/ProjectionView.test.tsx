@@ -18,7 +18,7 @@ import {
 } from './songState'
 import type { SongItem } from './songState'
 import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
-import { KEY_ARMED_BROADCAST } from './performanceState'
+import { KEY_ARMED_BROADCAST, setStoredArmed } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
 
@@ -420,6 +420,50 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     render(<App initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    setSongIndex(-1)
+    setBlank(true)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+  })
+
+  it('reveals content on the first arm of a session even when a stale broadcast value from a previous launch is already in localStorage (first-launch stuck-logo bug)', async () => {
+    // KEY_ARMED_BROADCAST lives in localStorage and can survive an app relaunch (e.g. the app
+    // quit while armed) even though sessionStorage-backed armed state is fresh. Pre-seed the
+    // broadcast key exactly as a leftover session would, using the real production writer
+    // (not a hardcoded '1') so this exercises the actual arm() -> storage-value contract.
+    setStoredArmed(true)
+    setStoredArmed(false) // unarm removes KEY_ARMED (session) but leaves the leftover scenario realistic
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1') // simulate a stale leftover value from a prior launch
+
+    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(PERF_SONG.items)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId(PERF_SONG.id)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await act(async () => { await Promise.resolve() })
+
+    // Logo should still be showing pre-arm.
+    const logoBefore = document.querySelector('img[aria-hidden="true"]') as HTMLElement
+    expect(logoBefore).toBeTruthy()
+    expect(logoBefore.style.opacity).toBe('1')
+
+    // The real arm write (what the Control window's "Arm" button ultimately calls), then
+    // dispatch the storage event with the ACTUAL value it produced — not a hardcoded '1' —
+    // as a real cross-window listener in another renderer process would receive.
+    setStoredArmed(true)
+    const broadcastValue = localStorage.getItem(KEY_ARMED_BROADCAST)
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_ARMED_BROADCAST, newValue: broadcastValue }))
     await act(async () => { await Promise.resolve() })
 
     setSongIndex(-1)
