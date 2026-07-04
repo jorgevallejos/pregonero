@@ -45,7 +45,7 @@ import {
 } from './setlistStore'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
-import { clearStoredDisplayMode } from './screenSizeState'
+import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
 
 function createStorage(): Storage {
@@ -7255,6 +7255,129 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     expect(screen.getByRole('button', { name: 'Big' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(true)
     expect(screen.getByRole('button', { name: 'Small' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
     expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-display-mode-seg--selected')).toBe(false)
+  })
+})
+
+describe('§A1 Display mode broadcast resync at session start (fixes stale-broadcast bug)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    clearStoredDisplayMode()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithVideoSongA1() {
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  function setupWithPlainSongA1() {
+    const plainSong = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+    }
+    saveSetlistStore(createInitialSnapshot([plainSong]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  it('a stale "none" broadcast left over from a previous session is overwritten with the fresh session default ("small") for a video song', async () => {
+    // Simulate the exact leveldb evidence from the 2026-07-04 projector test: a previous
+    // session left the broadcast on 'none', and this is a fresh launch (no sessionStorage
+    // selection yet) for a video song, whose default is 'small'.
+    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'none')
+    setupWithVideoSongA1()
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    await waitFor(() => {
+      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('small')
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
+  it('a stale "small" broadcast left over from a previous session is overwritten with "none" for a non-video song', async () => {
+    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    setupWithPlainSongA1()
+
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    await waitFor(() => {
+      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('none')
+    }, { timeout: WAIT_TIMEOUT })
+  })
+
+  it('toggle clicks still update the broadcast as before (regression guard)', async () => {
+    setupWithVideoSongA1()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Big' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await waitFor(() => {
+      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('small')
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big' }))
+    })
+
+    expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('big')
   })
 })
 
