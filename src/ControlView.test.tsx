@@ -6844,6 +6844,131 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
   })
 })
 
+describe('§17 C2 — Projection status text ignores leftover screenSize for non-video songs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupWithVideoSong() {
+    const songWithVideo = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      media: { type: 'video' as const, src: 'test.mp4' },
+      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    }
+    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  /** Plain (non-video) song, but with a 'big' screenSize left over in sessionStorage from an
+   * earlier video song selected this same session (§C2 repro — see coordinator's root cause). */
+  function setupWithPlainSongAndLeftoverBigScreenSize() {
+    const plainSong = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+      tempo: { bpm: 140, numerator: 3, denominator: 4, countInBars: 1 },
+    }
+    saveSetlistStore(createInitialSnapshot([plainSong]))
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    sessionStorage.removeItem('liveLyricPerformanceArmed')
+    sessionStorage.setItem('liveLyricScreenSize', 'big')
+    setSongLines(VALID_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/'
+    const mockApi = {
+      isProjectionOpen: vi.fn().mockResolvedValue(true),
+      onProjectionOpened: vi.fn(() => vi.fn()),
+      onProjectionClosed: vi.fn(() => vi.fn()),
+      openProjection: vi.fn().mockResolvedValue(undefined),
+      closeProjection: vi.fn().mockResolvedValue(undefined),
+    }
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
+    return mockApi
+  }
+
+  function getProjectionSetupValueText(): string | null | undefined {
+    const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
+      .find((s) => s.querySelector('.control-setup-label')?.textContent === 'Projection')
+    return projectionSection?.querySelector('.control-setup-value')?.textContent
+  }
+
+  it('C2: setup-panel Projection value reads exactly "Open" for a non-video song, even with a leftover big screenSize', async () => {
+    setupWithPlainSongAndLeftoverBigScreenSize()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(getProjectionSetupValueText()).toBe('Open')
+  })
+
+  it('C2: header Projection summary reads exactly "Projection: Open" for a non-video song when armed, even with a leftover big screenSize', async () => {
+    setupWithPlainSongAndLeftoverBigScreenSize()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    const header = screen.getByRole('banner')
+    const projectionLine = Array.from(header.querySelectorAll('.top-summary-line'))
+      .find((s) => s.textContent?.startsWith('Projection:'))
+    expect(projectionLine?.textContent).toBe('Projection: Open')
+  })
+
+  it('C2 regression: setup-panel Projection value still reads "Open, Big"/"Open, Small" for a video song', async () => {
+    setupWithVideoSong()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Big' })).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(getProjectionSetupValueText()).toBe('Open, Small')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big' }))
+    })
+
+    expect(getProjectionSetupValueText()).toBe('Open, Big')
+  })
+})
+
 describe('§5 video armed screen — End Card absent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -7586,6 +7711,18 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     setCurrentSongId('duelo')
   }
 
+  /** C1: neither tempo nor timeline — the Transitions toggle must stay absent entirely. */
+  function setupWithNeitherTempoNorTimelineSong() {
+    const plainSong = {
+      id: 'duelo',
+      title: 'Duelo',
+      items: VALID_LINES,
+    }
+    saveSetlistStore(createInitialSnapshot([plainSong]))
+    setupControlViewWithReadinessPassing()
+    setCurrentSongId('duelo')
+  }
+
   async function armAndReachSetup() {
     render(<App initialHash="#/" />)
     await waitFor(() => {
@@ -7621,13 +7758,45 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(screen.getByText('Transitions')).toBeTruthy()
   })
 
-  it('does NOT render the Transitions toggle when the song has no timeline', async () => {
+  it('C1: DOES render the Transitions toggle for a song with tempo but no timeline (Auto disabled)', async () => {
     setupWithNoTimelineSong()
     await armAndReachSetup()
 
-    // T1: the Transitions row only appears for songs with a timeline (Auto needs one).
+    // C1: a tempo-only song still gets the Transitions control so the performer can see
+    // Auto exists and why it's unavailable — Manual/Auto buttons are both present.
+    const manualBtn = screen.getByRole('button', { name: 'Advance: Manual' })
+    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' }) as HTMLButtonElement
+    expect(manualBtn).toBeTruthy()
+    expect(autoBtn).toBeTruthy()
+    // Manual is selected (Auto genuinely needs a timeline, which this song doesn't have).
+    expect(manualBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(autoBtn.getAttribute('aria-pressed')).toBe('false')
+    // Auto is disabled with an explanatory hint.
+    expect(autoBtn.disabled).toBe(true)
+    expect(autoBtn.title).toBe('Auto needs a timeline.')
+    expect(screen.getByLabelText('Auto needs a timeline.')).toBeTruthy()
+  })
+
+  it('C1: does NOT render the Transitions toggle when the song has neither tempo nor timeline', async () => {
+    setupWithNeitherTempoNorTimelineSong()
+    await armAndReachSetup()
+
     expect(screen.queryByRole('button', { name: 'Advance: Manual' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
+    expect(screen.queryByText('Transitions')).toBeNull()
+    expect(screen.queryByLabelText('Auto needs a timeline.')).toBeNull()
+  })
+
+  it('C1: clicking the disabled Auto on a tempo-no-timeline song does not switch to Auto', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+    })
+
+    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('defaults to Auto selected when the song has a non-empty timeline', async () => {
