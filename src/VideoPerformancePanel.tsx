@@ -6,12 +6,14 @@ import { videoCueLookup } from './videoCueLookup'
 import { setVideoTransportCommand } from './VideoProjectionRegion'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
-import type { MediaFile, TimelineEntry } from './songState'
+import { isLyricLine, getLyricText, type MediaFile, type SongItem, type TimelineEntry } from './songState'
 
 interface Props {
   absolutePath: string | null
   media: MediaFile
   timeline: TimelineEntry[]
+  lines: SongItem[]
+  singingLang: string
   tempo?: SongTempo
   beatIndicatorOn?: boolean
   onUnarm: () => void
@@ -35,6 +37,8 @@ export function VideoPerformancePanel({
   absolutePath,
   media,
   timeline,
+  lines,
+  singingLang,
   tempo,
   beatIndicatorOn = true,
   onUnarm,
@@ -186,6 +190,13 @@ export function VideoPerformancePanel({
     return () => video.removeEventListener('timeupdate', onTimeUpdate)
   }, [timeline, offset])
 
+  // Derive the current singing-language lyric text from activeCueIndex → lines.
+  // Section markers and out-of-range indices render no lyric text.
+  const activeItem =
+    activeCueIndex >= 0 && activeCueIndex < lines.length ? lines[activeCueIndex] : null
+  const activeLyricText =
+    activeItem && isLyricLine(activeItem) ? getLyricText(activeItem, singingLang) : ''
+
   // ── No-path state ─────────────────────────────────────────────────────────
 
   if (!absolutePath) {
@@ -222,11 +233,14 @@ export function VideoPerformancePanel({
         {tempo && beatIndicatorOn && (
           <BeatCircle tempo={tempo} phase={phase} style={beatCircleStyle} />
         )}
-      </div>
-      <div className="video-perf-lyric-row">
-        <span className="video-perf-cue-info">
-          {activeCueIndex >= 0 ? `Cue ${activeCueIndex + 1} / ${timeline.length}` : '—'}
-        </span>
+        {activeLyricText && (
+          <p
+            className="control-lyric video-perf-lyric-overlay"
+            data-testid="video-perf-lyric-overlay"
+          >
+            {activeLyricText}
+          </p>
+        )}
       </div>
       <VideoPerfBottomBar
         playState={playState}

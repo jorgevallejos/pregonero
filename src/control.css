@@ -60,6 +60,15 @@ html, body, #root {
   position: relative;
   display: flex;
   flex-direction: column;
+  /* height (not min-height): VideoPerformancePanel needs a definite height chain all the
+     way down for its `height: 100%` / flex sizing to resolve — with only min-height, this
+     box's own height is content-driven (auto, floored at 100vh), which is CSS-indefinite,
+     so percentage heights inside it silently fail to resolve and the video preview falls
+     back to its intrinsic file size, ballooning the panel and pushing the transport bar
+     off the bottom of the (e.g. iPad Sidecar) viewport. A fixed height="100vh" gives every
+     descendant a real, definite reference to size against; content that still doesn't fit
+     just overflows visually (same page-level scroll fallback as before). */
+  height: 100vh;
   min-height: 100vh;
   background: #1c1c1e;
   color: #e5e5e5;
@@ -2069,6 +2078,12 @@ html, body, #root {
 .video-perf-panel {
   display: flex;
   flex-direction: column;
+  /* .control-center centers children with align-items: center (cross-axis = width in a
+     column flex container), so without an explicit width this panel would shrink-to-fit
+     its content instead of filling the available column — mirror the non-video
+     .control-performing-stage convention (width: 100%, capped max-width). */
+  width: 100%;
+  max-width: 1000px;
   min-height: 0;
   height: 100%;
 }
@@ -2087,8 +2102,22 @@ html, body, #root {
   display: block;
 }
 
-.video-perf-lyric-row {
-  flex: 0 0 auto;
+/* B2: the current singing-language lyric is superimposed over the video (dominant,
+   video behind) instead of taking its own row — this also reclaims the vertical space
+   the old cue-counter row used, leaving more room for the transport bar. */
+.video-perf-lyric-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  width: 92%;
+  max-width: 92%;
+  text-align: center;
+  text-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  z-index: 4;
 }
 
 .video-perf-bottom-bar {
@@ -2097,6 +2126,9 @@ html, body, #root {
   flex-wrap: wrap;
   justify-content: center;
   flex: 0 0 auto;
+  /* Explicit floor so this row can never be flex-shrunk to nothing / squeezed out of
+     reach by the video above it — the transport controls must always stay tappable. */
+  min-height: 3.5em;
   padding: 0.6em 0;
 }
 

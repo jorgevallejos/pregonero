@@ -414,6 +414,72 @@ describe('VideoPerformancePanel — layout structure', () => {
   })
 })
 
+// ── singing-language lyric overlay (A2 / B2) ─────────────────────────────
+
+describe('VideoPerformancePanel — singing-language lyric overlay', () => {
+  it('does NOT render a Cue N / M counter', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps()} />)
+    expect(screen.queryByText(/cue\s*\d+\s*\/\s*\d+/i)).toBeNull()
+  })
+
+  it('renders no lyric overlay before any cue is active (activeCueIndex -1)', async () => {
+    const Panel = await importPanel()
+    render(<Panel {...defaultProps()} />)
+    expect(screen.queryByTestId('video-perf-lyric-overlay')).toBeNull()
+  })
+
+  it('renders the singing-language text of the active cue on timeupdate', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps()} />)
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { value: 1.2, configurable: true })
+    await act(async () => {
+      fireEvent(video, new Event('timeupdate'))
+    })
+    expect(screen.getByTestId('video-perf-lyric-overlay').textContent).toBe('Mundo')
+  })
+
+  it('renders the other singing language when singingLang differs', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps({ singingLang: 'en' })} />)
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { value: 0.2, configurable: true })
+    await act(async () => {
+      fireEvent(video, new Event('timeupdate'))
+    })
+    expect(screen.getByTestId('video-perf-lyric-overlay').textContent).toBe('Hello')
+  })
+
+  it('renders no lyric overlay for a section marker cue', async () => {
+    const Panel = await importPanel()
+    const linesWithSection: SongItem[] = [
+      { type: 'section', label: 'Chorus' },
+      { languages: { es: 'Mundo', en: 'World' } },
+    ]
+    const { container } = render(
+      <Panel {...defaultProps({ lines: linesWithSection })} />
+    )
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { value: 0.2, configurable: true })
+    await act(async () => {
+      fireEvent(video, new Event('timeupdate'))
+    })
+    expect(screen.queryByTestId('video-perf-lyric-overlay')).toBeNull()
+  })
+
+  it('renders no lyric overlay once the cue moves past the last timeline entry', async () => {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps()} />)
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { value: 5, configurable: true })
+    await act(async () => {
+      fireEvent(video, new Event('timeupdate'))
+    })
+    expect(screen.queryByTestId('video-perf-lyric-overlay')).toBeNull()
+  })
+})
+
 // ── Unarm callback ────────────────────────────────────────────────────────
 
 describe('VideoPerformancePanel — Unarm', () => {
