@@ -405,13 +405,22 @@ html, body, #root {
   white-space: nowrap;
 }
 
-/* Row B holds the Transitions group and the Beat indicator group side by side */
+/* Row B holds the Transitions group and the Beat indicator group side by side.
+   Groups must never flex-shrink below their nowrap label width — the column's
+   overflow:hidden would clip the centered label at BOTH ends ("RANSITIONS").
+   When the column is too narrow for both groups, wrap to two centered lines
+   instead of shrinking. */
 .ctrl-toggle-row-b {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  gap: 14px;
+  gap: 8px 14px;
+}
+
+.ctrl-toggle-row-b .ctrl-toggle-group {
+  flex-shrink: 0;
 }
 
 /* Icons are a constant px size regardless of window; never flex-shrink */
