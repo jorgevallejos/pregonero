@@ -372,17 +372,20 @@ html, body, #root {
   gap: 0.75em;
 }
 
-/* Projection column toggle cluster (T1): two labelled rows above the Open button.
-   Row A = display-format toggle; Row B = Transitions toggle (left) + Beat indicator
-   button (right). Sized in FIXED px (not em) so the controls don't rescale with the
-   fluid column font — Jorge runs this full-size on an iPad Pro; only the container
-   reflows width. */
+/* Toggle-control cluster used in the Lyrics display (Languages + Transitions) and
+   Projection (Videoclip) setup columns. Sized in FIXED px (not em) so the controls
+   don't rescale with the fluid column font — Jorge runs this full-size on an iPad Pro;
+   only the container reflows width. */
 .control-setup-toggle-area {
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  /* Raise the toggle off the bottom action button (Languages/Open) for a clear,
+     tasteful gap — both toggle-areas now share this identical structure, so equal
+     margin keeps the Transitions and Videoclip toggles at the same height. */
+  margin-bottom: 1.75em;
 }
 
 /* Each control sits in a group under its tiny label */
@@ -405,31 +408,9 @@ html, body, #root {
   white-space: nowrap;
 }
 
-/* Row B holds the Transitions group and the Beat indicator group side by side.
-   Groups must never flex-shrink below their nowrap label width — the column's
-   overflow:hidden would clip the centered label at BOTH ends ("RANSITIONS").
-   When the column is too narrow for both groups, wrap to two centered lines
-   instead of shrinking. */
-.ctrl-toggle-row-b {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px 14px;
-}
-
-.ctrl-toggle-row-b .ctrl-toggle-group {
-  flex-shrink: 0;
-}
-
 /* Icons are a constant px size regardless of window; never flex-shrink */
 .ctrl-toggle-icon {
   flex-shrink: 0;
-}
-
-.control-setup-toggle-area .ctrl-segmented-control {
-  margin-bottom: 0;
 }
 
 .control-setup-button-row .ctrl-btn {
@@ -476,9 +457,9 @@ html, body, #root {
   grid-row: 3;
 }
 
-/* All toggle buttons (display-format segs, transitions segs, beat button) share ONE
-   FIXED height in px — the height the display-format toggle used — so nothing rescales
-   with the window and every toggle button lines up. Needs higher specificity than
+/* All toggle buttons (Videoclip, Transitions) share ONE FIXED height in px — the
+   height the display-format toggle used — so nothing rescales with the window and
+   every toggle button lines up. Needs higher specificity than
    `.control-center-setup .control-setup-section .ctrl-btn` (which otherwise forces the
    full 2.75em min-height / 1.0625em size), so the fixed px sizing wins. */
 .control-center-setup .control-setup-toggle-area .ctrl-btn {
@@ -489,18 +470,13 @@ html, body, #root {
   font-size: 12px;
 }
 
-/* Segments size to their fixed-px icon + padding (not fluid em) */
-.control-center-setup .control-setup-toggle-area .ctrl-display-mode-seg,
-.control-center-setup .control-setup-toggle-area .ctrl-advance-mode-seg {
+/* Single toggle buttons size to their fixed-px text label + padding (not fluid em);
+   nowrap keeps two-word labels ("Small screen", "Big screen") on one line. */
+.control-center-setup .control-setup-toggle-area .ctrl-display-mode-toggle-btn,
+.control-center-setup .control-setup-toggle-area .ctrl-advance-mode-toggle-btn {
   flex: 0 0 auto;
   min-width: 34px;
-}
-
-/* Beat indicator: fixed square-ish icon button, same height as the segments */
-.control-center-setup .control-setup-toggle-area .ctrl-beat-indicator-toggle {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
+  white-space: nowrap;
 }
 
 .ctrl-setup-link {
@@ -603,139 +579,53 @@ html, body, #root {
 }
 
 .ctrl-projection {
-  /* same as base .ctrl-btn; override if design needs distinct projection style */
+  /* Match .ctrl-setup-link's top margin so the Videoclip toggle above the Open
+     button sits at the exact same height as the Transitions toggle above the
+     Languages button (both bottom buttons are pinned; equal margin-top keeps the
+     two toggle-areas aligned). */
+  margin-top: 0.25em;
 }
 
-.ctrl-segmented-control {
-  display: flex;
-  gap: 0;
-  margin-bottom: 0.4em;
+/* ── Videoclip single toggle button (none → small → big → none cycle) ──
+   None uses the plain gray .ctrl-btn base; small/big carry --selected for the
+   same green token as .ctrl-arm. */
+.ctrl-display-mode-toggle-btn {
   border-radius: 6px;
-  overflow: hidden;
-}
-
-/* ── 3-way display mode toggle (None/Small/Big) — Prompt 13 ──────────────── */
-.ctrl-display-mode-toggle {
-  display: flex;
-  gap: 0;
-  margin-bottom: 0.4em;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.ctrl-display-mode-seg {
-  flex: 1;
-  border-radius: 0;
-  opacity: 0.55;
-  padding: 0.15em 0.3em;
-  min-height: 1.6em;
-  min-width: 0;
-  font-size: 0.75em;
+  opacity: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.ctrl-display-mode-seg:first-child {
-  border-radius: 5px 0 0 5px;
-}
-
-.ctrl-display-mode-seg:last-child {
-  border-radius: 0 5px 5px 0;
-}
-
-/* Active/selected: green token — same as .ctrl-arm and .ctrl-btn.languages-confirm */
-.ctrl-display-mode-seg--selected {
-  opacity: 1;
+.ctrl-display-mode-toggle-btn--selected {
   background: #2d4a2d;
   border-color: #3d5c3d;
   color: #e8f0e8;
 }
 
-.ctrl-display-mode-seg--selected:hover {
+.ctrl-display-mode-toggle-btn--selected:hover {
   background: #3a5a3a;
   border-color: #4a6c4a;
 }
 
-/* ── Manual/Auto lyric-advance toggle — Prompt 14 ─────────────────────────── */
-.ctrl-advance-mode-toggle {
-  display: flex;
-  gap: 0;
-  margin-bottom: 0.4em;
+/* ── Manual/Auto Transitions single toggle button ─────────────────────────
+   Always shown green/selected in BOTH Manual and Auto — either is a real
+   performer choice. When Auto is unavailable the click is a no-op (forced
+   Manual) but the button keeps looking selected, not disabled. */
+.ctrl-advance-mode-toggle-btn {
   border-radius: 6px;
-  overflow: hidden;
-}
-
-.ctrl-advance-mode-seg {
-  flex: 1;
-  border-radius: 0;
-  opacity: 0.55;
-  padding: 0.15em 0.3em;
-  min-height: 1.6em;
-  min-width: 0;
-  font-size: 0.75em;
+  opacity: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.ctrl-advance-mode-seg:first-child {
-  border-radius: 5px 0 0 5px;
-}
-
-.ctrl-advance-mode-seg:last-child {
-  border-radius: 0 5px 5px 0;
-}
-
-/* Active/selected: same green token as the display-mode toggle and .ctrl-arm */
-.ctrl-advance-mode-seg--selected {
-  opacity: 1;
   background: #2d4a2d;
   border-color: #3d5c3d;
   color: #e8f0e8;
 }
 
-.ctrl-advance-mode-seg--selected:hover:not(:disabled) {
+.ctrl-advance-mode-toggle-btn:hover:not(:disabled) {
   background: #3a5a3a;
   border-color: #4a6c4a;
-}
-
-.ctrl-advance-mode-seg:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Beat-indicator toggle: on = green, off = gray (inherits base .ctrl-btn) */
-.ctrl-beat-indicator-toggle {
-  min-width: 1.8em;
-  min-height: 1.6em;
-  padding: 0.15em 0.3em;
-  font-size: 0.75em;
-}
-
-.ctrl-beat-indicator-toggle--on {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
-}
-
-.ctrl-beat-indicator-toggle--on:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
-}
-
-/* --off inherits .ctrl-btn base (gray) — no extra rules needed */
-
-/* T3: tiny link-glyph hint between the Transitions toggle and the Beat button,
-   shown when the beat is off (Auto disabled + forced Manual). Nudged down so it
-   aligns with the button row rather than the labels above them. */
-.ctrl-advance-beat-hint {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  margin-top: 18px;
-  color: #8e8e93;
-  cursor: help;
 }
 
 .control-setup-button-row {

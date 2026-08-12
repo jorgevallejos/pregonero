@@ -690,6 +690,7 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.intro !== undefined && Object.keys(song.intro).length > 0 ? { intro: song.intro } : {}),
     ...(song.media !== undefined ? { media: { ...song.media } } : {}),
     ...(song.tempo !== undefined ? { tempo: { ...song.tempo } } : {}),
+    ...(song.timeline !== undefined ? { timeline: song.timeline.map((entry) => ({ ...entry })) } : {}),
   }
   return libSong
 }
@@ -1064,6 +1065,9 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   }
   if (parsed.tempo !== undefined) {
     song.tempo = parsed.tempo
+  }
+  if (parsed.timeline !== undefined) {
+    song.timeline = parsed.timeline
   }
   return { ok: true, song }
 }

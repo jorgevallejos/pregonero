@@ -1040,6 +1040,32 @@ describe('setlistStore', () => {
       const result = importSongFromJsonText(json)
       expect(result.ok).toBe(false)
     })
+
+    it('timeline from JSON import is preserved and linked to the library song', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'timeline-song',
+        title: 'Timed',
+        lyrics: [
+          { es: 'Hola', en: 'Hello' },
+          { es: 'Adios', en: 'Bye' },
+        ],
+        timeline: [{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }],
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.song.timeline).toEqual([
+        { start: 0, end: 1.5 },
+        { start: 1.5, end: 3 },
+      ])
+      expect(result.song.timeline).toHaveLength(2)
+      const stored = loadSetlistStore()!
+      expect(stored.songLibrary.songs.find((s) => s.id === 'timeline-song')!.timeline).toEqual([
+        { start: 0, end: 1.5 },
+        { start: 1.5, end: 3 },
+      ])
+    })
   })
 
   // ---------------------------------------------------------------------------
