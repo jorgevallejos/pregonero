@@ -6754,7 +6754,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     return mockApi
   }
 
-  it('shows the single Videoclip toggle button in Projection row when song has a video, defaulting to None', async () => {
+  it('shows the Videoclip segmented control in Projection row when song has a video, defaulting to No video', async () => {
     setupWithVideoSong()
     render(<App initialHash="#/" />)
 
@@ -6765,8 +6765,12 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
       .find((s) => s.querySelector('.control-setup-label')?.textContent === 'Projection')
     expect(projectionSection).toBeTruthy()
-    // Default mode is None — the single toggle button shows that as its current label.
-    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'None' })).toBeTruthy()
+    // Default mode is None — the segment is active.
+    const noneBtn = within(projectionSection as HTMLElement).getByRole('button', { name: 'No video' })
+    expect(noneBtn).toBeTruthy()
+    expect(noneBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Small screen' })).toBeTruthy()
+    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Big screen' })).toBeTruthy()
   })
 
   it('does not show the Videoclip toggle when song has no video', async () => {
@@ -6779,37 +6783,38 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
 
     expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'None' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
   })
 
-  it('cycling to Big screen (None → Small screen → Big screen) activates big-screen profile and stores big screen size', async () => {
+  it('selecting Small then Big directly activates the matching profile and stores the matching screen size', async () => {
     setupWithVideoSong()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
+    expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('small')
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
+    })
 
     expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
     expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('big')
-    expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('default (None video toggle, no click) still activates small-canvas profile via the legacy screen-size default', async () => {
+  it('default (No video segment active, no click) still activates small-canvas profile via the legacy screen-size default', async () => {
     setupWithVideoSong()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -6839,67 +6844,70 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     expect(document.querySelector('.ctrl-display-row')).toBeNull()
   })
 
-  // §10 — single cycling toggle button + default None
-  it('the toggle button shows None by default when song has a video and no mode stored', async () => {
+  // §10 — segmented control, all three options always visible, direct selection
+  it('the No video segment is active by default when song has a video and no mode stored, and Small/Big are present but inactive', async () => {
     setupWithVideoSong()
     sessionStorage.removeItem('liveLyricDisplayMode')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('one click cycles None → Small screen', async () => {
+  it('clicking the Small screen segment selects Small directly', async () => {
     setupWithVideoSong()
     sessionStorage.removeItem('liveLyricDisplayMode')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
 
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'None' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('starting from a stored Big mode, one click cycles Big screen → None, and a further click wraps None → Small screen', async () => {
+  it('starting from a stored Big mode, clicking No video selects None directly, and a further click on Small selects Small directly', async () => {
     setupWithVideoSong()
     sessionStorage.setItem('liveLyricDisplayMode', 'big')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
+      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
     })
 
-    expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
 
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('activates small-canvas profile by default when song has a video and no size stored (Videoclip toggle still defaults to None)', async () => {
+  it('activates small-canvas profile by default when song has a video and no size stored (Videoclip segment still defaults to No video)', async () => {
     setupWithVideoSong()
     sessionStorage.removeItem('liveLyricScreenSize')
     localStorage.removeItem(DISPLAY_PROFILE_STORAGE_KEY)
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -7020,19 +7028,19 @@ describe('§17 C2 — Projection status text ignores leftover screenSize for non
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(getProjectionSetupValueText()).toBe('Open, No video')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
 
     expect(getProjectionSetupValueText()).toBe('Open, Small')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
     })
 
     expect(getProjectionSetupValueText()).toBe('Open, Big')
@@ -7078,7 +7086,7 @@ describe('§5 video armed screen — End Card absent', () => {
     // Videoclip defaults to None — select Small screen so the video performance panel
     // actually renders once armed.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -7112,7 +7120,7 @@ describe('§5 video armed screen — End Card absent', () => {
     // Videoclip defaults to None — select Small screen so the video performance panel
     // actually renders once armed.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -7211,26 +7219,24 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     expect(screen.getByText('Videoclip')).toBeTruthy()
   })
 
-  it('the Videoclip toggle renders a text label (None/Small screen/Big screen), not an SVG icon', async () => {
+  it('the Videoclip segmented control renders text labels (None/Small/Big) for all three segments, not SVG icons', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    const noneBtn = screen.getByRole('button', { name: 'None' })
+    const noneBtn = screen.getByRole('button', { name: 'No video' })
     expect(noneBtn.textContent).toBe('None')
     expect(noneBtn.querySelector('svg')).toBeNull()
 
-    await act(async () => { fireEvent.click(noneBtn) })
     const smallBtn = screen.getByRole('button', { name: 'Small screen' })
-    expect(smallBtn.textContent).toBe('Small screen')
+    expect(smallBtn.textContent).toBe('Small')
     expect(smallBtn.querySelector('svg')).toBeNull()
 
-    await act(async () => { fireEvent.click(smallBtn) })
     const bigBtn = screen.getByRole('button', { name: 'Big screen' })
-    expect(bigBtn.textContent).toBe('Big screen')
+    expect(bigBtn.textContent).toBe('Big')
     expect(bigBtn.querySelector('svg')).toBeNull()
   })
 
@@ -7245,7 +7251,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     expect(screen.queryByText('Videoclip')).toBeNull()
   })
 
-  it('renders a single Videoclip toggle button (showing None by default) when song has a video', async () => {
+  it('renders all three Videoclip segments together (None active by default) when song has a video', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
@@ -7253,9 +7259,9 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
       expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
     }, { timeout: WAIT_TIMEOUT })
 
-    expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('does NOT render the Videoclip toggle when song has no video', async () => {
@@ -7266,7 +7272,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
       expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
     }, { timeout: WAIT_TIMEOUT })
 
-    expect(screen.queryByRole('button', { name: 'None' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
   })
@@ -7277,56 +7283,56 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
     }, { timeout: WAIT_TIMEOUT })
   })
 
-  it('clicking the toggle three times (None → Small screen → Big screen → None) cycles back to None, updating aria-label each step', async () => {
+  it('clicking Small then Big then No video selects each mode directly, one click each', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
-    expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
     })
-    expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
+    })
+    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('clicking from Big screen to None stores display mode "none" in sessionStorage', async () => {
+  it('clicking No video while on Big stores display mode "none" in sessionStorage', async () => {
     setupWithVideoSong13()
     sessionStorage.setItem('liveLyricDisplayMode', 'big')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
+      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
     })
 
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('none')
   })
 
-  it('default screen-size profile (small-canvas) activates without any click, even though the Videoclip toggle defaults to None', async () => {
+  it('default screen-size profile (small-canvas) activates without any click, even though the Videoclip segment defaults to None', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -7334,71 +7340,72 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     }, { timeout: WAIT_TIMEOUT })
   })
 
-  it('cycling all the way around (None → Small screen → Big screen → None → Small screen) stores display mode "small" in sessionStorage', async () => {
+  it('selecting Small directly stores display mode "small" and activates small-canvas profile', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'None' })) })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Small screen' })) })
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Big screen' })) })
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'None' })) })
 
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('small')
     expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
   })
 
-  it('clicking once from Small screen switches to Big screen and activates big-screen profile', async () => {
+  it('clicking Big while on Small switches to Big and activates big-screen profile', async () => {
     setupWithVideoSong13()
     sessionStorage.setItem('liveLyricDisplayMode', 'small')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
     })
 
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
     expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
   })
 
-  // §13.GREEN — small/big carry the --selected (green) class; none does not (plain gray .ctrl-btn)
-  it('the toggle button carries ctrl-display-mode-toggle-btn--selected for Small/Big but not for None', async () => {
+  // §13.GREEN — active segment carries the --active (green) class; inactive segments do not
+  it('the active segment carries ctrl-segment--active for Small/Big/None depending on selection', async () => {
     setupWithVideoSong13()
     sessionStorage.removeItem('liveLyricDisplayMode')
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // Default is None — not selected/gray.
-    expect(screen.getByRole('button', { name: 'None' }).classList.contains('ctrl-display-mode-toggle-btn--selected')).toBe(false)
+    // Default is None — selected/green; Small/Big are not.
+    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(false)
 
-    // Click to Small screen — selected/green.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-display-mode-toggle-btn--selected')).toBe(true)
-
-    // Click to Big screen — still selected/green.
+    // Click Small screen — selected/green.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
-    expect(screen.getByRole('button', { name: 'Big screen' }).classList.contains('ctrl-display-mode-toggle-btn--selected')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(true)
+    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(false)
 
-    // Click to None — no longer selected/green (plain gray).
+    // Click Big screen — still selected/green.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
     })
-    expect(screen.getByRole('button', { name: 'None' }).classList.contains('ctrl-display-mode-toggle-btn--selected')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Big screen' }).classList.contains('ctrl-segment--active')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(false)
+
+    // Click No video — no longer selected/green on Big.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
+    })
+    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Big screen' }).classList.contains('ctrl-segment--active')).toBe(false)
   })
 })
 
@@ -7510,7 +7517,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -7518,7 +7525,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
 
     expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('small')
@@ -7573,14 +7580,14 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // This timeline song defaults to Auto; toggle the single Transitions button to Manual so
-    // we exercise the manual (non-video) performer flow with Next/Previous (T2: Auto would
-    // show Play/Pause transport instead).
+    // This timeline song defaults to Auto; select the Manual segment so we exercise the
+    // manual (non-video) performer flow with Next/Previous (T2: Auto would show
+    // Play/Pause transport instead).
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
     })
 
     await waitFor(() => {
@@ -7605,14 +7612,14 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'None' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // Videoclip defaults to None — cycle to Small screen.
+    // Videoclip defaults to None — select Small screen directly.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'None' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
 
     await waitFor(() => {
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
@@ -7697,13 +7704,15 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     await act(async () => { await Promise.resolve() })
   }
 
-  it('renders the single Transitions toggle button in the setup screen when the song has a timeline', async () => {
+  it('renders the Transitions segmented control (Manual, Auto) in the setup screen when the song has a timeline', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    // Defaults to Auto for a timeline song — only one button, currently labeled Auto.
-    expect(screen.getByRole('button', { name: 'Advance: Auto' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Advance: Manual' })).toBeNull()
+    // Defaults to Auto for a timeline song — both segments present, Auto active.
+    expect(screen.getByRole('button', { name: 'Auto' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Manual' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('T1: shows a "Transitions" label above the advance-mode toggle for a timeline song', async () => {
@@ -7713,76 +7722,75 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(screen.getByText('Transitions')).toBeTruthy()
   })
 
-  it('C1: DOES render the Transitions toggle for a song with tempo but no timeline (Auto unavailable, no-op)', async () => {
+  it('C1: DOES render the Transitions toggle for a song with tempo but no timeline (Auto unavailable, dimmed + disabled)', async () => {
     setupWithNoTimelineSong()
     await armAndReachSetup()
 
     // C1: a tempo-only song still gets the Transitions control so the performer can see it —
-    // Auto genuinely needs a timeline, which this song doesn't have, so the single button is
-    // forced to Manual (still shown green/selected, per the single-toggle design) and its
-    // tooltip explains why.
-    const btn = screen.getByRole('button', { name: 'Advance: Manual' }) as HTMLButtonElement
-    expect(btn).toBeTruthy()
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
-    expect(btn.title).toBe('Auto needs a timeline.')
-    expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
+    // Auto genuinely needs a timeline, which this song doesn't have, so Manual is active/green
+    // and Auto is dimmed and disabled, with a tooltip explaining why.
+    const manualBtn = screen.getByRole('button', { name: 'Manual' }) as HTMLButtonElement
+    expect(manualBtn).toBeTruthy()
+    expect(manualBtn.getAttribute('aria-pressed')).toBe('true')
+
+    const autoBtn = screen.getByRole('button', { name: 'Auto' }) as HTMLButtonElement
+    expect(autoBtn).toBeTruthy()
+    expect(autoBtn.getAttribute('aria-pressed')).toBe('false')
+    expect(autoBtn.disabled).toBe(true)
+    expect(autoBtn.title).toBe('Auto needs a timeline.')
   })
 
   it('C1: does NOT render the Transitions toggle when the song has neither tempo nor timeline', async () => {
     setupWithNeitherTempoNorTimelineSong()
     await armAndReachSetup()
 
-    expect(screen.queryByRole('button', { name: 'Advance: Manual' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Manual' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Auto' })).toBeNull()
     expect(screen.queryByText('Transitions')).toBeNull()
     expect(screen.queryByLabelText('Auto needs a timeline.')).toBeNull()
   })
 
-  it('C1: clicking the toggle on a tempo-no-timeline song does not switch to Auto (no-op)', async () => {
+  it('C1: clicking the disabled Auto segment on a tempo-no-timeline song does not switch to Auto (no-op)', async () => {
     setupWithNoTimelineSong()
     await armAndReachSetup()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Manual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Auto' }))
     })
 
-    expect(screen.getByRole('button', { name: 'Advance: Manual' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('defaults to Auto selected when the song has a non-empty timeline', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    expect(screen.getByRole('button', { name: 'Advance: Auto' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.queryByRole('button', { name: 'Advance: Manual' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('clicking the toggle switches selection to Manual even on a timeline song (default Auto)', async () => {
+  it('clicking Manual switches selection to Manual even on a timeline song (default Auto)', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
     })
 
-    expect(screen.getByRole('button', { name: 'Advance: Manual' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.queryByRole('button', { name: 'Advance: Auto' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('the Transitions toggle renders a text label ("Auto"/"Manual"), not an SVG icon', async () => {
+  it('the Transitions toggle renders text labels ("Auto"/"Manual"), not SVG icons', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    const autoBtn = screen.getByRole('button', { name: 'Advance: Auto' })
+    const autoBtn = screen.getByRole('button', { name: 'Auto' })
     expect(autoBtn.textContent).toBe('Auto')
     expect(autoBtn.querySelector('svg')).toBeNull()
 
-    await act(async () => {
-      fireEvent.click(autoBtn)
-    })
-
-    const manualBtn = screen.getByRole('button', { name: 'Advance: Manual' })
+    const manualBtn = screen.getByRole('button', { name: 'Manual' })
     expect(manualBtn.textContent).toBe('Manual')
     expect(manualBtn.querySelector('svg')).toBeNull()
   })
@@ -7793,7 +7801,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     await armAndReachSetupFakeTimers()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -7826,7 +7834,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     setupWithTimelineSong()
     await armAndReachSetup()
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Advance: Auto' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
     })
     await act(async () => {
       fireEvent.click(getArmButton())

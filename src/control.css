@@ -457,26 +457,63 @@ html, body, #root {
   grid-row: 3;
 }
 
-/* All toggle buttons (Videoclip, Transitions) share ONE FIXED height in px — the
-   height the display-format toggle used — so nothing rescales with the window and
-   every toggle button lines up. Needs higher specificity than
-   `.control-center-setup .control-setup-section .ctrl-btn` (which otherwise forces the
-   full 2.75em min-height / 1.0625em size), so the fixed px sizing wins. */
-.control-center-setup .control-setup-toggle-area .ctrl-btn {
-  height: 30px;
-  min-height: 30px;
-  padding: 0 8px;
-  min-width: 0;
-  font-size: 12px;
+/* ── Segmented controls (Transitions, Videoclip) ──────────────────────────
+   All options visible side by side; the active one filled green, inactive
+   muted. Fixed px sizing (not em) so it doesn't rescale with the fluid
+   column font — matches the fixed-height convention the single toggle
+   buttons used to follow. */
+.ctrl-segmented {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  border: 0.5px solid #3a3a3c;
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 0 0 auto;
 }
 
-/* Single toggle buttons size to their fixed-px text label + padding (not fluid em);
-   nowrap keeps two-word labels ("Small screen", "Big screen") on one line. */
-.control-center-setup .control-setup-toggle-area .ctrl-display-mode-toggle-btn,
-.control-center-setup .control-setup-toggle-area .ctrl-advance-mode-toggle-btn {
+.ctrl-segment {
   flex: 0 0 auto;
-  min-width: 34px;
+  appearance: none;
+  border: none;
+  border-right: 0.5px solid #3a3a3c;
+  background: transparent;
+  color: #9a9a9f;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
   white-space: nowrap;
+}
+
+.ctrl-segment:last-child {
+  border-right: none;
+}
+
+.ctrl-segment:hover:not(:disabled):not(.ctrl-segment--active) {
+  color: #d0d0d5;
+}
+
+.ctrl-segment--active {
+  background: #2d4a2d;
+  color: #eaf3ea;
+}
+
+.ctrl-segment--active:hover:not(:disabled) {
+  background: #3a5a3a;
+}
+
+.ctrl-segment:disabled,
+.ctrl-segment.ctrl-segment--disabled {
+  cursor: not-allowed;
+  color: #48484a;
+}
+
+.ctrl-segment:disabled.ctrl-segment--active,
+.ctrl-segment.ctrl-segment--disabled.ctrl-segment--active {
+  color: #5c5c60;
 }
 
 .ctrl-setup-link {
@@ -584,48 +621,6 @@ html, body, #root {
      Languages button (both bottom buttons are pinned; equal margin-top keeps the
      two toggle-areas aligned). */
   margin-top: 0.25em;
-}
-
-/* ── Videoclip single toggle button (none → small → big → none cycle) ──
-   None uses the plain gray .ctrl-btn base; small/big carry --selected for the
-   same green token as .ctrl-arm. */
-.ctrl-display-mode-toggle-btn {
-  border-radius: 6px;
-  opacity: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ctrl-display-mode-toggle-btn--selected {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
-}
-
-.ctrl-display-mode-toggle-btn--selected:hover {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
-}
-
-/* ── Manual/Auto Transitions single toggle button ─────────────────────────
-   Always shown green/selected in BOTH Manual and Auto — either is a real
-   performer choice. When Auto is unavailable the click is a no-op (forced
-   Manual) but the button keeps looking selected, not disabled. */
-.ctrl-advance-mode-toggle-btn {
-  border-radius: 6px;
-  opacity: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
-}
-
-.ctrl-advance-mode-toggle-btn:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
 }
 
 .control-setup-button-row {
