@@ -12,6 +12,29 @@ export function getDefaultAdvanceMode(hasTimeline: boolean): AdvanceMode {
 }
 
 /**
+ * P6 — resolves the advance mode actually in force, given the performer's explicit selection,
+ * the per-song default, and whether a manual override has been taken during this song.
+ *
+ * Pressing Next or Previous during Auto playback drops the song into Manual for the REMAINDER
+ * of the song: one press to take the wheel. Before this, the auto-advance effect recomputed the
+ * index from elapsed time on every tick and snapped back to it, so a manual Next reverted within
+ * ~50ms — the buttons looked like a safety net and were not one, and they failed exactly when
+ * drift shows up mid-song and the instinct is to tap Next.
+ *
+ * The override is deliberately absolute: it beats an explicit 'auto' selection, not just the
+ * default. Resetting it is the caller's job (next song / next arm / restart) — it is never
+ * sticky across songs.
+ */
+export function resolveAdvanceMode(params: {
+  selected: AdvanceMode | null
+  hasTimeline: boolean
+  manualOverrideTaken: boolean
+}): AdvanceMode {
+  if (params.manualOverrideTaken) return 'manual'
+  return params.selected ?? getDefaultAdvanceMode(params.hasTimeline)
+}
+
+/**
  * Maps elapsed time since the song began (see `useBeatClock`'s `songElapsedMs` — elapsed
  * since the count-in's `begin` handoff, not since the count-in started) to a lyric-line
  * index via the song's timeline, reusing the same half-open [start, end) cue lookup Video

@@ -2028,6 +2028,20 @@ html, body, #root {
 
 /* ── BeatCircle — shared beat indicator, sized like the gig-time circle ── */
 
+/* P6: shown mid-song once Next/Previous has dropped the song into Manual. Deliberately loud —
+   the performer has to register "this is not driving itself any more" at a glance, mid-song. */
+.control-manual-override-badge {
+  padding: 0.3em 0.7em;
+  border-radius: 0.4em;
+  border: 1px solid #ff9f0a;
+  background: rgba(255, 159, 10, 0.15);
+  color: #ff9f0a;
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  user-select: none;
+}
+
 .beat-circle {
   display: flex;
   align-items: center;

@@ -8329,4 +8329,140 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       expect(getAutoBlackout()).toBe(true)
     })
   })
+
+  /**
+   * §P6 — Next/Previous drops the song into Manual for the remainder of the song.
+   *
+   * The bug: the auto-advance effect recomputed the index from elapsed time on every tick and
+   * snapped to it, so a manual Next reverted within a tick. The buttons LOOKED like a safety
+   * net and were not one — and they failed exactly when drift shows up mid-song and the
+   * instinct is to tap Next.
+   */
+  describe('§P6 manual override takes the wheel', () => {
+    function setupOverrideSong() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        // Line 0 owns a long window, so Auto would keep snapping back to it for 5.84s.
+        timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    async function armAndCue() {
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+    }
+
+    it('THE P6 BUG: a mid-song Next advances the line and it STAYS advanced', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      expect(getSongIndex()).toBe(0)
+
+      // 1s into line 0's [0, 5.84) window — Auto is actively holding index 0 here.
+      act(() => { vi.advanceTimersByTime(1000) })
+      expect(getSongIndex()).toBe(0)
+
+      // The performer takes the wheel.
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(1)
+
+      // Pre-P6 the very next tick recomputed 1000ms → index 0 and snapped it back.
+      act(() => { vi.advanceTimersByTime(100) })
+      expect(getSongIndex()).toBe(1)
+      // And it stays taken for the rest of the song, not just for a tick.
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('a mid-song Previous takes the wheel the same way', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      // Get to line 1 via Auto so Previous has somewhere to go back to.
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^previous$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // Auto would have snapped straight back to 1 (elapsed is past 5.84s).
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(getSongIndex()).toBe(0)
+    })
+
+    it('the override is visible — the performer can see at a glance that the song is no longer driving itself', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+    })
+
+    it('the cue press itself is not an override — Auto still drives the song after the first Next', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+      // Auto advances to line 1 on its own at 5.84s, proving it was never dropped.
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('Restart clears the override — the song drives itself again', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      act(() => { vi.advanceTimersByTime(1000) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+
+      // Once the override is taken the song is Manual, so Restart is the hold-to-confirm
+      // control (guarding against an accidental mid-song reset), not a plain click.
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: /restart/i }))
+      })
+      act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      // Cue again and let Auto drive.
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('the override is not sticky across arms — unarming and re-arming clears it', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      act(() => { vi.advanceTimersByTime(1000) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+
+      // The override moved us to the last line, so this is the end-of-song state where Unarm is
+      // a plain click (no hold guard — there is nothing left to lose).
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+  })
 })
