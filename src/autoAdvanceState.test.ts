@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getDefaultAdvanceMode, computeAutoAdvanceIndex, isCueStartMode } from './autoAdvanceState'
+import { getDefaultAdvanceMode, computeAutoAdvanceIndex, isCueStartMode, resolveAdvanceMode } from './autoAdvanceState'
 import type { TimelineEntry } from './songState'
 
 describe('getDefaultAdvanceMode', () => {
@@ -9,6 +9,29 @@ describe('getDefaultAdvanceMode', () => {
 
   it('returns "manual" when the song has no timeline', () => {
     expect(getDefaultAdvanceMode(false)).toBe('manual')
+  })
+})
+
+describe('resolveAdvanceMode (P6: Next/Previous takes the wheel for the rest of the song)', () => {
+  const noOverride = { manualOverrideTaken: false }
+
+  it('defers to the per-song default when nothing is selected', () => {
+    expect(resolveAdvanceMode({ selected: null, hasTimeline: true, ...noOverride })).toBe('auto')
+    expect(resolveAdvanceMode({ selected: null, hasTimeline: false, ...noOverride })).toBe('manual')
+  })
+
+  it('honours an explicit selection over the default', () => {
+    expect(resolveAdvanceMode({ selected: 'manual', hasTimeline: true, ...noOverride })).toBe('manual')
+    expect(resolveAdvanceMode({ selected: 'auto', hasTimeline: false, ...noOverride })).toBe('auto')
+  })
+
+  it('forces manual once the override is taken, beating the auto default', () => {
+    expect(resolveAdvanceMode({ selected: null, hasTimeline: true, manualOverrideTaken: true })).toBe('manual')
+  })
+
+  it('forces manual once the override is taken, beating an EXPLICIT auto selection', () => {
+    // One press takes the wheel. It is not a suggestion the toggle can outrank mid-song.
+    expect(resolveAdvanceMode({ selected: 'auto', hasTimeline: true, manualOverrideTaken: true })).toBe('manual')
   })
 })
 

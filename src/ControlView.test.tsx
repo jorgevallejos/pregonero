@@ -41,8 +41,10 @@ import {
   addSongToSetlistInSnapshot,
   saveSetlistStore,
   setActiveSetlistId,
+  getLibrarySongById,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
@@ -6562,7 +6564,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByText(/cue →/i)).toBeNull()
   })
 
-  it('BeatCircle is NOT rendered on arm (beat clock idle until the bottom-bar Start), and there is NO standalone Pause / restart-beat overlay trio', async () => {
+  it('P5: the pulse runs on arm while the transport stays idle until the bottom-bar Start, and there is NO standalone Pause / restart-beat overlay trio', async () => {
     // Set up a library with a song that has tempo
     const songWithTempo = {
       id: 'duelo',
@@ -6588,8 +6590,12 @@ describe('§6 non-video armed screen', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     vi.useRealTimers()
 
-    // No auto-start on arm: the beat clock stays idle until the performer presses Start.
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // P5 (amends the pre-P5 "no beat circle on arm" assertion): the pulse is a click track the
+    // performer plays to, so it free-runs from Arm — but as a plain click, not a count-in, and
+    // the transport is still idle. The count-in only exists once Start is pressed.
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     // R2: the pre-count-in control is the bottom-bar Start button (relabelled Restart).
     expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
     // But there is still NO standalone Pause / dedicated beat-restart control overlaying phrases.
@@ -6636,17 +6642,18 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle before Start: no beat circle yet, and Next is disabled (count-in must run first).
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // Transport idle before Start: the P5 pulse is running as a plain click (no count-in), and
+    // Next is disabled (the count-in must run first).
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(true)
 
-    // Press Start → the beat clock (count-in) begins, still no lyric.
+    // Press Start → the count-in begins, still no lyric.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     })
     expect(getSongIndex()).toBe(-1)
     await waitFor(() => {
-      expect(screen.getByTestId('beat-circle')).toBeTruthy()
+      expect(screen.getByTestId('beat-circle-count-in')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     // First Next now reveals line 0 (beat already running).
@@ -6722,8 +6729,9 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle after arm — no beat circle yet, and the pre-count-in control is Start (not Restart).
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // Transport idle after arm — the P5 pulse runs but no count-in has begun, and the
+    // pre-count-in control is Start (not Restart).
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     expect(screen.queryByRole('button', { name: /^restart$/i })).toBeNull()
 
     // Start (plain click) begins the beat clock.
@@ -8143,6 +8151,62 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       expect(getSongIndex()).toBe(0)
     })
 
+    /**
+     * P5 acceptance, at the level Jorge actually performs at: the pulse is a click track he
+     * plays to. He talks to the audience while arming, picks the tempo up on guitar, plays a
+     * 2-bar intro TO the pulse, and cues the lyrics with the pedal when settled — mid-bar,
+     * because the lyrics do not always start on the first pulse of a bar.
+     */
+    function setupWithTimelineV2SongWithTempo() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
+        // 120bpm 4/4 → 500ms per beat, 2000ms per bar.
+        tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    it('P5: the pulse runs from Arm, and cueing mid-bar does not shift the click', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2SongWithTempo()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // The pulse is already running, before any cue — this is what he plays the intro to.
+      expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
+
+      // Two bars of intro plus a bit: 4500ms → absoluteBeat 9, i.e. beat 2 of the third bar.
+      // Deliberately NOT a bar line — the performer cues when he is settled, not on the grid.
+      act(() => { vi.advanceTimersByTime(4500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('2')
+
+      // The pedal press. Pre-P5 this re-phased the click to beat 1 under his fingers at the
+      // exact moment he started singing.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('2')
+      // Line 0 appears and the song is running.
+      expect(getSongIndex()).toBe(0)
+      expect(getBlank()).toBe(false)
+
+      // The click keeps its own time: 500ms later it is beat 3, continuing the pre-cue count,
+      // not restarting from the cue.
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('3')
+
+      // And the song clock, which started at the cue, advances the timeline independently.
+      act(() => { vi.advanceTimersByTime(5_840 - 500 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
     it('Pause and Restart are absent before the cue and appear only after it', async () => {
       vi.useFakeTimers()
       setupWithTimelineV2Song()
@@ -8265,6 +8329,294 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
       // Audience blackout still applies for legacy Auto (unchanged behavior).
       expect(getAutoBlackout()).toBe(true)
+    })
+  })
+
+  /**
+   * §P9 — performed-tempo scaling, at the app level.
+   *
+   * The pure maths lives in performedTempo.test.ts (including the golden-fixture acceptance).
+   * What can only be proven here: the field actually drives BOTH the cue times and the pulse,
+   * from the same number; tempo.bpm is never written; and the control is gone once armed.
+   */
+  describe('§P9 performed tempo', () => {
+    const DECLARED = 60 // 1000ms per beat at 4/4 — easy arithmetic in tests
+
+    function setupTempoSong() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
+        tempo: { bpm: DECLARED, numerator: 4, denominator: 4, countInBars: 1 },
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    it('defaults to the declared tempo, and the cue times are unchanged', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      // The field shows empty (defaulting), with the recording's tempo alongside it.
+      expect((screen.getByTestId('performed-bpm-input') as HTMLInputElement).value).toBe('')
+      expect(screen.getByTestId('declared-bpm-label').textContent).toContain(String(DECLARED))
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // Line 1 is due at 6.000s of song time, unscaled.
+      act(() => { vi.advanceTimersByTime(5_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('ACCEPTANCE: at 1.5x the declared tempo the cue times scale by 2/3', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // 6.000s × (60/90) = 4.000s.
+      act(() => { vi.advanceTimersByTime(3_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('ACCEPTANCE: the pulse speeds up to match — both derive from the same number', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '120' } })
+      })
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // At the declared 60bpm a beat lasts 1000ms; at the performed 120bpm it lasts 500ms.
+      // 1500ms in, a 60bpm pulse would read beat 2 — the performed pulse reads beat 4.
+      act(() => { vi.advanceTimersByTime(1_500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('4')
+    })
+
+    it('never overwrites tempo.bpm — the recording\'s tempo survives in the song library', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      const song = getLibrarySongById('duelo')
+      expect(song?.tempo?.bpm).toBe(DECLARED)
+    })
+
+    it('is frozen once armed — the control is not reachable mid-song', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      expect(screen.getByTestId('performed-bpm-input')).toBeTruthy()
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      expect(screen.queryByTestId('performed-bpm-input')).toBeNull()
+    })
+
+    it('persists per song and is restored on return', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      expect(getStoredPerformedBpm('duelo')).toBe(90)
+    })
+
+    it('clearing the field returns to the declared tempo', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '' } })
+      })
+      expect(getStoredPerformedBpm('duelo')).toBeNull()
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      // Back to the unscaled 6.000s cue.
+      act(() => { vi.advanceTimersByTime(5_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('a song with no tempo block gets no performed-tempo control at all', async () => {
+      vi.useFakeTimers()
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+      await armAndReachSetupFakeTimers()
+
+      expect(screen.queryByTestId('performed-bpm-input')).toBeNull()
+    })
+  })
+
+  /**
+   * §P6 — Next/Previous drops the song into Manual for the remainder of the song.
+   *
+   * The bug: the auto-advance effect recomputed the index from elapsed time on every tick and
+   * snapped to it, so a manual Next reverted within a tick. The buttons LOOKED like a safety
+   * net and were not one — and they failed exactly when drift shows up mid-song and the
+   * instinct is to tap Next.
+   */
+  describe('§P6 manual override takes the wheel', () => {
+    function setupOverrideSong() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        // Line 0 owns a long window, so Auto would keep snapping back to it for 5.84s.
+        timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    async function armAndCue() {
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+    }
+
+    it('THE P6 BUG: a mid-song Next advances the line and it STAYS advanced', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      expect(getSongIndex()).toBe(0)
+
+      // 1s into line 0's [0, 5.84) window — Auto is actively holding index 0 here.
+      act(() => { vi.advanceTimersByTime(1000) })
+      expect(getSongIndex()).toBe(0)
+
+      // The performer takes the wheel.
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(1)
+
+      // Pre-P6 the very next tick recomputed 1000ms → index 0 and snapped it back.
+      act(() => { vi.advanceTimersByTime(100) })
+      expect(getSongIndex()).toBe(1)
+      // And it stays taken for the rest of the song, not just for a tick.
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('a mid-song Previous takes the wheel the same way', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      // Get to line 1 via Auto so Previous has somewhere to go back to.
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^previous$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // Auto would have snapped straight back to 1 (elapsed is past 5.84s).
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(getSongIndex()).toBe(0)
+    })
+
+    it('the override is visible — the performer can see at a glance that the song is no longer driving itself', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+    })
+
+    it('the cue press itself is not an override — Auto still drives the song after the first Next', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+      // Auto advances to line 1 on its own at 5.84s, proving it was never dropped.
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('Restart clears the override — the song drives itself again', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      act(() => { vi.advanceTimersByTime(1000) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+
+      // Once the override is taken the song is Manual, so Restart is the hold-to-confirm
+      // control (guarding against an accidental mid-song reset), not a plain click.
+      await act(async () => {
+        fireEvent.pointerDown(screen.getByRole('button', { name: /restart/i }))
+      })
+      act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      // Cue again and let Auto drive.
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('the override is not sticky across arms — unarming and re-arming clears it', async () => {
+      vi.useFakeTimers()
+      setupOverrideSong()
+      await armAndCue()
+      act(() => { vi.advanceTimersByTime(1000) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(screen.getByTestId('manual-override-badge')).toBeTruthy()
+
+      // The override moved us to the last line, so this is the end-of-song state where Unarm is
+      // a plain click (no hold guard — there is nothing left to lose).
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
+      })
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      expect(screen.queryByTestId('manual-override-badge')).toBeNull()
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
     })
   })
 })
