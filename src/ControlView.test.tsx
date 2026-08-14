@@ -41,8 +41,10 @@ import {
   addSongToSetlistInSnapshot,
   saveSetlistStore,
   setActiveSetlistId,
+  getLibrarySongById,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
@@ -8327,6 +8329,158 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
 
       // Audience blackout still applies for legacy Auto (unchanged behavior).
       expect(getAutoBlackout()).toBe(true)
+    })
+  })
+
+  /**
+   * §P9 — performed-tempo scaling, at the app level.
+   *
+   * The pure maths lives in performedTempo.test.ts (including the golden-fixture acceptance).
+   * What can only be proven here: the field actually drives BOTH the cue times and the pulse,
+   * from the same number; tempo.bpm is never written; and the control is gone once armed.
+   */
+  describe('§P9 performed tempo', () => {
+    const DECLARED = 60 // 1000ms per beat at 4/4 — easy arithmetic in tests
+
+    function setupTempoSong() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
+        tempo: { bpm: DECLARED, numerator: 4, denominator: 4, countInBars: 1 },
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    it('defaults to the declared tempo, and the cue times are unchanged', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      // The field shows empty (defaulting), with the recording's tempo alongside it.
+      expect((screen.getByTestId('performed-bpm-input') as HTMLInputElement).value).toBe('')
+      expect(screen.getByTestId('declared-bpm-label').textContent).toContain(String(DECLARED))
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // Line 1 is due at 6.000s of song time, unscaled.
+      act(() => { vi.advanceTimersByTime(5_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('ACCEPTANCE: at 1.5x the declared tempo the cue times scale by 2/3', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      expect(getSongIndex()).toBe(0)
+
+      // 6.000s × (60/90) = 4.000s.
+      act(() => { vi.advanceTimersByTime(3_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('ACCEPTANCE: the pulse speeds up to match — both derive from the same number', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '120' } })
+      })
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // At the declared 60bpm a beat lasts 1000ms; at the performed 120bpm it lasts 500ms.
+      // 1500ms in, a 60bpm pulse would read beat 2 — the performed pulse reads beat 4.
+      act(() => { vi.advanceTimersByTime(1_500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('4')
+    })
+
+    it('never overwrites tempo.bpm — the recording\'s tempo survives in the song library', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      const song = getLibrarySongById('duelo')
+      expect(song?.tempo?.bpm).toBe(DECLARED)
+    })
+
+    it('is frozen once armed — the control is not reachable mid-song', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      expect(screen.getByTestId('performed-bpm-input')).toBeTruthy()
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      expect(screen.queryByTestId('performed-bpm-input')).toBeNull()
+    })
+
+    it('persists per song and is restored on return', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      expect(getStoredPerformedBpm('duelo')).toBe(90)
+    })
+
+    it('clearing the field returns to the declared tempo', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '90' } })
+      })
+      await act(async () => {
+        fireEvent.change(screen.getByTestId('performed-bpm-input'), { target: { value: '' } })
+      })
+      expect(getStoredPerformedBpm('duelo')).toBeNull()
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
+      // Back to the unscaled 6.000s cue.
+      act(() => { vi.advanceTimersByTime(5_900) })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(200) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('a song with no tempo block gets no performed-tempo control at all', async () => {
+      vi.useFakeTimers()
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+      await armAndReachSetupFakeTimers()
+
+      expect(screen.queryByTestId('performed-bpm-input')).toBeNull()
     })
   })
 

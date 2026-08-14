@@ -2028,6 +2028,30 @@ html, body, #root {
 
 /* ── BeatCircle — shared beat indicator, sized like the gig-time circle ── */
 
+/* P9: performed-tempo field in the setup panel (pre-arm only). */
+.ctrl-performed-bpm {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+.ctrl-performed-bpm-input {
+  width: 5.5em;
+  padding: 0.3em 0.4em;
+  border-radius: 0.4em;
+  border: 1px solid #48484a;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  font-size: 1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctrl-performed-bpm-declared {
+  font-size: 0.8em;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
 /* P6: shown mid-song once Next/Previous has dropped the song into Manual. Deliberately loud —
    the performer has to register "this is not driving itself any more" at a glance, mid-song. */
 .control-manual-override-badge {
