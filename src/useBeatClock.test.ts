@@ -253,4 +253,75 @@ describe('useBeatClock', () => {
       expect(result.current.songElapsedMs).toBe(400)
     })
   })
+
+  describe('startAtCue — P1: begins the clock immediately, bypassing any count-in', () => {
+    it('goes straight to playing even when tempo has countInBars > 0 (no count-in runs)', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.startAtCue() })
+      expect(result.current.playState).toBe('playing')
+      expect(result.current.beginFiredOnce).toBe(true)
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('works with no tempo at all', () => {
+      const { result } = renderHook(() => useBeatClock(undefined, true))
+      act(() => { result.current.startAtCue() })
+      expect(result.current.playState).toBe('playing')
+      expect(result.current.beginFiredOnce).toBe(true)
+      expect(result.current.phase).toBeNull()
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('songElapsedMs keeps ticking over time with no tempo at all — the realistic case for a v2 timeline with no BPM metadata (the golden Libertad fixture has none)', () => {
+      const { result } = renderHook(() => useBeatClock(undefined, true))
+      act(() => { result.current.startAtCue() })
+      act(() => { vi.advanceTimersByTime(5850) })
+      expect(result.current.songElapsedMs).toBe(5850)
+      expect(result.current.phase).toBeNull()
+    })
+
+    it('songElapsedMs counts up immediately with no further input', () => {
+      // 5850ms is a tick boundary (TICK_MS=50) so the assertion isn't sensitive to interval
+      // quantization; the ControlView-level test for the 5.84s Libertad-shaped acceptance
+      // criterion advances past the boundary with slack for the same reason.
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.startAtCue() })
+      act(() => { vi.advanceTimersByTime(5850) })
+      expect(result.current.songElapsedMs).toBe(5850)
+    })
+
+    it('is a no-op when not armed', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, false))
+      act(() => { result.current.startAtCue() })
+      expect(result.current.playState).toBe('idle')
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+
+    it('does not restart the clock once already running (idempotent guard)', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.startAtCue() })
+      act(() => { vi.advanceTimersByTime(1000) })
+      expect(result.current.songElapsedMs).toBe(1000)
+      // A second cue-trigger (e.g. a manual Next press after the cue) must not reset the clock.
+      act(() => { result.current.startAtCue() })
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(result.current.songElapsedMs).toBe(1500)
+    })
+
+    it('pause() and restart() work normally after a cue-start', () => {
+      const { result } = renderHook(() => useBeatClock(TEMPO, true))
+      act(() => { result.current.startAtCue() })
+      act(() => { vi.advanceTimersByTime(1000) })
+      act(() => { result.current.pause() })
+      expect(result.current.playState).toBe('paused')
+      act(() => { vi.advanceTimersByTime(2000) })
+      expect(result.current.songElapsedMs).toBe(1000)
+
+      act(() => { result.current.restart() })
+      // restart() re-applies the song's normal count-in behavior (used by the "Restart" button,
+      // which returns a cue-start song to its pre-cue waiting state — see App.tsx's
+      // handleAutoRestart, which calls reset() rather than restart() for this reason).
+      expect(result.current.songElapsedMs).toBe(0)
+    })
+  })
 })

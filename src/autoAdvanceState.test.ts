@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getDefaultAdvanceMode, computeAutoAdvanceIndex } from './autoAdvanceState'
+import { getDefaultAdvanceMode, computeAutoAdvanceIndex, isCueStartMode } from './autoAdvanceState'
 import type { TimelineEntry } from './songState'
 
 describe('getDefaultAdvanceMode', () => {
@@ -39,5 +39,34 @@ describe('computeAutoAdvanceIndex', () => {
 
   it('returns -1 for an empty timeline', () => {
     expect(computeAutoAdvanceIndex([], 1000)).toBe(-1)
+  })
+})
+
+describe('isCueStartMode (P1: start-on-cue for Auto, v2 timeline, no video)', () => {
+  const base = { armed: true, advanceMode: 'auto' as const, timelineVersion: 2, hasVideo: false }
+
+  it('is true when armed, Auto, timelineVersion 2, and no video', () => {
+    expect(isCueStartMode(base)).toBe(true)
+  })
+
+  it('is false when not armed', () => {
+    expect(isCueStartMode({ ...base, armed: false })).toBe(false)
+  })
+
+  it('is false in Manual advance mode', () => {
+    expect(isCueStartMode({ ...base, advanceMode: 'manual' })).toBe(false)
+  })
+
+  it('is false when timelineVersion is absent (legacy timeline) — legacy Auto keeps today\'s behavior', () => {
+    expect(isCueStartMode({ ...base, timelineVersion: undefined })).toBe(false)
+  })
+
+  it('is false for any timelineVersion other than 2 — never coerce', () => {
+    expect(isCueStartMode({ ...base, timelineVersion: 1 })).toBe(false)
+    expect(isCueStartMode({ ...base, timelineVersion: 3 })).toBe(false)
+  })
+
+  it('is false when the song has video media — Video mode is untouched (P2)', () => {
+    expect(isCueStartMode({ ...base, hasVideo: true })).toBe(false)
   })
 })

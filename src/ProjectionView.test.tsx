@@ -21,6 +21,7 @@ import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
 import { KEY_ARMED_BROADCAST, setStoredArmed } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
+import { KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -938,6 +939,19 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }]))
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    // Since 3bff124, video display defaults to 'none' (Videoclip: None) — the performer must
+    // explicitly opt in to Small/Big before the Projection window shows the video compositor
+    // at all (see getDefaultDisplayMode in screenSizeState.ts). These A2.3 tests are about the
+    // *video* projection path, so an explicit Small selection is part of their premise, not an
+    // incidental detail: without it the video compositor never mounts and there is nothing to
+    // assert against. Before 3bff124 the tests got this for free, because a song with media
+    // defaulted to 'small'.
+    //
+    // This suite renders the Projection window alone, so seed the broadcast the Control window
+    // would have written when the performer picked Small. Note it is the *selection* being
+    // simulated, not merely Control having mounted — a mounted Control with no selection
+    // broadcasts 'none', and these tests would still not see a video region.
+    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(song.items)
     setSongIndex(-1)

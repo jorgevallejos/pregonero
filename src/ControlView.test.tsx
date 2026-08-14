@@ -377,7 +377,17 @@ describe('v0.5 control screen state machine integration', () => {
     expect(screen.queryByRole('button', { name: 'Translation' })).toBeNull()
   })
 
-  it('2g. Lyrics display: value area is empty when no languages are set yet, button still reads Languages', async () => {
+  // Nothing is *stored* for either language here, but that does not mean nothing is shown:
+  // getEffectiveProjectionLanguage has, since the original multilingual work, defaulted to 'en'
+  // when nothing is stored and the song offers it — behaviour with its own unit test in
+  // songState.test.ts ("when no stored language exists and 'en' is available → return 'en'").
+  // VALID_LINES carries an 'en' translation, so the projection language resolves to 'en' and the
+  // value area correctly reads "EN". No singing language is stored and none is defaulted, so the
+  // display is the bare target language rather than the "ES → EN" pair form.
+  //
+  // This test previously asserted the value area was absent entirely, which contradicted that
+  // default; corrected 2026-08-14 once Jorge confirmed the default is intended.
+  it('2g. Lyrics display: shows the defaulted projection language when none is stored, button still reads Languages', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -397,7 +407,7 @@ describe('v0.5 control screen state machine integration', () => {
     const lyricsSection = Array.from(sections).find(
       (s) => s.querySelector('.control-setup-label')?.textContent === 'Lyrics display'
     )
-    expect(lyricsSection?.querySelector('.control-setup-value')).toBeNull()
+    expect(lyricsSection?.querySelector('.control-setup-value')?.textContent).toBe('EN')
     expect(screen.getByRole('button', { name: 'Languages' })).toBeTruthy()
   })
 
@@ -4637,7 +4647,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistWithSong() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         const snap = {
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4746,7 +4756,7 @@ describe('ControlView performer state flow', () => {
         clearStorage()
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4786,7 +4796,7 @@ describe('ControlView performer state flow', () => {
       function seedLibraryOnly() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [],
           activeSetlistId: '',
           songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
@@ -4796,7 +4806,7 @@ describe('ControlView performer state flow', () => {
       function seedLibraryOnlyWithMedia() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [],
           activeSetlistId: '',
           songLibrary: {
@@ -4808,7 +4818,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistWithMediaSong() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4820,7 +4830,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistWithNoMediaSong() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
@@ -4963,7 +4973,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistSongNoTimeline() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
@@ -4973,7 +4983,7 @@ describe('ControlView performer state flow', () => {
       function seedSetlistSongWithTimeline() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
           activeSetlistId: 'sl-1',
           songLibrary: {
@@ -4985,7 +4995,7 @@ describe('ControlView performer state flow', () => {
       function seedLibrarySongNoTimeline() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [],
           activeSetlistId: '',
           songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
@@ -4995,7 +5005,7 @@ describe('ControlView performer state flow', () => {
       function seedLibrarySongWithTimeline() {
         const line: SongItem = { languages: { es: 'a', en: 'b' } }
         saveSetlistStore({
-          version: 6 as const,
+          version: 7 as const,
           setlists: [],
           activeSetlistId: '',
           songLibrary: {
@@ -5108,7 +5118,13 @@ describe('ControlView performer state flow', () => {
           fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
         })
 
-        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 1 }] })
+        // P3: the import file must be a valid timeline v2 envelope (timelineVersion + leadIn +
+        // timeline) — a bare { timeline: [...] } (v1-shaped) is now rejected by the guard.
+        const jsonText = JSON.stringify({
+          timelineVersion: 2,
+          leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
+          timeline: [{ start: 0, end: 1 }],
+        })
         const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
         const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
         await act(async () => {
@@ -5119,6 +5135,8 @@ describe('ControlView performer state flow', () => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
           expect(song.timeline).toEqual([{ start: 0, end: 1 }])
+          expect(song.timelineVersion).toBe(2)
+          expect(song.leadIn).toEqual({ durationSec: 0, source: 'none', confidence: 'low', apply: false })
         })
       })
 
@@ -5132,7 +5150,11 @@ describe('ControlView performer state flow', () => {
           fireEvent.click(within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i }))
         })
 
-        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 2 }, { start: 2, end: 4 }] })
+        const jsonText = JSON.stringify({
+          timelineVersion: 2,
+          leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
+          timeline: [{ start: 0, end: 2 }, { start: 2, end: 4 }],
+        })
         const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
         const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
         await act(async () => {
@@ -5143,7 +5165,40 @@ describe('ControlView performer state flow', () => {
           const store = loadSetlistStore()!
           const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
           expect(song.timeline).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }])
+          expect(song.timelineVersion).toBe(2)
         })
+      })
+
+      it('P3: importing a v1-shaped timeline file (no timelineVersion) is rejected with the older-Bombista message', async () => {
+        clearStorage()
+        seedSetlistSongNoTimeline()
+        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+        renderManageSetlists16()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        await act(async () => {
+          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
+        })
+
+        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 1 }] })
+        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
+        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
+        await act(async () => {
+          fireEvent.change(input, { target: { files: [mockFile] } })
+        })
+
+        await waitFor(() => {
+          expect(alertMock).toHaveBeenCalledWith(
+            expect.stringMatching(/This timeline was made by an older Bombista — re-run the extractor\./)
+          )
+        })
+        const store = loadSetlistStore()!
+        const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
+        expect(song.timeline).toBeUndefined()
+        alertMock.mockRestore()
       })
 
       it('importing an invalid JSON file shows an alert and does not change the song', async () => {
@@ -7997,5 +8052,219 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     // Still within the 2000ms count-in window — Auto must not have advanced past intro.
     act(() => { vi.advanceTimersByTime(1000) })
     expect(getSongIndex()).toBe(-1)
+  })
+
+  describe('§P1 Auto start-on-cue (v2 timeline, no video)', () => {
+    /** Libertad-shaped v2 timeline: leadIn.apply === false (Auto's cue is the pedal press, not
+     * the lead-in). No tempo — the realistic case for a v2 timeline with no BPM metadata. */
+    function setupWithTimelineV2Song() {
+      const songWithTimelineV2 = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        // Line 0 covers [0, 5.84)s of song time (matches the golden fixture's first entry —
+        // docs/timeline-v2-contract.md), line 1 covers [5.84, ...).
+        timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
+      }
+      saveSetlistStore(createInitialSnapshot([songWithTimelineV2]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    it('1. armed but not cued: no lines shown, nothing advances, and time passing changes nothing', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // No Play button and no count-in for a cue-start song.
+      expect(screen.queryByRole('button', { name: /^play$/i })).toBeNull()
+      expect(getSongIndex()).toBe(-1)
+
+      act(() => { vi.advanceTimersByTime(20_000) })
+      expect(getSongIndex()).toBe(-1)
+    })
+
+    it('2. the first pedal press (Next) shows line 0 and starts the clock', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+
+      expect(getSongIndex()).toBe(0)
+      // The cross-window value the Projection reads: must be un-blanked.
+      expect(getBlank()).toBe(false)
+    })
+
+    it('3. line 1 appears 5.84s after the cue with no further input', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('4. manual Next/Previous remain available and work both before and after the cue', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // Before the cue: Previous is disabled (nothing to go back to), Next is the cue trigger.
+      expect((screen.getByRole('button', { name: /^previous$/i }) as HTMLButtonElement).disabled).toBe(true)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+
+      // After the cue: Next still works as a manual override.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(1)
+
+      // After the cue: Previous still works as a manual override.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^previous$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+    })
+
+    it('Pause and Restart are absent before the cue and appear only after it', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      expect(screen.queryByRole('button', { name: /^pause$/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^restart$/i })).toBeNull()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+
+      expect(screen.getByRole('button', { name: /^pause$/i })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
+    })
+
+    it('does not black out the audience while waiting for the cue (title/intro card shows, uncapped intro length)', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      expect(getAutoBlackout()).toBe(false)
+      act(() => { vi.advanceTimersByTime(120_000) }) // a long live intro
+      expect(getAutoBlackout()).toBe(false)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getAutoBlackout()).toBe(false)
+    })
+
+    it('Restart returns to the pre-cue waiting state, and re-cueing works again', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2Song()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
+      })
+      expect(getSongIndex()).toBe(-1)
+      expect(screen.queryByRole('button', { name: /^pause$/i })).toBeNull()
+
+      // Re-cue: the timeline drives again from 0.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+      act(() => { vi.advanceTimersByTime(5_840 + 100) })
+      expect(getSongIndex()).toBe(1)
+    })
+
+    it('cue state resets cleanly when the song changes while armed and cued — a second song does not inherit the first song\'s cue', async () => {
+      const v2Timeline = [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }]
+      const v2LeadIn = { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false }
+      const songs = [
+        { id: 'duelo', title: 'Duelo', items: VALID_LINES, timelineVersion: 2, leadIn: v2LeadIn, timeline: v2Timeline },
+        { id: 'otra', title: 'Otra', items: OTHER_LINES, timelineVersion: 2, leadIn: v2LeadIn, timeline: v2Timeline },
+      ]
+      saveSetlistStore(createInitialSnapshot(songs))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+      await armAndReachSetup()
+
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(getSongIndex()).toBe(0)
+      expect(screen.getByRole('button', { name: /^pause$/i })).toBeTruthy()
+
+      // The song changes underneath while armed — the app auto-unarms (existing behavior).
+      setCurrentSongId('otra')
+      setSongLines(OTHER_LINES)
+      setSongIndex(-1)
+      setBlank(true)
+      await act(async () => { dispatchStorageEvent() })
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      })
+
+      // Re-arm for the new song: must NOT inherit the first song's cue.
+      await act(async () => { fireEvent.click(getArmButton()) })
+      expect(getSongIndex()).toBe(-1)
+      expect(screen.queryByRole('button', { name: /^pause$/i })).toBeNull()
+    })
+
+    it('5. legacy timeline (no timelineVersion) keeps today\'s exact Auto behavior: Play button, count-in, no Next/Previous', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineSong() // legacy helper: tempo w/ countInBars, no timelineVersion
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // No cue-start affordance: Next/Previous are absent, Play/Pause/Restart are present.
+      expect(screen.queryByRole('button', { name: /^next$/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^previous$/i })).toBeNull()
+      expect(screen.getByRole('button', { name: /^play$/i })).toBeTruthy()
+
+      // Time passing alone never advances without Play.
+      act(() => { vi.advanceTimersByTime(10_000) })
+      expect(getSongIndex()).toBe(-1)
+
+      // Play starts the count-in; line 0 only appears once the count-in completes.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+      })
+      act(() => { vi.advanceTimersByTime(1999) })
+      expect(getSongIndex()).toBe(-1)
+      // A tick past the exact count-in boundary — songElapsedMs must be > 0 for the auto-drive
+      // effect to compute a target index (matches the existing T2 Play test's own buffer).
+      act(() => { vi.advanceTimersByTime(101) })
+      expect(getSongIndex()).toBe(0)
+
+      // Audience blackout still applies for legacy Auto (unchanged behavior).
+      expect(getAutoBlackout()).toBe(true)
+    })
   })
 })

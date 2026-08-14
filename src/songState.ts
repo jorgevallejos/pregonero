@@ -58,15 +58,19 @@ function validateLyricLine(obj: Record<string, unknown>, index: number): LyricLi
   return { languages }
 }
 
+/**
+ * The CP song format carries sung lines only — no section markers, no meta entries (P4).
+ * This is a file-load / import boundary rule only: `SectionMarker`, `isSection`, and section
+ * rendering elsewhere in the app are unaffected, as is the persisted-store path
+ * (`tryParsePersistedSongItemsArray`), which must keep accepting a library already on disk.
+ */
 function validateLyricsItem(item: unknown, index: number): SongItem {
   if (item !== null && typeof item === 'object') {
     const obj = item as Record<string, unknown>
     if (obj.type === 'section') {
-      const label = obj.label
-      if (typeof label !== 'string') {
-        throw new Error(`Item ${index}: section must have a string "label"`)
-      }
-      return { type: 'section', label }
+      throw new Error(
+        `Item ${index}: section markers are no longer supported — lyrics must contain sung lines only.`
+      )
     }
     return validateLyricLine(obj, index)
   }
@@ -132,6 +136,64 @@ export interface TimelineEntry {
   end: number
 }
 
+/**
+ * Lead-in metadata accompanying a v2 timeline (see `docs/timeline-v2-contract.md`).
+ * Required whenever `timelineVersion: 2` is present.
+ */
+export interface TimelineLeadIn {
+  /** Seconds of audio before the first sung word. */
+  durationSec: number
+  /** `measured` = Bombista computed it; `manual` = a human overrode it. */
+  source: 'measured' | 'manual' | 'none'
+  /** Always `low` when `measured` — faster-whisper clamps the first sung word toward 0. */
+  confidence: 'low' | 'high'
+  /** `true` when the song has `media.type == "video"`, else `false`. */
+  apply: boolean
+}
+
+const TIMELINE_VERSION_REJECT_MESSAGE =
+  'This timeline was made by an older Bombista — re-run the extractor.'
+
+/**
+ * Shared, exact rejection message for a file that declares `timelineVersion: 2` and a valid
+ * `leadIn` but carries no usable `timeline` (absent, null, not an array, or empty). Such a file
+ * is truncated or half-written; loading it as a no-op would make the song look merely un-timed —
+ * the exact silent-failure class this format exists to eliminate. See
+ * "Producer vs consumer strictness" in docs/timeline-v2-contract.md.
+ */
+export const TIMELINE_INCOMPLETE_MESSAGE =
+  'This timeline file is incomplete — it declares version 2 but contains no timeline.'
+
+/**
+ * Builds the (shared, exact) rejection message for a missing/mismatched `timelineVersion`.
+ * `found` is the offending value (or `undefined` when the field is simply absent).
+ */
+export function timelineVersionRejectionMessage(found: unknown): string {
+  if (found === undefined) return TIMELINE_VERSION_REJECT_MESSAGE
+  return `${TIMELINE_VERSION_REJECT_MESSAGE} (found timelineVersion ${JSON.stringify(found)})`
+}
+
+/** Validates a `leadIn` block per the timeline v2 contract. `context` prefixes error messages. */
+export function validateTimelineLeadIn(leadIn: unknown, context: string): TimelineLeadIn {
+  if (leadIn === null || typeof leadIn !== 'object' || Array.isArray(leadIn)) {
+    throw new Error(`${context} "leadIn" must be an object`)
+  }
+  const obj = leadIn as Record<string, unknown>
+  if (typeof obj.durationSec !== 'number' || obj.durationSec < 0) {
+    throw new Error(`${context} "leadIn.durationSec" must be a non-negative number`)
+  }
+  if (obj.source !== 'measured' && obj.source !== 'manual' && obj.source !== 'none') {
+    throw new Error(`${context} "leadIn.source" must be "measured", "manual", or "none"`)
+  }
+  if (obj.confidence !== 'low' && obj.confidence !== 'high') {
+    throw new Error(`${context} "leadIn.confidence" must be "low" or "high"`)
+  }
+  if (typeof obj.apply !== 'boolean') {
+    throw new Error(`${context} "leadIn.apply" must be a boolean`)
+  }
+  return { durationSec: obj.durationSec, source: obj.source, confidence: obj.confidence, apply: obj.apply }
+}
+
 export interface MediaFile {
   type: 'video' | 'audio'
   src: string
@@ -171,8 +233,12 @@ export interface ParsedSongFile {
   title_translations?: Record<string, string>
   /** One-line intro tagline per language shown on the intro screen. Omitted when not present. */
   intro?: Record<string, string>
-  /** Timing entries in seconds, one per lyrics array item (including sections). Omitted when not present. */
+  /** Timing entries in seconds, one per lyrics array item. Omitted when not present. */
   timeline?: TimelineEntry[]
+  /** Timeline schema version. Only ever `2` — present iff `timeline` is present. */
+  timelineVersion?: number
+  /** Lead-in metadata accompanying a v2 timeline. Present iff `timelineVersion` is present. */
+  leadIn?: TimelineLeadIn
   /** Optional media file (video or audio). Omitted when not present. */
   media?: MediaFile
   /** Optional tempo for count-in and beat-pulse display. Omitted when not present. */
@@ -362,11 +428,34 @@ export function parseSongRecordFromUnknown(raw: Record<string, unknown>): Parsed
       if (Object.keys(map).length > 0) out.intro = map
     }
   }
-  if (Object.prototype.hasOwnProperty.call(raw, 'timeline')) {
-    const tl = raw.timeline
-    if (tl !== null && tl !== undefined) {
-      out.timeline = validateTimeline(tl, items.length)
+  // Unknown top-level keys (e.g. a future "provenance" or "linesHash" envelope field) are
+  // deliberately ignored, never rejected — this is a forward-compatibility guarantee from
+  // docs/timeline-v2-contract.md ("Producer vs consumer strictness"), not an oversight. Only
+  // the keys read below are consulted; everything else in `raw` is left untouched.
+  const hasTimelineVersionKey = Object.prototype.hasOwnProperty.call(raw, 'timelineVersion')
+  const hasTimelineKey = Object.prototype.hasOwnProperty.call(raw, 'timeline')
+  const tl = raw.timeline
+  // A song with neither key is a perfectly normal un-timed song (the 11-song regression case)
+  // and must keep loading untouched — this branch is skipped entirely for it.
+  if (hasTimelineVersionKey || (hasTimelineKey && tl !== null && tl !== undefined)) {
+    // timelineVersion guard (P3): a timeline is only accepted when the enclosing object
+    // carries timelineVersion: 2. Never coerce — a missing/older field is a hard rejection.
+    // This check comes first: a file declaring an older/other version is always "an older
+    // Bombista" (below), never "incomplete" — only a file correctly declaring 2 can be that.
+    if (raw.timelineVersion !== 2) {
+      throw new Error(timelineVersionRejectionMessage(raw.timelineVersion))
     }
+    // A file that declares v2 but has no usable timeline — absent, null, not an array, or
+    // empty — is truncated/half-written; reject loudly rather than silently loading it as if
+    // the song simply has no timings (docs/timeline-v2-contract.md).
+    const noUsableTimeline = !hasTimelineKey || tl === null || !Array.isArray(tl) || tl.length === 0
+    if (noUsableTimeline) {
+      throw new Error(TIMELINE_INCOMPLETE_MESSAGE)
+    }
+    const leadIn = validateTimelineLeadIn(raw.leadIn, 'Song file')
+    out.timeline = validateTimeline(tl, items.length)
+    out.timelineVersion = 2
+    out.leadIn = leadIn
   }
   if (Object.prototype.hasOwnProperty.call(raw, 'media')) {
     const m = raw.media

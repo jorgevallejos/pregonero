@@ -22,3 +22,27 @@ export function getDefaultAdvanceMode(hasTimeline: boolean): AdvanceMode {
 export function computeAutoAdvanceIndex(timeline: TimelineEntry[], elapsedMs: number): number {
   return videoCueLookup(timeline, elapsedMs / 1000)
 }
+
+/**
+ * P1 — start-on-cue: whether a song should use the performer's first pedal press as the
+ * timeline's start cue, instead of a Play button + count-in.
+ *
+ * True only when the song is armed, in Auto advance mode, has a v2 timeline
+ * (`timelineVersion === 2` — never coerced, per docs/timeline-v2-contract.md), and has no
+ * video media (Video mode's start cue is the video itself + `leadIn`, untouched by P1 — see
+ * "Playback semantics" in the contract). A legacy timeline (`timelineVersion` absent) always
+ * returns false here, keeping today's Play-then-count-in Auto behavior exactly as it is.
+ */
+export function isCueStartMode(params: {
+  armed: boolean
+  advanceMode: AdvanceMode
+  timelineVersion: number | undefined
+  hasVideo: boolean
+}): boolean {
+  return (
+    params.armed &&
+    params.advanceMode === 'auto' &&
+    params.timelineVersion === 2 &&
+    !params.hasVideo
+  )
+}

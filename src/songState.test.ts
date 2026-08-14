@@ -2,6 +2,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { LyricLine, SectionMarker, SongItem } from './songState'
 import {
+  GOLDEN_LEAD_IN,
+  GOLDEN_LYRICS_20,
+  GOLDEN_SONG_JSON_V2,
+  GOLDEN_TIMELINE_ENTRIES,
+  SONG_JSON_WITH_SECTION_MARKER,
+  V1_SHAPED_SONG_JSON,
+} from './fixtures/timelineV2'
+import {
   getAvailableLanguages,
   getAvailableSingingLanguages,
   getBlank,
@@ -467,37 +475,36 @@ describe('parseSongFile', () => {
     expect(() => parseSongFile(json)).toThrow(/at least one language/)
   })
 
-  it('section marker in lyrics array is accepted', () => {
+  // P4: the CP song format carries sung lines only. Section markers are rejected at the
+  // file-load boundary (parseSongFile / parseSongRecordFromUnknown). The SectionMarker type,
+  // isSection, and section *rendering* elsewhere in the app are untouched — only import rejects.
+  it('section marker in lyrics array is rejected, naming the index', () => {
     const json = '{"title":"S","lyrics":[{"type":"section","label":"Verse 1"}]}'
-    const result = parseSongFile(json)
-    expect(result.items).toHaveLength(1)
-    expect(result.items[0]).toEqual({ type: 'section', label: 'Verse 1' })
+    expect(() => parseSongFile(json)).toThrow(
+      /Item 0: section markers are no longer supported — lyrics must contain sung lines only\./
+    )
   })
 
-  it('malformed section marker (missing label or wrong type) throws an error', () => {
-    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section"}]}')).toThrow(/section must have a string "label"/)
-    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section","label":null}]}')).toThrow(/section must have a string "label"/)
+  it('a malformed section-shaped entry is rejected the same way, not for its missing label', () => {
+    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section"}]}')).toThrow(
+      /section markers are no longer supported/
+    )
+    expect(() => parseSongFile('{"title":"S","lyrics":[{"type":"section","label":null}]}')).toThrow(
+      /section markers are no longer supported/
+    )
   })
 
-  it('mixed lyric lines and section markers parse correctly', () => {
+  it('a section marker anywhere in a mixed lyrics array is rejected, naming its index', () => {
     const json = JSON.stringify({
       title: 'Test',
       lyrics: [
-        { type: 'section', label: 'Intro' },
         { es: 'Uno', en: 'One' },
         { es: 'Dos', en: 'Two' },
         { type: 'section', label: 'Chorus' },
         { es: 'Tres', en: 'Three' },
       ],
     })
-    const result = parseSongFile(json)
-    expect(result.title).toBe('Test')
-    expect(result.items).toHaveLength(5)
-    expect(result.items[0]).toEqual({ type: 'section', label: 'Intro' })
-    expect(result.items[1]).toEqual({ languages: { es: 'Uno', en: 'One' } })
-    expect(result.items[2]).toEqual({ languages: { es: 'Dos', en: 'Two' } })
-    expect(result.items[3]).toEqual({ type: 'section', label: 'Chorus' })
-    expect(result.items[4]).toEqual({ languages: { es: 'Tres', en: 'Three' } })
+    expect(() => parseSongFile(json)).toThrow(/Item 2: section markers are no longer supported/)
   })
 
   it('optional "notes" string is parsed and trimmed', () => {
@@ -676,32 +683,124 @@ describe('parseSongFile — timeline field', () => {
     const json = '{"title":"S","lyrics":[{"es":"A","en":"B"}]}'
     const result = parseSongFile(json)
     expect(result.timeline).toBeUndefined()
+    expect(result.timelineVersion).toBeUndefined()
+    expect(result.leadIn).toBeUndefined()
   })
 
-  it('valid timeline with correct length and monotonic non-negative times is parsed', () => {
+  it('valid v2 timeline with correct length and monotonic non-negative times is parsed, carrying timelineVersion and leadIn', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timelineVersion: 2,
+      leadIn: { durationSec: 1.5, source: 'measured', confidence: 'low', apply: true },
       timeline: [{ start: 0, end: 2.5 }, { start: 3, end: 5 }],
     })
     const result = parseSongFile(json)
     expect(result.timeline).toEqual([{ start: 0, end: 2.5 }, { start: 3, end: 5 }])
+    expect(result.timelineVersion).toBe(2)
+    expect(result.leadIn).toEqual({ durationSec: 1.5, source: 'measured', confidence: 'low', apply: true })
   })
 
-  it('timeline with sections: length must match total items (lyrics + sections)', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ type: 'section', label: 'Intro' }, { es: 'A', en: 'B' }],
-      timeline: [{ start: 0, end: 1 }, { start: 2, end: 4 }],
+  it('the golden Libertad fixture (20 lines, 20-entry timeline) round-trips exactly', () => {
+    const result = parseSongFile(JSON.stringify(GOLDEN_SONG_JSON_V2))
+    expect(result.items).toHaveLength(GOLDEN_LYRICS_20.length)
+    expect(result.timeline).toEqual(GOLDEN_TIMELINE_ENTRIES)
+    expect(result.timelineVersion).toBe(2)
+    expect(result.leadIn).toEqual(GOLDEN_LEAD_IN)
+  })
+
+  describe('timelineVersion guard', () => {
+    it('missing timelineVersion on a file that has a timeline is rejected', () => {
+      expect(() => parseSongFile(JSON.stringify(V1_SHAPED_SONG_JSON))).toThrow(
+        /This timeline was made by an older Bombista — re-run the extractor\./
+      )
     })
-    const result = parseSongFile(json)
-    expect(result.timeline).toHaveLength(2)
+
+    it('a timelineVersion other than 2 is rejected and names the offending value', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 1,
+        leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/found timelineVersion 1/)
+    })
+
+    it('never coerces a non-2 timelineVersion into acceptance', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: '2', // string, not number — must not be coerced
+        leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/older Bombista/)
+    })
+  })
+
+  describe('leadIn validation (required when timelineVersion: 2 is present)', () => {
+    it('missing leadIn throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/leadIn/)
+    })
+
+    it('negative leadIn.durationSec throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: { durationSec: -1, source: 'measured', confidence: 'low', apply: false },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/leadIn\.durationSec/)
+    })
+
+    it('invalid leadIn.source throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: { durationSec: 0, source: 'guessed', confidence: 'low', apply: false },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/leadIn\.source/)
+    })
+
+    it('invalid leadIn.confidence throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: { durationSec: 0, source: 'measured', confidence: 'medium', apply: false },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/leadIn\.confidence/)
+    })
+
+    it('non-boolean leadIn.apply throws', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: { durationSec: 0, source: 'measured', confidence: 'low', apply: 'yes' },
+        timeline: [{ start: 0, end: 1 }],
+      })
+      expect(() => parseSongFile(json)).toThrow(/leadIn\.apply/)
+    })
   })
 
   it('timeline length mismatch throws an error', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timelineVersion: 2,
+      leadIn: GOLDEN_LEAD_IN,
       timeline: [{ start: 0, end: 2 }],
     })
     expect(() => parseSongFile(json)).toThrow(/timeline length must match/)
@@ -711,6 +810,8 @@ describe('parseSongFile — timeline field', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }],
+      timelineVersion: 2,
+      leadIn: GOLDEN_LEAD_IN,
       timeline: [{ start: 0, end: 5 }, { start: 3, end: 7 }],
     })
     expect(() => parseSongFile(json)).toThrow(/monotonic/)
@@ -720,6 +821,8 @@ describe('parseSongFile — timeline field', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }],
+      timelineVersion: 2,
+      leadIn: GOLDEN_LEAD_IN,
       timeline: [{ start: -1, end: 2 }],
     })
     expect(() => parseSongFile(json)).toThrow(/non-negative/)
@@ -729,6 +832,8 @@ describe('parseSongFile — timeline field', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }],
+      timelineVersion: 2,
+      leadIn: GOLDEN_LEAD_IN,
       timeline: [{ start: 0, end: -1 }],
     })
     expect(() => parseSongFile(json)).toThrow(/non-negative/)
@@ -738,28 +843,110 @@ describe('parseSongFile — timeline field', () => {
     const json = JSON.stringify({
       title: 'S',
       lyrics: [{ es: 'A', en: 'B' }],
+      timelineVersion: 2,
+      leadIn: GOLDEN_LEAD_IN,
       timeline: [{ start: 0 }],
     })
     expect(() => parseSongFile(json)).toThrow()
   })
 
-  it('timeline that is not an array throws an error', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ es: 'A', en: 'B' }],
-      timeline: 'not-an-array',
-    })
-    expect(() => parseSongFile(json)).toThrow(/must be an array/)
+  it('a song file with a section marker is rejected before the timeline is even considered (P4)', () => {
+    expect(() => parseSongFile(JSON.stringify(SONG_JSON_WITH_SECTION_MARKER))).toThrow(
+      /section markers are no longer supported/
+    )
   })
 
-  it('empty timeline is valid for a song with no lyrics', () => {
-    const json = JSON.stringify({
-      title: 'S',
-      lyrics: [{ type: 'section', label: 'End' }],
-      timeline: [{ start: 0, end: 1 }],
+  describe('incomplete v2 envelope (declares version 2, no usable timeline) — rejected', () => {
+    // Updated 2026-08-13: this used to be a silent no-op (see contract amendment). A file
+    // declaring timelineVersion: 2 with no usable timeline is now a hard rejection — it reads
+    // as truncated/half-written, not "this song has no timings".
+    const INCOMPLETE_MESSAGE =
+      'This timeline file is incomplete — it declares version 2 but contains no timeline.'
+
+    it('timeline key entirely absent, with a valid leadIn, is rejected', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+      })
+      expect(() => parseSongFile(json)).toThrow(INCOMPLETE_MESSAGE)
     })
-    const result = parseSongFile(json)
-    expect(result.timeline).toEqual([{ start: 0, end: 1 }])
+
+    it('timeline is null is rejected', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: null,
+      })
+      expect(() => parseSongFile(json)).toThrow(INCOMPLETE_MESSAGE)
+    })
+
+    it('timeline that is not an array is rejected (previously "must be an array" — now the incomplete message)', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: 'not-an-array',
+      })
+      expect(() => parseSongFile(json)).toThrow(INCOMPLETE_MESSAGE)
+    })
+
+    it('empty timeline array is rejected, even for a song with no lyrics (previously accepted as valid — now rejected)', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [],
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: [],
+      })
+      expect(() => parseSongFile(json)).toThrow(INCOMPLETE_MESSAGE)
+    })
+  })
+
+  describe('timelineVersion check order (2026-08-13 amendment)', () => {
+    it('timelineVersion: 1 and no timeline gets the older-Bombista message, not the incomplete message', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+        timelineVersion: 1,
+      })
+      expect(() => parseSongFile(json)).toThrow(
+        /This timeline was made by an older Bombista — re-run the extractor\./
+      )
+    })
+  })
+
+  describe('un-timed song (no timeline key, no timelineVersion key) — must keep loading untouched', () => {
+    // The 11-song regression case: most of the catalogue has no timeline at all. Locked in with
+    // an explicit test per docs/timeline-v2-contract.md.
+    it('loads normally with no timeline/timelineVersion/leadIn set', () => {
+      const json = JSON.stringify({
+        title: 'S',
+        lyrics: [{ es: 'A', en: 'B' }],
+      })
+      const result = parseSongFile(json)
+      expect(result.timeline).toBeUndefined()
+      expect(result.timelineVersion).toBeUndefined()
+      expect(result.leadIn).toBeUndefined()
+    })
+  })
+
+  describe('unknown top-level keys are ignored, not rejected (forward-compatibility guarantee)', () => {
+    it('a valid v2 envelope with an extra unknown top-level key parses successfully, ignoring the key', () => {
+      const json = JSON.stringify({
+        ...GOLDEN_SONG_JSON_V2,
+        provenance: { model: 'faster-whisper', extractedAt: '2026-08-11T00:00:00Z' },
+        linesHash: 'sha256:abc',
+      })
+      const result = parseSongFile(json)
+      expect(result.timeline).toEqual(GOLDEN_TIMELINE_ENTRIES)
+      expect(result.timelineVersion).toBe(2)
+      expect(result.leadIn).toEqual(GOLDEN_LEAD_IN)
+    })
   })
 })
 
@@ -936,11 +1123,11 @@ describe('tryParsePersistedSongItemsArray', () => {
 })
 
 describe('tryParseSongItemsArray', () => {
-  it('returns parsed items for a valid lyrics-shaped array', () => {
-    const items = [{ es: 'A', en: 'B' }, { type: 'section', label: 'X' }]
+  it('returns parsed items for a valid lyrics-shaped array (sung lines only)', () => {
+    const items = [{ es: 'A', en: 'B' }, { es: 'C', en: 'D' }]
     expect(tryParseSongItemsArray(items)).toEqual([
       { languages: { es: 'A', en: 'B' } },
-      { type: 'section', label: 'X' },
+      { languages: { es: 'C', en: 'D' } },
     ])
   })
 
@@ -951,6 +1138,10 @@ describe('tryParseSongItemsArray', () => {
 
   it('returns null when an element is invalid', () => {
     expect(tryParseSongItemsArray([{ es: 1 }])).toBeNull()
+  })
+
+  it('returns null when an element is a section marker (P4: sung lines only)', () => {
+    expect(tryParseSongItemsArray([{ es: 'A', en: 'B' }, { type: 'section', label: 'X' }])).toBeNull()
   })
 })
 

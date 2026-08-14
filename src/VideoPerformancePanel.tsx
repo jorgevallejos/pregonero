@@ -2,16 +2,18 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { getBeatPhase, type SongTempo, type BeatPhaseResult } from './beatScheduler'
 import { absolutePathToMediaUrl } from './mediaPathStore'
-import { videoCueLookup } from './videoCueLookup'
+import { resolveVideoCueIndex } from './videoCueLookup'
 import { setVideoTransportCommand } from './VideoProjectionRegion'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
-import { isLyricLine, getLyricText, type MediaFile, type SongItem, type TimelineEntry } from './songState'
+import { isLyricLine, getLyricText, type MediaFile, type SongItem, type TimelineEntry, type TimelineLeadIn } from './songState'
 
 interface Props {
   absolutePath: string | null
   media: MediaFile
   timeline: TimelineEntry[]
+  /** Lead-in metadata for a v2 timeline. Undefined for legacy timelines — no offset applied. */
+  leadIn?: TimelineLeadIn
   lines: SongItem[]
   singingLang: string
   tempo?: SongTempo
@@ -36,6 +38,7 @@ export function VideoPerformancePanel({
   absolutePath,
   media,
   timeline,
+  leadIn,
   lines,
   singingLang,
   tempo,
@@ -181,12 +184,14 @@ export function VideoPerformancePanel({
     const video = videoRef.current
     if (!video) return
     const onTimeUpdate = () => {
-      const t = video.currentTime
-      setActiveCueIndex(videoCueLookup(timeline, t + offset))
+      setActiveCueIndex(resolveVideoCueIndex(timeline, video.currentTime, offset, leadIn))
     }
     video.addEventListener('timeupdate', onTimeUpdate)
     return () => video.removeEventListener('timeupdate', onTimeUpdate)
-  }, [timeline, offset])
+    // Depend on leadIn's primitive fields, not the object itself — `leadIn` is derived from the
+    // library song and may be a fresh object every render (see the "Hook stability gotcha" in
+    // CLAUDE.md).
+  }, [timeline, offset, leadIn?.apply, leadIn?.durationSec])
 
   // Derive the current singing-language lyric text from activeCueIndex → lines.
   // Section markers and out-of-range indices render no lyric text.

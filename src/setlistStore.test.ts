@@ -40,6 +40,12 @@ import {
   type SetlistStoreSnapshot,
 } from './setlistStore'
 import type { TimelineEntry } from './songState'
+import {
+  GOLDEN_LEAD_IN,
+  GOLDEN_TIMELINE_ENTRIES,
+  GOLDEN_TIMELINE_IMPORT_ENVELOPE,
+  V1_SHAPED_TIMELINE_IMPORT_ENVELOPE,
+} from './fixtures/timelineV2'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -1041,7 +1047,7 @@ describe('setlistStore', () => {
       expect(result.ok).toBe(false)
     })
 
-    it('timeline from JSON import is preserved and linked to the library song', () => {
+    it('timeline from JSON import is preserved and linked to the library song, carrying timelineVersion/leadIn (P3)', () => {
       installTestStore()
       const json = JSON.stringify({
         id: 'timeline-song',
@@ -1050,6 +1056,8 @@ describe('setlistStore', () => {
           { es: 'Hola', en: 'Hello' },
           { es: 'Adios', en: 'Bye' },
         ],
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
         timeline: [{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }],
       })
       const result = importSongFromJsonText(json)
@@ -1060,11 +1068,30 @@ describe('setlistStore', () => {
         { start: 1.5, end: 3 },
       ])
       expect(result.song.timeline).toHaveLength(2)
+      expect(result.song.timelineVersion).toBe(2)
+      expect(result.song.leadIn).toEqual(GOLDEN_LEAD_IN)
       const stored = loadSetlistStore()!
-      expect(stored.songLibrary.songs.find((s) => s.id === 'timeline-song')!.timeline).toEqual([
+      const storedSong = stored.songLibrary.songs.find((s) => s.id === 'timeline-song')!
+      expect(storedSong.timeline).toEqual([
         { start: 0, end: 1.5 },
         { start: 1.5, end: 3 },
       ])
+      expect(storedSong.timelineVersion).toBe(2)
+      expect(storedSong.leadIn).toEqual(GOLDEN_LEAD_IN)
+    })
+
+    it('a v1-shaped timeline (no timelineVersion) on song-JSON import is rejected (P3)', () => {
+      installTestStore()
+      const json = JSON.stringify({
+        id: 'timeline-song-v1',
+        title: 'Timed',
+        lyrics: [{ es: 'Hola', en: 'Hello' }],
+        timeline: [{ start: 0, end: 1.5 }],
+      })
+      const result = importSongFromJsonText(json)
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(result.error).toMatch(/This timeline was made by an older Bombista — re-run the extractor\./)
     })
   })
 
@@ -1282,8 +1309,11 @@ describe('setlistStore', () => {
   // (SongMedia { big?, small? } → single MediaFile) is added.
   // ---------------------------------------------------------------------------
   describe('v5 → v6 migration (SongMedia → single MediaFile)', () => {
-    it('SETLIST_STORE_VERSION is 6', () => {
-      expect(SETLIST_STORE_VERSION).toBe(6)
+    it('SETLIST_STORE_VERSION is 7', () => {
+      // P3: bumped 6 → 7 to carry timelineVersion/leadIn on LibrarySong. Migration functions in
+      // this describe block target SETLIST_STORE_VERSION dynamically, so v5/v4/v3 snapshots land
+      // on v7 directly (they never had a timeline-envelope to preserve either way).
+      expect(SETLIST_STORE_VERSION).toBe(7)
     })
 
     it('migrates { big, small } to the big MediaFile', async () => {
@@ -1403,6 +1433,57 @@ describe('setlistStore', () => {
     })
   })
 
+  // ---------------------------------------------------------------------------
+  // P3: v6 → v7 migration. v6 songs may hold a legacy (v1/absolute) timeline with no
+  // timelineVersion field at all — real songs on disk are still v1. The migration must keep
+  // that timeline exactly as-is and must NOT invent a timelineVersion; a song only becomes
+  // "v2" by being loaded through the new guarded path (parseSongRecordFromUnknown /
+  // parseTimelineFromJsonText).
+  // ---------------------------------------------------------------------------
+  describe('v6 → v7 migration (adds optional timelineVersion/leadIn plumbing)', () => {
+    it('a v6 snapshot with a legacy timeline survives the migration unchanged', async () => {
+      const v6Snapshot = {
+        version: 6,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'Alpha',
+              items: [LYRIC],
+              // Legacy v1-shaped (absolute) timeline: no timelineVersion, no leadIn.
+              timeline: [{ start: 0, end: 2 }, { start: 2, end: 4 }],
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v6Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.timeline).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }])
+      expect(snap.songLibrary.songs[0]!.timelineVersion).toBeUndefined()
+      expect(snap.songLibrary.songs[0]!.leadIn).toBeUndefined()
+    })
+
+    it('a v6 snapshot with no timeline at all survives the migration unchanged', async () => {
+      const v6Snapshot = {
+        version: 6,
+        songLibrary: { songs: [{ id: 'a', title: 'Alpha', items: [LYRIC] }] },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      localStorage.setItem(SETLIST_STORE_KEY, JSON.stringify(v6Snapshot))
+
+      const snap = await ensureSongLibraryHydrated()
+
+      expect(snap.version).toBe(SETLIST_STORE_VERSION)
+      expect(snap.songLibrary.songs[0]!.timeline).toBeUndefined()
+    })
+  })
+
   describe('getActiveMediaFile (v6: returns song.media directly)', () => {
     it('returns song.media when the song has a media field', () => {
       const song: LibrarySong = {
@@ -1466,18 +1547,64 @@ describe('setlistStore', () => {
       patchSongTimelineInSnapshot(snap, 'a', tl)
       expect(snap.songLibrary.songs[0]!.timeline).toBeUndefined()
     })
+
+    // P3: optional 4th "envelope" argument sets timelineVersion + leadIn atomically with the
+    // entries, for the A+ timeline-import path. Omitting it (all tests above) is unchanged.
+    it('with an envelope argument, also sets timelineVersion and leadIn', () => {
+      const snap = makeSnap()
+      const next = patchSongTimelineInSnapshot(snap, 'a', GOLDEN_TIMELINE_ENTRIES, {
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+      })
+      expect(next!.songLibrary.songs[0]!.timeline).toEqual(GOLDEN_TIMELINE_ENTRIES)
+      expect(next!.songLibrary.songs[0]!.timelineVersion).toBe(2)
+      expect(next!.songLibrary.songs[0]!.leadIn).toEqual(GOLDEN_LEAD_IN)
+    })
+
+    it('without an envelope argument, does not touch an existing timelineVersion/leadIn', () => {
+      const snap: SetlistStoreSnapshot = {
+        version: SETLIST_STORE_VERSION,
+        songLibrary: {
+          songs: [
+            {
+              id: 'a',
+              title: 'A',
+              items: [LYRIC],
+              timeline: GOLDEN_TIMELINE_ENTRIES,
+              timelineVersion: 2,
+              leadIn: GOLDEN_LEAD_IN,
+            },
+          ],
+        },
+        setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['a'] }],
+        activeSetlistId: DEFAULT_SETLIST_ID,
+      }
+      const newTl: TimelineEntry[] = [{ start: 0, end: 1 }]
+      const next = patchSongTimelineInSnapshot(snap, 'a', newTl)
+      expect(next!.songLibrary.songs[0]!.timeline).toEqual(newTl)
+      expect(next!.songLibrary.songs[0]!.timelineVersion).toBe(2)
+      expect(next!.songLibrary.songs[0]!.leadIn).toEqual(GOLDEN_LEAD_IN)
+    })
   })
 
   describe('parseTimelineFromJsonText', () => {
-    it('parses a valid { timeline: [...] } JSON', () => {
-      const text = JSON.stringify({ timeline: [{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }] })
-      const entries = parseTimelineFromJsonText(text)
-      expect(entries).toEqual([{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }])
+    it('parses a valid v2 envelope, returning { timelineVersion, leadIn, entries }', () => {
+      const text = JSON.stringify({
+        timelineVersion: 2,
+        leadIn: { durationSec: 1.5, source: 'measured', confidence: 'low', apply: true },
+        timeline: [{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }],
+      })
+      const result = parseTimelineFromJsonText(text)
+      expect(result.timelineVersion).toBe(2)
+      expect(result.leadIn).toEqual({ durationSec: 1.5, source: 'measured', confidence: 'low', apply: true })
+      expect(result.entries).toEqual([{ start: 0, end: 1.5 }, { start: 1.5, end: 3 }])
     })
 
-    it('accepts an empty timeline array', () => {
-      const text = JSON.stringify({ timeline: [] })
-      expect(parseTimelineFromJsonText(text)).toEqual([])
+    it('the golden Libertad envelope (3-key, 20 entries) parses exactly', () => {
+      const result = parseTimelineFromJsonText(JSON.stringify(GOLDEN_TIMELINE_IMPORT_ENVELOPE))
+      expect(result.timelineVersion).toBe(2)
+      expect(result.leadIn).toEqual(GOLDEN_LEAD_IN)
+      expect(result.entries).toEqual(GOLDEN_TIMELINE_ENTRIES)
     })
 
     it('throws on non-JSON input', () => {
@@ -1488,36 +1615,127 @@ describe('setlistStore', () => {
       expect(() => parseTimelineFromJsonText('[]')).toThrow()
     })
 
-    it('throws when "timeline" key is missing', () => {
-      expect(() => parseTimelineFromJsonText(JSON.stringify({ foo: [] }))).toThrow(/timeline/)
+    describe('timelineVersion guard (P3)', () => {
+      it('a v1-shaped envelope (no timelineVersion) is rejected', () => {
+        expect(() =>
+          parseTimelineFromJsonText(JSON.stringify(V1_SHAPED_TIMELINE_IMPORT_ENVELOPE))
+        ).toThrow(/This timeline was made by an older Bombista — re-run the extractor\./)
+      })
+
+      it('a timelineVersion other than 2 is rejected and names the offending value', () => {
+        const text = JSON.stringify({
+          timelineVersion: 1,
+          leadIn: GOLDEN_LEAD_IN,
+          timeline: [{ start: 0, end: 1 }],
+        })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(/found timelineVersion 1/)
+      })
+
+      it('never coerces a non-2 timelineVersion into acceptance', () => {
+        const text = JSON.stringify({
+          timelineVersion: '2',
+          leadIn: GOLDEN_LEAD_IN,
+          timeline: [{ start: 0, end: 1 }],
+        })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(/older Bombista/)
+      })
     })
 
-    it('throws when "timeline" is not an array', () => {
-      expect(() => parseTimelineFromJsonText(JSON.stringify({ timeline: 42 }))).toThrow(/timeline/)
+    it('a missing/malformed leadIn is rejected even with a valid timelineVersion', () => {
+      const text = JSON.stringify({ timelineVersion: 2, timeline: [{ start: 0, end: 1 }] })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/leadIn/)
+    })
+
+    it('throws when "timeline" key is missing (with a valid version+leadIn envelope)', () => {
+      const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, foo: [] })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/timeline/)
+    })
+
+    it('throws when "timeline" is not an array (with a valid version+leadIn envelope)', () => {
+      const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, timeline: 42 })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/timeline/)
     })
 
     it('throws when an entry is not an object', () => {
-      expect(() => parseTimelineFromJsonText(JSON.stringify({ timeline: [42] }))).toThrow()
+      const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, timeline: [42] })
+      expect(() => parseTimelineFromJsonText(text)).toThrow()
     })
 
     it('throws when an entry has non-numeric start/end', () => {
-      expect(() =>
-        parseTimelineFromJsonText(JSON.stringify({ timeline: [{ start: 'a', end: 1 }] }))
-      ).toThrow(/start.*end|number/i)
+      const text = JSON.stringify({
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: [{ start: 'a', end: 1 }],
+      })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/start.*end|number/i)
     })
 
     it('throws on negative time values', () => {
-      expect(() =>
-        parseTimelineFromJsonText(JSON.stringify({ timeline: [{ start: -1, end: 1 }] }))
-      ).toThrow(/non-negative/i)
+      const text = JSON.stringify({
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: [{ start: -1, end: 1 }],
+      })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/non-negative/i)
     })
 
     it('throws when entries are not monotonic', () => {
-      expect(() =>
-        parseTimelineFromJsonText(
-          JSON.stringify({ timeline: [{ start: 0, end: 2 }, { start: 1, end: 3 }] })
-        )
-      ).toThrow(/monotonic/i)
+      const text = JSON.stringify({
+        timelineVersion: 2,
+        leadIn: GOLDEN_LEAD_IN,
+        timeline: [{ start: 0, end: 2 }, { start: 1, end: 3 }],
+      })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(/monotonic/i)
+    })
+
+    describe('incomplete v2 envelope (declares version 2, no usable timeline) — rejected', () => {
+      // Updated 2026-08-13: an empty timeline array used to be accepted (see the removed
+      // "accepts an empty timeline array" test). It is now a hard rejection along with
+      // absent/null/non-array timelines — see contract amendment "Producer vs consumer
+      // strictness".
+      const INCOMPLETE_MESSAGE =
+        'This timeline file is incomplete — it declares version 2 but contains no timeline.'
+
+      it('empty timeline array is rejected', () => {
+        const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, timeline: [] })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(INCOMPLETE_MESSAGE)
+      })
+
+      it('timeline key entirely absent, with a valid leadIn, is rejected', () => {
+        const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(INCOMPLETE_MESSAGE)
+      })
+
+      it('timeline is null is rejected', () => {
+        const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, timeline: null })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(INCOMPLETE_MESSAGE)
+      })
+
+      it('timeline that is not an array is rejected', () => {
+        const text = JSON.stringify({ timelineVersion: 2, leadIn: GOLDEN_LEAD_IN, timeline: 42 })
+        expect(() => parseTimelineFromJsonText(text)).toThrow(INCOMPLETE_MESSAGE)
+      })
+    })
+
+    it('a timelineVersion other than 2 is rejected with the older-Bombista message even with no timeline at all (check order)', () => {
+      const text = JSON.stringify({ timelineVersion: 1, leadIn: GOLDEN_LEAD_IN })
+      expect(() => parseTimelineFromJsonText(text)).toThrow(
+        /This timeline was made by an older Bombista — re-run the extractor\./
+      )
+    })
+
+    describe('unknown top-level keys are ignored, not rejected (forward-compatibility guarantee)', () => {
+      it('a valid v2 envelope with an extra unknown top-level key parses successfully, ignoring the key', () => {
+        const text = JSON.stringify({
+          ...GOLDEN_TIMELINE_IMPORT_ENVELOPE,
+          provenance: { model: 'faster-whisper', extractedAt: '2026-08-11T00:00:00Z' },
+          linesHash: 'sha256:abc',
+        })
+        const result = parseTimelineFromJsonText(text)
+        expect(result.timelineVersion).toBe(2)
+        expect(result.leadIn).toEqual(GOLDEN_LEAD_IN)
+        expect(result.entries).toEqual(GOLDEN_TIMELINE_ENTRIES)
+      })
     })
   })
 })

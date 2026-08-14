@@ -9,16 +9,22 @@ import {
   setSongLines,
   resetLoadedSongState,
   tryParsePersistedSongItemsArray,
+  timelineVersionRejectionMessage,
+  TIMELINE_INCOMPLETE_MESSAGE,
+  validateTimelineLeadIn,
   type ParsedSongFile,
   type SongItem,
   type TimelineEntry,
+  type TimelineLeadIn,
   type MediaFile,
 } from './songState'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
-/** v6: media field is a single MediaFile (was SongMedia { big?, small? } in v5). */
-export const SETLIST_STORE_VERSION = 6
-/** v5 snapshots (SongMedia { big?, small? }) are migrated to v6 on load. */
+/** v7: LibrarySong may carry optional `timelineVersion`/`leadIn` (timeline v2 plumbing, P3). */
+export const SETLIST_STORE_VERSION = 7
+/** v6 snapshots (single MediaFile, no timelineVersion/leadIn) are migrated to v7 on load. */
+export const SETLIST_STORE_VERSION_V6 = 6
+/** v5 snapshots (SongMedia { big?, small? }) are migrated to v7 on load. */
 export const SETLIST_STORE_VERSION_V5 = 5
 /** v4 snapshots (flat media object) are migrated on load. */
 export const SETLIST_STORE_VERSION_V4 = 4
@@ -56,8 +62,12 @@ export type LibrarySong = {
   title_translations?: Record<string, string>
   /** One-line intro tagline per language shown on the intro screen. Omitted when absent. */
   intro?: Record<string, string>
-  /** Timing entries in seconds, one per item (including sections). Written by record-timeline mode. */
+  /** Timing entries in seconds, one per item. Written by record-timeline mode or timeline import. */
   timeline?: TimelineEntry[]
+  /** Timeline schema version (always `2` when present) — only set via the guarded v2 load path. */
+  timelineVersion?: number
+  /** Lead-in metadata accompanying a v2 timeline. Present iff `timelineVersion` is present. */
+  leadIn?: TimelineLeadIn
   /** Optional media file (video or audio). */
   media?: MediaFile
   /** Optional tempo for count-in and beat-pulse display in the performer view. */
@@ -134,7 +144,38 @@ function isLibrarySongCommonFields(o: Record<string, unknown>): boolean {
   return true
 }
 
+function isTimelineLeadInShape(v: unknown): boolean {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return false
+  const o = v as Record<string, unknown>
+  if (typeof o.durationSec !== 'number' || (o.durationSec as number) < 0) return false
+  if (o.source !== 'measured' && o.source !== 'manual' && o.source !== 'none') return false
+  if (o.confidence !== 'low' && o.confidence !== 'high') return false
+  if (typeof o.apply !== 'boolean') return false
+  return true
+}
+
+/**
+ * A song is only ever "v2" via the guarded load path, which always writes timelineVersion: 2
+ * together with a valid leadIn. When timelineVersion is absent (legacy/no timeline), anything
+ * goes — that's the v6→v7 migration's "keep as-is" case.
+ */
+function isValidOptionalTimelineEnvelope(o: Record<string, unknown>): boolean {
+  if (o.timelineVersion === undefined) return true
+  if (o.timelineVersion !== 2) return false
+  return isTimelineLeadInShape(o.leadIn)
+}
+
 function isLibrarySong(v: unknown): v is LibrarySong {
+  if (v === null || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  if (!isLibrarySongCommonFields(o)) return false
+  if (o.media !== undefined && !isMediaFileShape(o.media)) return false
+  if (!isValidOptionalTimelineEnvelope(o)) return false
+  return true
+}
+
+/** Validates a v6 library song (single MediaFile, no timelineVersion/leadIn fields). For migration only. */
+function isLibrarySongV6(v: unknown): boolean {
   if (v === null || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
   if (!isLibrarySongCommonFields(o)) return false
@@ -238,6 +279,24 @@ function parseSnapshotLatest(raw: unknown): SetlistStoreSnapshot | null {
   return parseSnapshotShape(raw, SETLIST_STORE_VERSION)
 }
 
+/** Reads a v6 snapshot (single MediaFile, no timelineVersion/leadIn) for migration purposes only. */
+function parseSnapshotV6ForMigration(raw: unknown): SetlistStoreSnapshot | null {
+  if (raw === null || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (o.version !== SETLIST_STORE_VERSION_V6) return null
+  if (o.songLibrary === null || typeof o.songLibrary !== 'object') return null
+  const lib = o.songLibrary as Record<string, unknown>
+  if (!Array.isArray(lib.songs) || !lib.songs.every(isLibrarySongV6)) return null
+  if (!Array.isArray(o.setlists) || !o.setlists.every(isSetlist)) return null
+  if (typeof o.activeSetlistId !== 'string') return null
+  return {
+    version: SETLIST_STORE_VERSION_V6,
+    songLibrary: { songs: lib.songs as LibrarySong[] },
+    setlists: o.setlists as Setlist[],
+    activeSetlistId: o.activeSetlistId,
+  }
+}
+
 /** Reads a v5 snapshot (SongMedia { big?, small? }) for migration purposes only. */
 function parseSnapshotV5ForMigration(raw: unknown): SetlistStoreSnapshot | null {
   if (raw === null || typeof raw !== 'object') return null
@@ -301,13 +360,24 @@ function collapseSongMediaToMediaFile(m: Record<string, unknown>): MediaFile | u
   return (m.big as MediaFile | undefined) ?? (m.small as MediaFile | undefined)
 }
 
+/**
+ * v6 → v7: version bump only. v6 songs may carry a legacy (v1/absolute) timeline with no
+ * timelineVersion field — that timeline is kept exactly as-is. Never invent a timelineVersion
+ * here; a song only becomes "v2" by being loaded through the new guarded path.
+ */
+function migrateV6ToV7(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
+  const next: SetlistStoreSnapshot = { ...snap, version: SETLIST_STORE_VERSION }
+  const repaired = repairSnapshot(next)
+  writeRaw(repaired)
+  return repaired
+}
+
 function migrateV5ToV6(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
   const songs: LibrarySong[] = snap.songLibrary.songs.map((song) => {
     if (song.media === undefined) return song
     const m = song.media as unknown as Record<string, unknown>
     const collapsed = collapseSongMediaToMediaFile(m)
     if (collapsed === undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { media: _m, ...rest } = song
       return rest
     }
@@ -452,6 +522,8 @@ export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStor
     ...(s.media !== undefined ? { media: { ...s.media } } : {}),
     ...(s.tempo !== undefined ? { tempo: { ...s.tempo } } : {}),
     ...(s.timeline !== undefined ? { timeline: s.timeline.map((entry) => ({ ...entry })) } : {}),
+    ...(s.timelineVersion !== undefined ? { timelineVersion: s.timelineVersion } : {}),
+    ...(s.leadIn !== undefined ? { leadIn: { ...s.leadIn } } : {}),
   }))
   return {
     version: SETLIST_STORE_VERSION,
@@ -552,8 +624,8 @@ export type EnsureSongLibraryOptions = {
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
 
 /**
- * Loads v6 from storage, migrates older versions, or persists an empty v6 snapshot.
- * Migration chain: v1 → v6, v2 → v6, v3 → v6, v4 → v6, v5 → v6.
+ * Loads v7 from storage, migrates older versions, or persists an empty v7 snapshot.
+ * Migration chain: v1 → v7, v2 → v7, v3 → v7, v4 → v7, v5 → v7, v6 → v7.
  * Safe to call multiple times; concurrent calls share one in-flight migration.
  */
 export function ensureSongLibraryHydrated(
@@ -570,6 +642,10 @@ export function ensureSongLibraryHydrated(
     hydrationInFlight = (async () => {
       const raw = readRaw()
       if (raw !== null && typeof raw === 'object') {
+        const v6 = parseSnapshotV6ForMigration(raw)
+        if (v6) {
+          return migrateV6ToV7(v6)
+        }
         const v5 = parseSnapshotV5ForMigration(raw)
         if (v5) {
           return migrateV5ToV6(v5)
@@ -691,6 +767,8 @@ function normalizeLibrarySongForStore(song: LibrarySong): LibrarySong {
     ...(song.media !== undefined ? { media: { ...song.media } } : {}),
     ...(song.tempo !== undefined ? { tempo: { ...song.tempo } } : {}),
     ...(song.timeline !== undefined ? { timeline: song.timeline.map((entry) => ({ ...entry })) } : {}),
+    ...(song.timelineVersion !== undefined ? { timelineVersion: song.timelineVersion } : {}),
+    ...(song.leadIn !== undefined ? { leadIn: { ...song.leadIn } } : {}),
   }
   return libSong
 }
@@ -709,35 +787,60 @@ export function patchSongMediaInSnapshot(
   if (!snap.songLibrary.songs.some((s) => s.id === songId)) return null
   const songs = snap.songLibrary.songs.map((s) => {
     if (s.id !== songId) return s
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { media: _, ...rest } = s
     return media !== undefined ? { ...rest, media } : rest
   })
   return { ...snap, songLibrary: { songs } }
 }
 
-/** Pure snapshot update: set (or clear) the timeline field for a library song. Returns null if songId unknown. */
+/**
+ * Pure snapshot update: set (or clear) the timeline field for a library song. Returns null if
+ * songId unknown. The optional `envelope` argument atomically sets `timelineVersion` and
+ * `leadIn` alongside the entries (used by the guarded v2 timeline-import path); when omitted,
+ * an existing timelineVersion/leadIn on the song is left untouched.
+ *
+ * Clearing the timeline (`timeline === undefined`) also clears `timelineVersion`/`leadIn`: the
+ * envelope only describes a timeline, so leaving it behind would strand a song claiming v2 with
+ * nothing to apply it to — which the leadIn consumers would then have to defend against.
+ */
 export function patchSongTimelineInSnapshot(
   snap: SetlistStoreSnapshot,
   songId: string,
-  timeline: TimelineEntry[] | undefined
+  timeline: TimelineEntry[] | undefined,
+  envelope?: { timelineVersion: number; leadIn: TimelineLeadIn }
 ): SetlistStoreSnapshot | null {
   if (!snap.songLibrary.songs.some((s) => s.id === songId)) return null
   const songs = snap.songLibrary.songs.map((s) => {
     if (s.id !== songId) return s
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { timeline: _, ...rest } = s
-    return timeline !== undefined ? { ...rest, timeline } : rest
+    const { timeline: _, timelineVersion: _v, leadIn: _l, ...rest } = s
+    if (timeline === undefined) return rest
+    const withTimeline = { ...rest, timeline }
+    if (envelope !== undefined) {
+      return { ...withTimeline, timelineVersion: envelope.timelineVersion, leadIn: envelope.leadIn }
+    }
+    // No envelope supplied: preserve whatever the song already carried.
+    return {
+      ...withTimeline,
+      ...(s.timelineVersion !== undefined ? { timelineVersion: s.timelineVersion } : {}),
+      ...(s.leadIn !== undefined ? { leadIn: s.leadIn } : {}),
+    }
   })
   return { ...snap, songLibrary: { songs } }
 }
 
 /**
- * Parses a standalone timeline JSON file (format: `{ "timeline": [...] }`).
- * Each entry must have numeric non-negative monotonic `start` and `end`.
- * Throws with a descriptive message on any parse or validation error.
+ * Parses a standalone timeline v2 envelope JSON file (the 3-key contract:
+ * `{ timelineVersion: 2, leadIn: {...}, timeline: [...] }`, see `docs/timeline-v2-contract.md`).
+ * Rejects (with the shared "older Bombista" message) unless `timelineVersion` is exactly `2`;
+ * `leadIn` is required and validated whenever that guard passes. Each timeline entry must have
+ * numeric non-negative monotonic `start`/`end`. Throws with a descriptive message on any parse
+ * or validation error.
  */
-export function parseTimelineFromJsonText(text: string): TimelineEntry[] {
+export function parseTimelineFromJsonText(text: string): {
+  timelineVersion: number
+  leadIn: TimelineLeadIn
+  entries: TimelineEntry[]
+} {
   let raw: unknown
   try {
     raw = JSON.parse(text)
@@ -747,11 +850,30 @@ export function parseTimelineFromJsonText(text: string): TimelineEntry[] {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('Timeline file must be a JSON object with a "timeline" key')
   }
+  // Unknown top-level keys are deliberately ignored, never rejected — a forward-compatibility
+  // guarantee from docs/timeline-v2-contract.md ("Producer vs consumer strictness"), not an
+  // oversight. Only timelineVersion/leadIn/timeline are consulted below.
   const obj = raw as Record<string, unknown>
-  if (!Object.prototype.hasOwnProperty.call(obj, 'timeline') || !Array.isArray(obj.timeline)) {
-    throw new Error('Timeline file must contain a "timeline" array')
+  // timelineVersion guard (P3): never coerce — a missing/older field is a hard rejection. This
+  // check comes first: an older/other version is always "an older Bombista" (below), never
+  // "incomplete" — only a file correctly declaring 2 can be that.
+  if (obj.timelineVersion !== 2) {
+    throw new Error(timelineVersionRejectionMessage(obj.timelineVersion))
   }
-  const arr = obj.timeline as unknown[]
+  const leadIn = validateTimelineLeadIn(obj.leadIn, 'Timeline file')
+  // A file that declares v2 but has no usable timeline — absent, null, not an array, or empty
+  // — is truncated/half-written; reject loudly rather than silently importing zero cues
+  // (docs/timeline-v2-contract.md).
+  const tlValue = obj.timeline
+  const noUsableTimeline =
+    !Object.prototype.hasOwnProperty.call(obj, 'timeline') ||
+    tlValue === null ||
+    !Array.isArray(tlValue) ||
+    tlValue.length === 0
+  if (noUsableTimeline) {
+    throw new Error(TIMELINE_INCOMPLETE_MESSAGE)
+  }
+  const arr = tlValue as unknown[]
   const entries: TimelineEntry[] = []
   let previousEnd = -Infinity
   for (let i = 0; i < arr.length; i++) {
@@ -773,7 +895,7 @@ export function parseTimelineFromJsonText(text: string): TimelineEntry[] {
     entries.push({ start, end })
     previousEnd = end
   }
-  return entries
+  return { timelineVersion: 2, leadIn, entries }
 }
 
 /** Pure snapshot update: append one library row. Returns null if duplicate id or invalid song. */
@@ -1068,6 +1190,12 @@ export function parseSongImportFromJsonText(text: string): ImportSongFromJsonRes
   }
   if (parsed.timeline !== undefined) {
     song.timeline = parsed.timeline
+  }
+  if (parsed.timelineVersion !== undefined) {
+    song.timelineVersion = parsed.timelineVersion
+  }
+  if (parsed.leadIn !== undefined) {
+    song.leadIn = parsed.leadIn
   }
   return { ok: true, song }
 }
