@@ -1677,15 +1677,16 @@ describe('ControlView performer state flow', () => {
         expect(getBlank()).toBe(true)
       })
 
-      let lastCmd: {
-        type?: string
+      type CommandLog = {
+        type: string
         action?: string
         value?: number
         currentIndex?: number
         blank?: boolean
-      } | null = null
+      }
+      let lastCmd: CommandLog | null = null
       for (let i = sendSpy.mock.calls.length - 1; i >= 0; i--) {
-        const msg = JSON.parse(sendSpy.mock.calls[i][0] as string) as typeof lastCmd & { type: string }
+        const msg = JSON.parse(sendSpy.mock.calls[i][0] as string) as CommandLog
         if (msg.type === 'command') {
           lastCmd = msg
           break
@@ -1918,7 +1919,7 @@ describe('ControlView performer state flow', () => {
       vi.stubGlobal('WebSocket', StubWS)
     })
 
-    function getLastCommandPayload(): { type: string; action: string; currentIndex?: number; blank?: boolean; value?: number } | null {
+    function getLastCommandPayload(): { type: string; action?: string; currentIndex?: number; blank?: boolean; value?: number } | null {
       const calls = sendSpy.mock.calls
       for (let i = calls.length - 1; i >= 0; i--) {
         try {

@@ -26,5 +26,10 @@ jobs:
       - name: Run lint
         run: npm run lint
 
+      # Gates the tsc error count at zero so it cannot grow silently again
+      # (three files had accumulated pre-existing errors before this step existed).
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Run tests
         run: npm test

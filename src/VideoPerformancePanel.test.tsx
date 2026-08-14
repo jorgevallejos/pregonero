@@ -14,6 +14,7 @@
  *   - absolutePath=null renders a no-path message (no video controls).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { Mock } from 'vitest'
 import { render, screen, act, fireEvent, cleanup } from '@testing-library/react'
 import type { MediaFile, TimelineEntry, SongItem } from './songState'
 import type { SongTempo } from './beatScheduler'
@@ -51,15 +52,15 @@ const TEMPO_4_4_1BAR: SongTempo = { bpm: 120, numerator: 4, denominator: 4, coun
  */
 const TEMPO_4_4_2BARS: SongTempo = { bpm: 120, numerator: 4, denominator: 4, countInBars: 2 }
 
-let playSpy: ReturnType<typeof vi.fn>
-let pauseSpy: ReturnType<typeof vi.fn>
-let currentTimeSetter: ReturnType<typeof vi.fn>
+let playSpy: Mock<() => Promise<void>>
+let pauseSpy: Mock<() => void>
+let currentTimeSetter: Mock<(value: number) => void>
 
 beforeEach(async () => {
   vi.useFakeTimers()
-  playSpy = vi.fn(() => Promise.resolve())
-  pauseSpy = vi.fn()
-  currentTimeSetter = vi.fn()
+  playSpy = vi.fn<() => Promise<void>>(() => Promise.resolve())
+  pauseSpy = vi.fn<() => void>()
+  currentTimeSetter = vi.fn<(value: number) => void>()
   HTMLVideoElement.prototype.play = playSpy
   HTMLVideoElement.prototype.pause = pauseSpy
   const descriptor = {
