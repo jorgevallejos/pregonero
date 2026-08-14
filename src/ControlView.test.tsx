@@ -6562,7 +6562,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.queryByText(/cue →/i)).toBeNull()
   })
 
-  it('BeatCircle is NOT rendered on arm (beat clock idle until the bottom-bar Start), and there is NO standalone Pause / restart-beat overlay trio', async () => {
+  it('P5: the pulse runs on arm while the transport stays idle until the bottom-bar Start, and there is NO standalone Pause / restart-beat overlay trio', async () => {
     // Set up a library with a song that has tempo
     const songWithTempo = {
       id: 'duelo',
@@ -6588,8 +6588,12 @@ describe('§6 non-video armed screen', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     vi.useRealTimers()
 
-    // No auto-start on arm: the beat clock stays idle until the performer presses Start.
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // P5 (amends the pre-P5 "no beat circle on arm" assertion): the pulse is a click track the
+    // performer plays to, so it free-runs from Arm — but as a plain click, not a count-in, and
+    // the transport is still idle. The count-in only exists once Start is pressed.
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     // R2: the pre-count-in control is the bottom-bar Start button (relabelled Restart).
     expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
     // But there is still NO standalone Pause / dedicated beat-restart control overlaying phrases.
@@ -6636,17 +6640,18 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle before Start: no beat circle yet, and Next is disabled (count-in must run first).
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // Transport idle before Start: the P5 pulse is running as a plain click (no count-in), and
+    // Next is disabled (the count-in must run first).
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     expect((screen.getByRole('button', { name: /^next$/i }) as HTMLButtonElement).disabled).toBe(true)
 
-    // Press Start → the beat clock (count-in) begins, still no lyric.
+    // Press Start → the count-in begins, still no lyric.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     })
     expect(getSongIndex()).toBe(-1)
     await waitFor(() => {
-      expect(screen.getByTestId('beat-circle')).toBeTruthy()
+      expect(screen.getByTestId('beat-circle-count-in')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
     // First Next now reveals line 0 (beat already running).
@@ -6722,8 +6727,9 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(getArmButton())
     })
 
-    // Idle after arm — no beat circle yet, and the pre-count-in control is Start (not Restart).
-    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // Transport idle after arm — the P5 pulse runs but no count-in has begun, and the
+    // pre-count-in control is Start (not Restart).
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
     expect(screen.queryByRole('button', { name: /^restart$/i })).toBeNull()
 
     // Start (plain click) begins the beat clock.
@@ -8141,6 +8147,62 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         fireEvent.click(screen.getByRole('button', { name: /^previous$/i }))
       })
       expect(getSongIndex()).toBe(0)
+    })
+
+    /**
+     * P5 acceptance, at the level Jorge actually performs at: the pulse is a click track he
+     * plays to. He talks to the audience while arming, picks the tempo up on guitar, plays a
+     * 2-bar intro TO the pulse, and cues the lyrics with the pedal when settled — mid-bar,
+     * because the lyrics do not always start on the first pulse of a bar.
+     */
+    function setupWithTimelineV2SongWithTempo() {
+      const song = {
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
+        // 120bpm 4/4 → 500ms per beat, 2000ms per bar.
+        tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('duelo')
+    }
+
+    it('P5: the pulse runs from Arm, and cueing mid-bar does not shift the click', async () => {
+      vi.useFakeTimers()
+      setupWithTimelineV2SongWithTempo()
+      await armAndReachSetupFakeTimers()
+      await act(async () => { fireEvent.click(getArmButton()) })
+
+      // The pulse is already running, before any cue — this is what he plays the intro to.
+      expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
+
+      // Two bars of intro plus a bit: 4500ms → absoluteBeat 9, i.e. beat 2 of the third bar.
+      // Deliberately NOT a bar line — the performer cues when he is settled, not on the grid.
+      act(() => { vi.advanceTimersByTime(4500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('2')
+
+      // The pedal press. Pre-P5 this re-phased the click to beat 1 under his fingers at the
+      // exact moment he started singing.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
+      })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('2')
+      // Line 0 appears and the song is running.
+      expect(getSongIndex()).toBe(0)
+      expect(getBlank()).toBe(false)
+
+      // The click keeps its own time: 500ms later it is beat 3, continuing the pre-cue count,
+      // not restarting from the cue.
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.getByTestId('beat-circle-beat-number').textContent).toBe('3')
+
+      // And the song clock, which started at the cue, advances the timeline independently.
+      act(() => { vi.advanceTimersByTime(5_840 - 500 + 100) })
+      expect(getSongIndex()).toBe(1)
     })
 
     it('Pause and Restart are absent before the cue and appear only after it', async () => {
