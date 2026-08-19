@@ -40,6 +40,170 @@
 :root {
   --control-ui-scale: 1.5;
   --beat-circle-size: 112px;
+
+  /* ---- Type -------------------------------------------------------------
+     A monospace instrument voice for anything you operate or read as data —
+     controls, micro-labels, numerics. The sung line stays sans: monospace at
+     2.6em is harder to read, not easier, and this is read on stage. Chromium
+     does not let form controls inherit font-family, so --font-control is the
+     only thing that reaches a button at all. No webfont: the control window
+     does not phone a font CDN. */
+  --font-ui:       -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-control:  ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-numeric:  ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-label:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---- Shape ------------------------------------------------------------
+     No radii. The beat circle, the timer and the pulse dots are squares. */
+  --radius-control:   0;
+  --radius-box:       0;
+  --radius-tile:      0;
+  --radius-panel:     0;
+  --radius-float:     0;
+  --radius-panel-sm:  0;
+  --radius-dialog:    0;
+  --radius-chip:      0;
+  --radius-field:     0;
+  --radius-round:     0;
+
+  /* ---- Grounds and surfaces ---------------------------------------------
+     Ink ground, one step per level. No gradients, no shadows worth the name. */
+  --app-bg:                #121211;
+  --panel-bg:              #1a1a18;
+  --input-bg:              #1a1a18;
+  --surface-inset:         #121211;
+  --control-bg:            #1a1a18;
+  --control-bg-raised:     #232320;
+  --control-bg-disabled:   #161615;
+  --dialog-bg:             #1a1a18;
+  --surface-hover:         #232320;
+  --surface-hover-strong:  #2c2a26;
+  --surface-float:         rgba(26, 26, 24, 0.97);
+
+  /* ---- Rules ------------------------------------------------------------
+     Hairlines, not slabs. A border you notice is a border spending contrast
+     it has not earned. */
+  --rule-faint:               #2c2a26;
+  --rule:                     #423e37;
+  --rule-strong:              #423e37;
+  --control-border:           #423e37;
+  --control-border-soft:      #2c2a26;
+  --control-border-hover:     #e6dfd1;
+  --control-border-focus:     var(--accent);
+  --control-border-disabled:  #2c2a26;
+
+  /* ---- Accent -------------------------------------------------------------
+     Clay. Bombista's one accent, and it stays one: the focus ring and the
+     suite's name in the masthead. Everything else that could take an accent
+     here already carries a status colour that means something more specific. */
+  --accent:      #d98b7a;
+  --accent-dim:  #8f5a4e;
+
+  /* ---- Text --------------------------------------------------------------
+     Paper on ink, one dim, one dimmer, and nothing in between. Contrast is a
+     budget: it is spent on the line being sung and the control the hand is
+     going to. --text-dim is under the WCAG floor on purpose — it carries the
+     next-line preview, which is meant to be available, not competing. */
+  --text-primary:           #e6dfd1;
+  --text-lyric-current:     #e6dfd1;
+  --text-secondary:         #8b8478;
+  --text-status:            #8b8478;
+  --text-muted:             #8b8478;
+  --text-label:             #8b8478;
+  --text-muted-2:           #8b8478;
+  --text-soft:              #8b8478;
+  --text-dim:               #635d54;
+  --text-faint:             #635d54;
+  --text-disabled:          #423e37;
+  --text-numeric:           #e6dfd1;
+  --text-played:            #8b8478;
+  --control-text-soft:      #8b8478;
+  --control-text-disabled:  #635d54;
+  --segment-text:           #8b8478;
+  --segment-text-hover:     #e6dfd1;
+
+  /* ---- Selection ---------------------------------------------------------
+     A choice is a bright hairline box, not a colour. Status colour is
+     reserved for liveness; "you picked this" is a question you ask at the
+     desk with time to look, not on stage without it. */
+  --state-selected-bg:            #232320;
+  --state-selected-border:        #e6dfd1;
+  --state-selected-bg-hover:      #2c2a26;
+  --state-selected-border-hover:  #e6dfd1;
+  --state-selected-text:          #e6dfd1;
+  --segment-active-text:          #e6dfd1;
+
+  /* ---- Armed / live ------------------------------------------------------
+     Bombista mutes --high #4f7d63 on purpose — there, 18 rows of 19 are HIGH
+     and none of them need you. Here green means the show is live, which is
+     the one thing that does. It stays literal as a fill and a border, where
+     the label on top carries the contrast; marks that must be READ are the
+     same hue lifted until they clear 4.5:1 (#5b9074), and the beat — the
+     thing read fastest and least directly — is lifted furthest (#7cbb97). */
+  --state-armed-bg:            #1d3129;
+  --state-armed-border:        #4f7d63;
+  --state-armed-bg-hover:      #243f32;
+  --state-armed-border-hover:  #5b9074;
+  --state-armed-text:          #e6dfd1;
+  --state-armed-bg-off:        #141d19;
+  --state-armed-border-off:    #25342c;
+  --state-armed-text-off:      #4c6157;
+  --state-confirm-bg-off:      #141d19;
+  --state-confirm-border-off:  #25342c;
+  --state-confirm-text-off:    #4c6157;
+  --state-ok:                  #5b9074;
+  --state-live:                #7cbb97;
+  --state-linked:              #7cbb97;
+  --state-live-dim:            #5b9074;
+  --state-live-bg:             #16221c;
+  --state-live-bg-hover:       #1d3129;
+  --state-drop-border:         #d98b7a;
+  --state-drop-bg:             #241a17;
+
+  /* ---- Paused / unarmed --------------------------------------------------- */
+  --state-paused-bg:            #232320;
+  --state-paused-border:        #423e37;
+  --state-paused-bg-hover:      #2c2a26;
+  --state-paused-border-hover:  #e6dfd1;
+  --state-paused-text:          #e6dfd1;
+
+  /* ---- Warn ---------------------------------------------------------------
+     The panel is a hairline and dim text; only the left rule is review. */
+  --state-warn:         #e0a437;
+  --state-override:     #e0a437;
+  --state-override-bg:  transparent;
+  --state-warn-bg:      #121211;
+  --state-warn-border:  #e0a437;
+  --state-warn-text:    #8b8478;
+
+  /* ---- Fail / recording ----------------------------------------------------
+     Outlined, not filled. Recording is a desk activity, not a live state. */
+  --state-fail:             #ef7a70;
+  --state-alert:            #ef7a70;
+  --state-record-bg:        #232320;
+  --state-record-border:    #ef7a70;
+  --state-record-bg-hover:  #2c2a26;
+  --state-record-text:      #ef7a70;
+  --state-danger-border:    #423e37;
+  --state-danger-bg-hover:  #2c2a26;
+
+  /* ---- Beat indicator ------------------------------------------------------
+     A metronome you read instead of hear, so it gets the highest contrast of
+     anything status-coloured. Its own tokens, not the text ones: these are
+     state marks that merely shared a value with body text before. */
+  --beat-accent:        #7cbb97;
+  --beat-pulse-off:     #8b8478;
+  --beat-dot-idle:      #423e37;
+  --count-in-dot-idle:  #2c2a26;
+  --beat-number-text:   #8b8478;
+
+  /* ---- Scrims -------------------------------------------------------------- */
+  --scrim:                rgba(0, 0, 0, 0.78);
+  --scrim-bar:            rgba(0, 0, 0, 0.68);
+  --scrim-count-in:       rgba(18, 18, 17, 0.94);
+  --overlay-text-shadow:  rgba(0, 0, 0, 0.9);
+  --float-shadow:         rgba(0, 0, 0, 0.5);
+  --video-letterbox:      #000;
 }
 
 /* Base: no font-size on html so projection is independent; control screens set their own below */
@@ -48,12 +212,97 @@ html, body, #root {
   height: 100%;
 }
 
+/* ---- Masthead — setup screen only ----
+   The one place the app says what it is. Modelled on `bombista serve`'s masthead
+   because the two are one suite and should look it. Deliberately absent once the
+   song is armed: the stage view is an instrument, and an instrument does not
+   spend a line of a dark-room screen on its own name. */
+.control-masthead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5em;
+  flex-wrap: wrap;
+  padding: 0.9em 1.25em 0.7em;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.control-masthead-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.control-masthead-wordmark {
+  font-family: var(--font-ui);
+  font-size: 0.95em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.control-masthead-tagline {
+  margin-top: 0.3em;
+  font-family: var(--font-label);
+  font-size: 0.55em;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.control-masthead-by {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-family: var(--font-label);
+  font-size: 0.5em;
+  font-weight: 400;
+  line-height: 1.7;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.control-masthead-by b {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.control-masthead-tramoya {
+  color: var(--accent-dim);
+}
+
 /* ---- Main control screen ---- */
 .control-screen,
 .songs-screen,
 .languages-screen {
-  font-family: Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: calc(16px * var(--control-ui-scale));
+}
+
+/* Form controls do not inherit font-family in Chromium; they get the UA font,
+   which is Arial here. Naming it changes nothing today and is what lets a theme
+   reach buttons and inputs. Scoped to the control-side screens so the
+   projection window is untouched. */
+.control-screen button,
+.control-screen input,
+.control-screen select,
+.control-screen textarea,
+.songs-screen button,
+.songs-screen input,
+.songs-screen select,
+.songs-screen textarea,
+.languages-screen button,
+.languages-screen input,
+.languages-screen select,
+.languages-screen textarea {
+  font-family: var(--font-control);
 }
 
 .control-screen {
@@ -70,8 +319,8 @@ html, body, #root {
      just overflows visually (same page-level scroll fallback as before). */
   height: 100vh;
   min-height: 100vh;
-  background: #1c1c1e;
-  color: #e5e5e5;
+  background: var(--app-bg);
+  color: var(--text-primary);
 }
 
 .control-top-bar {
@@ -80,7 +329,7 @@ html, body, #root {
   justify-content: space-between;
   padding: 0.75em 1.25em;
   flex-shrink: 0;
-  border-bottom: 1px solid #2c2c2e;
+  border-bottom: 1px solid var(--rule-strong);
 }
 
 .top-bar-summary {
@@ -102,14 +351,14 @@ html, body, #root {
 
 .top-summary-line {
   font-size: 0.9em;
-  color: #b0b0b2;
+  color: var(--text-secondary);
 }
 
 .top-title-state {
   order: -1;
   font-size: 1.15em;
   font-weight: 700;
-  color: #e5e5e5;
+  color: var(--text-primary);
 }
 
 .top-title {
@@ -171,7 +420,7 @@ html, body, #root {
 .performing-next-song-helper-label {
   font-size: 0.75em;
   font-weight: 400;
-  color: #8e8e93;
+  color: var(--text-muted);
   line-height: 1.2;
   margin: 0;
 }
@@ -198,6 +447,16 @@ html, body, #root {
   /* Song / Language / Projection / Arm — four EQUAL columns (T1: reverted from the
      1fr 1fr 1.15fr 0.85fr weighting now the Projection toggle cluster is compact). */
   grid-template-columns: 1fr 1fr 1fr 1fr;
+  /* The CONTAINER owns the rows — label / value / extras / buttons — and each column is a
+     subgrid of them. Before this, every column was its own independent grid, so the value row
+     was only as tall as whatever that column's own buttons left over: Lyrics display carries
+     two extra controls, which floated its value ~100px above Song, Projection and Arm. One
+     shared row is the only way four big values sit on one line without hard-coding a height.
+     min-content, not 0, as the row's floor: the extras and button rows are auto-sized and take
+     their height first, so on a short window (iPad Sidecar) a 0-floor row collapses and the
+     column's overflow:hidden clips the song title. Overflowing the panel is the existing
+     fallback and is the better failure. */
+  grid-template-rows: auto minmax(min-content, 1fr) auto auto;
   gap: 1.5em 2em;
   align-items: stretch;
   padding: 1.5em 1.5em 2em;
@@ -206,15 +465,20 @@ html, body, #root {
   --_gap: 2em;
   --_col: calc((100% - 3 * var(--_gap)) / 4);
   background-image:
-    linear-gradient(#262629, #262629),
-    linear-gradient(#262629, #262629),
-    linear-gradient(#262629, #262629);
+    linear-gradient(var(--rule-faint), var(--rule-faint)),
+    linear-gradient(var(--rule-faint), var(--rule-faint)),
+    linear-gradient(var(--rule-faint), var(--rule-faint));
   background-size: 1px 100%;
   background-repeat: no-repeat;
   background-position:
     calc(1 * var(--_col) + 0.5 * var(--_gap) - 0.5px) 0,
     calc(2 * var(--_col) + 1.5 * var(--_gap) - 0.5px) 0,
     calc(3 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
+}
+
+.control-center-setup .control-setup-section {
+  grid-row: span 4;
+  grid-template-rows: subgrid;
 }
 
 /* Allow grid columns to shrink below content size; prevent overlap into adjacent columns */
@@ -229,7 +493,7 @@ html, body, #root {
   line-height: 1.3;
   margin: 0;
   max-width: 90%;
-  color: #f2f2f2;
+  color: var(--text-lyric-current);
 }
 
 .control-next-preview {
@@ -238,14 +502,15 @@ html, body, #root {
   line-height: 1.25;
   margin: 0.25em 0 0;
   max-width: 90%;
-  color: #5c5c60;
+  color: var(--text-dim);
   min-height: 1.25em;
 }
 
 .control-position {
+  font-family: var(--font-numeric);
   margin-top: 1.5em;
   font-size: 1em;
-  color: #8e8e93;
+  color: var(--text-muted);
 }
 
 .control-ready,
@@ -254,7 +519,7 @@ html, body, #root {
   margin-bottom: 0;
   font-size: 1.25em;
   font-weight: 700;
-  color: #e5e5e5;
+  color: var(--text-primary);
 }
 
 .control-center-setup .control-state-label {
@@ -265,7 +530,7 @@ html, body, #root {
   margin: 0.25em 0 0;
   font-size: 1.05em;
   font-weight: 500;
-  color: #a0a0a5;
+  color: var(--text-status);
 }
 
 .control-song-intro {
@@ -274,7 +539,7 @@ html, body, #root {
   line-height: 1.3;
   margin: 0.25em 0 0;
   max-width: 90%;
-  color: #a0a0a5;
+  color: var(--text-status);
 }
 
 .control-performance-state {
@@ -297,7 +562,7 @@ html, body, #root {
 
 .control-setup-section {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   justify-items: center;
   align-items: stretch;
   width: 100%;
@@ -309,9 +574,10 @@ html, body, #root {
 
 
 .control-setup-label {
+  font-family: var(--font-label);
   font-size: 0.75em;
   font-weight: 600;
-  color: #8e8e93;
+  color: var(--text-label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   grid-row: 1;
@@ -338,7 +604,7 @@ html, body, #root {
 
 .control-setup-status {
   font-size: 0.8125em;
-  color: #a0a0a5;
+  color: var(--text-status);
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
@@ -349,9 +615,23 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-/* Bottom zone: button stack per column (row 3); min-height so row 3 aligns across columns */
-.control-setup-buttons {
+/* Extras zone (row 3): the per-column controls that are not the value and not the action —
+   Transitions, Performed tempo, Videoclip. Its own row so they cannot push the value up. */
+.control-setup-extras {
   grid-row: 3;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: center;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+/* Bottom zone: button stack per column (row 4); min-height so the row aligns across columns */
+.control-setup-buttons {
+  grid-row: 4;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -399,9 +679,10 @@ html, body, #root {
 
 /* Tiny muted labels (same family as column headers, smaller) */
 .ctrl-toggle-label {
+  font-family: var(--font-label);
   font-size: 10px;
   font-weight: 600;
-  color: #8e8e93;
+  color: var(--text-label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -429,7 +710,7 @@ html, body, #root {
 .control-setup-value {
   font-size: clamp(1.75em, 4vw, 2.75em);
   font-weight: 600;
-  color: #e5e5e5;
+  color: var(--text-primary);
   line-height: 1.25;
   overflow-wrap: break-word;
   word-wrap: break-word;
@@ -438,7 +719,7 @@ html, body, #root {
 
 .control-setup-hint {
   font-size: 0.9em;
-  color: #8e8e93;
+  color: var(--text-muted);
 }
 
 /* Single sizing for all setup/ready-to-arm bottom buttons (Song, Languages, Projection, Arm) */
@@ -466,8 +747,8 @@ html, body, #root {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  border: 0.5px solid #3a3a3c;
-  border-radius: 8px;
+  border: 0.5px solid var(--rule);
+  border-radius: var(--radius-tile);
   overflow: hidden;
   flex: 0 0 auto;
 }
@@ -476,9 +757,9 @@ html, body, #root {
   flex: 0 0 auto;
   appearance: none;
   border: none;
-  border-right: 0.5px solid #3a3a3c;
+  border-right: 0.5px solid var(--rule);
   background: transparent;
-  color: #9a9a9f;
+  color: var(--segment-text);
   font-size: 12.5px;
   font-weight: 600;
   padding: 7px 13px;
@@ -493,27 +774,27 @@ html, body, #root {
 }
 
 .ctrl-segment:hover:not(:disabled):not(.ctrl-segment--active) {
-  color: #d0d0d5;
+  color: var(--segment-text-hover);
 }
 
 .ctrl-segment--active {
-  background: #2d4a2d;
-  color: #eaf3ea;
+  background: var(--state-selected-bg);
+  color: var(--segment-active-text);
 }
 
 .ctrl-segment--active:hover:not(:disabled) {
-  background: #3a5a3a;
+  background: var(--state-selected-bg-hover);
 }
 
 .ctrl-segment:disabled,
 .ctrl-segment.ctrl-segment--disabled {
   cursor: not-allowed;
-  color: #48484a;
+  color: var(--text-disabled);
 }
 
 .ctrl-segment:disabled.ctrl-segment--active,
 .ctrl-segment.ctrl-segment--disabled.ctrl-segment--active {
-  color: #5c5c60;
+  color: var(--text-dim);
 }
 
 .ctrl-setup-link {
@@ -533,11 +814,11 @@ html, body, #root {
 }
 
 .control-checks .check-ok {
-  color: #6a9d6a;
+  color: var(--state-ok);
 }
 
 .control-checks .check-fail {
-  color: #b55;
+  color: var(--state-fail);
 }
 
 .ctrl-btn {
@@ -545,74 +826,74 @@ html, body, #root {
   padding: 0.5em 1em;
   min-height: 2.5em;
   min-width: 7.5em;
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
-  border-radius: 6px;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
   cursor: pointer;
   font-weight: 600;
   touch-action: manipulation;
 }
 
 .ctrl-btn:hover:not(:disabled) {
-  background: #3a3a3c;
-  border-color: #58585a;
+  background: var(--surface-hover);
+  border-color: var(--control-border-hover);
 }
 
 .ctrl-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  color: #8e8e93;
-  background: #252527;
-  border-color: #3a3a3c;
+  color: var(--control-text-disabled);
+  background: var(--control-bg-disabled);
+  border-color: var(--control-border-disabled);
 }
 
 /* Confirm button: clearly active when enabled, clearly disabled when disabled (Songs + Languages) */
 .ctrl-btn.languages-confirm:not(:disabled) {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
+  background: var(--state-armed-bg);
+  border-color: var(--state-armed-border);
+  color: var(--state-armed-text);
 }
 
 .ctrl-btn.languages-confirm:not(:disabled):hover {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
+  background: var(--state-armed-bg-hover);
+  border-color: var(--state-armed-border-hover);
 }
 
 .ctrl-btn.languages-confirm:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  color: #6e7a6e;
-  background: #1e261e;
-  border-color: #2a352a;
+  color: var(--state-confirm-text-off);
+  background: var(--state-confirm-bg-off);
+  border-color: var(--state-confirm-border-off);
 }
 
 .ctrl-arm {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
+  background: var(--state-armed-bg);
+  border-color: var(--state-armed-border);
+  color: var(--state-armed-text);
 }
 
 .ctrl-arm:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
+  background: var(--state-armed-bg-hover);
+  border-color: var(--state-armed-border-hover);
 }
 
 .ctrl-arm:disabled {
-  background: #1e2e1e;
-  border-color: #2a3a2a;
-  color: #6a7a6a;
+  background: var(--state-armed-bg-off);
+  border-color: var(--state-armed-border-off);
+  color: var(--state-armed-text-off);
 }
 
 .ctrl-unarm {
-  background: #4a3d2d;
-  border-color: #5c4d3d;
-  color: #f0ebe0;
+  background: var(--state-paused-bg);
+  border-color: var(--state-paused-border);
+  color: var(--state-paused-text);
 }
 
 .ctrl-unarm:hover:not(:disabled) {
-  background: #5a4a3a;
-  border-color: #6c5a4a;
+  background: var(--state-paused-bg-hover);
+  border-color: var(--state-paused-border-hover);
 }
 
 .ctrl-projection {
@@ -632,7 +913,7 @@ html, body, #root {
 .control-bottom-bar {
   flex-shrink: 0;
   padding: 1em 1.25em;
-  border-top: 1px solid #2c2c2e;
+  border-top: 1px solid var(--rule-strong);
   display: flex;
   justify-content: center;
 }
@@ -645,6 +926,7 @@ html, body, #root {
 }
 
 .ctrl-timer-status {
+  font-family: var(--font-numeric);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -654,15 +936,15 @@ html, body, #root {
   min-height: var(--beat-circle-size);
   padding: 0;
   line-height: 1;
-  border-radius: 50%;
-  border: 1px solid #48484a;
-  background: #2c2c2e;
-  color: #e5e5e5;
+  border-radius: var(--radius-round);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-primary);
 }
 
 .ctrl-timer-status:hover:not(:disabled) {
-  background: #3a3a3c;
-  border-color: #58585a;
+  background: var(--surface-hover);
+  border-color: var(--control-border-hover);
 }
 
 .ctrl-timer-status-circle {
@@ -677,14 +959,14 @@ html, body, #root {
 }
 
 .ctrl-timer-status-paused {
-  background: #4a3d2d;
-  border-color: #5c4d3d;
-  color: #f0ebe0;
+  background: var(--state-paused-bg);
+  border-color: var(--state-paused-border);
+  color: var(--state-paused-text);
 }
 
 .ctrl-timer-status-paused:hover:not(:disabled) {
-  background: #5a4a3a;
-  border-color: #6c5a4a;
+  background: var(--state-paused-bg-hover);
+  border-color: var(--state-paused-border-hover);
 }
 
 .ctrl-timer-floating {
@@ -704,10 +986,10 @@ html, body, #root {
   align-items: stretch;
   gap: 0.35rem;
   padding: 0.35rem;
-  border: 1px solid #48484a;
-  border-radius: 12px;
-  background: rgba(28, 28, 30, 0.95);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-float);
+  background: var(--surface-float);
+  box-shadow: 0 8px 18px var(--float-shadow);
 }
 
 .ctrl-timer-action {
@@ -721,8 +1003,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #1c1c1e;
-  color: #e5e5e5;
+  background: var(--app-bg);
+  color: var(--text-primary);
 }
 
 /* Setlist view: keep full-width grid with balanced screen-side spacing */
@@ -737,22 +1019,22 @@ html, body, #root {
   align-items: center;
   gap: 1em;
   padding: 0.75em 1.25em;
-  border-bottom: 1px solid #2c2c2e;
+  border-bottom: 1px solid var(--rule-strong);
 }
 
 .songs-back {
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
   padding: 0.5em 1em;
   font-size: 1em;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-tile);
   font-weight: 600;
 }
 
 .songs-back:hover {
-  background: #3a3a3c;
+  background: var(--surface-hover);
 }
 
 .songs-title {
@@ -764,7 +1046,7 @@ html, body, #root {
   margin: 0;
   font-size: 1.5em;
   font-weight: 600;
-  color: #e5e5e5;
+  color: var(--text-primary);
 }
 
 .manage-setlists-top-actions {
@@ -794,18 +1076,18 @@ html, body, #root {
 
 .songs-manage-setlists {
   z-index: 1;
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
   padding: 0.45em 0.75em;
   font-size: 0.9em;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-tile);
   font-weight: 600;
 }
 
 .songs-manage-setlists:hover {
-  background: #3a3a3c;
+  background: var(--surface-hover);
 }
 
 /* Manage setlists: 3-column workspace */
@@ -863,9 +1145,9 @@ html, body, #root {
 
 .manage-setlists-panel {
   padding: 0.65rem 0.5rem;
-  border: 1px solid #3a3a3c;
-  border-radius: 10px;
-  background: #1c1c1e;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--panel-bg);
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -906,18 +1188,18 @@ html, body, #root {
 }
 
 .manage-setlists-action-btn {
-  background: #3a3a3c;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
+  background: var(--control-bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
   padding: 0.35em 0.65em;
   font-size: 0.85em;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   font-weight: 500;
 }
 
 .manage-setlists-action-btn:hover:not(:disabled) {
-  background: #48484a;
+  background: var(--surface-hover-strong);
 }
 
 .manage-setlists-action-btn:disabled {
@@ -926,22 +1208,22 @@ html, body, #root {
 }
 
 .manage-setlists-delete-btn {
-  border-color: #8b3a3a;
+  border-color: var(--state-danger-border);
 }
 
 .manage-setlists-delete-btn:hover:not(:disabled) {
-  background: #5c2a2a;
+  background: var(--state-danger-bg-hover);
 }
 
 .manage-setlists-row {
   text-align: left;
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
   padding: 0.65em 1em;
   font-size: 1em;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-tile);
   font-weight: 500;
 }
 
@@ -955,29 +1237,29 @@ html, body, #root {
 
 /* Selected setlist row: persistent green; must win over .manage-setlists-row base (same issue as .songs-song-btn) */
 .manage-setlists-row.ctrl-arm {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
+  background: var(--state-selected-bg);
+  border-color: var(--state-selected-border);
+  color: var(--state-selected-text);
 }
 
 .manage-setlists-row.ctrl-arm:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
+  background: var(--state-selected-bg-hover);
+  border-color: var(--state-selected-border-hover);
 }
 
 /* Only apply neutral hover to non-selected row buttons */
 .manage-setlists-row:not(.ctrl-arm):hover {
-  background: #3a3a3c;
+  background: var(--surface-hover);
 }
 
 .manage-setlists-rename-input {
   box-sizing: border-box;
   padding: 0.55em 0.75em;
   font-size: 1em;
-  border-radius: 8px;
-  border: 1px solid #48484a;
-  background: #1c1c1e;
-  color: #e5e5e5;
+  border-radius: var(--radius-tile);
+  border: 1px solid var(--control-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .manage-setlists-rename-input-inline {
@@ -1004,24 +1286,24 @@ html, body, #root {
 }
 
 .manage-setlists-song-editor-active {
-  border-color: #3d5c3d;
+  border-color: var(--state-selected-border);
 }
 
 .manage-setlists-song-editor-inactive {
-  border-color: #48484a;
-  background: #242427;
+  border-color: var(--control-border);
+  background: var(--surface-inset);
 }
 
 .manage-setlists-song-editor-over {
-  border-color: #5d855d;
-  background: #223022;
+  border-color: var(--state-drop-border);
+  background: var(--state-drop-bg);
 }
 
 .manage-setlists-song-editor-title {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #98989d;
+  color: var(--text-muted-2);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -1048,10 +1330,10 @@ html, body, #root {
   flex-shrink: 0;
   width: 2rem;
   padding: 0.2rem 0.15rem;
-  border: 1px solid #3a3a3c;
-  border-radius: 6px;
-  background: #2c2c2e;
-  color: #98989d;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
+  color: var(--text-muted-2);
   font-size: 0.85em;
   line-height: 1.2;
   cursor: grab;
@@ -1059,8 +1341,8 @@ html, body, #root {
 }
 
 .manage-setlists-drag-handle:hover {
-  color: #e5e5e5;
-  border-color: #48484a;
+  color: var(--text-primary);
+  border-color: var(--control-border);
 }
 
 .manage-setlists-drag-handle:active {
@@ -1068,7 +1350,7 @@ html, body, #root {
 }
 
 .manage-setlists-song-title {
-  color: #e5e5e5;
+  color: var(--text-primary);
   font-size: 0.95em;
   min-width: 0;
   flex: 1;
@@ -1100,7 +1382,7 @@ html, body, #root {
 }
 
 .manage-setlists-icon-btn--linked {
-  color: #34c759;
+  color: var(--state-linked);
 }
 
 .manage-setlists-icon-btn--add .video-link-btn-badge,
@@ -1120,7 +1402,7 @@ html, body, #root {
 }
 
 .manage-setlists-song-empty {
-  color: #8e8e93;
+  color: var(--text-muted);
   font-size: 0.9em;
   margin: 0;
   padding: 0.15rem 0;
@@ -1155,7 +1437,7 @@ html, body, #root {
 .setlist-prompt {
   grid-column: 1 / -1;
   text-align: center;
-  color: #8e8e93;
+  color: var(--text-muted);
   font-size: 1.05em;
   line-height: 1.4;
   margin: 0.5rem 0 1rem;
@@ -1166,10 +1448,10 @@ html, body, #root {
   height: 130px;
   font-size: clamp(1.1em, 3vw, 1.35em);
   padding: 1em 1.25em;
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #48484a;
-  border-radius: 8px;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-tile);
   cursor: pointer;
   font-weight: 600;
   display: flex;
@@ -1195,29 +1477,29 @@ html, body, #root {
 }
 
 .songs-song-btn:hover {
-  background: #3a3a3c;
+  background: var(--surface-hover);
 }
 
 /* Selected song: persistent green (same as Arm), must win over base/hover above */
 .songs-song-btn.ctrl-arm {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
+  background: var(--state-selected-bg);
+  border-color: var(--state-selected-border);
+  color: var(--state-selected-text);
 }
 
 .songs-song-btn.ctrl-arm:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
+  background: var(--state-selected-bg-hover);
+  border-color: var(--state-selected-border-hover);
 }
 
 /* Only apply neutral hover to non-selected song buttons */
 .songs-song-btn:not(.ctrl-arm):hover {
-  background: #3a3a3c;
+  background: var(--surface-hover);
 }
 
 /* Played song: darker text and checkmark only; do not change background. Selected (ctrl-arm) overrides. */
 .songs-song-btn-played {
-  color: #b8b8bc;
+  color: var(--text-played);
 }
 
 /* Styled checkmark icon (no emoji); vertically aligned with title. */
@@ -1226,7 +1508,7 @@ html, body, #root {
   margin-right: 10px;
   vertical-align: middle;
   font-size: 0.9em;
-  color: #7bd88f;
+  color: var(--state-live);
   line-height: 1;
 }
 
@@ -1236,19 +1518,19 @@ html, body, #root {
 }
 
 .songs-song-btn-played.ctrl-arm .song-played-icon {
-  color: #7bd88f;
+  color: var(--state-live);
 }
 
 /* Selected played song: same green as any selected song (selected takes priority) */
 .songs-song-btn-played.ctrl-arm {
-  background: #2d4a2d;
-  border-color: #3d5c3d;
-  color: #e8f0e8;
+  background: var(--state-selected-bg);
+  border-color: var(--state-selected-border);
+  color: var(--state-selected-text);
 }
 
 .songs-song-btn-played.ctrl-arm:hover:not(:disabled) {
-  background: #3a5a3a;
-  border-color: #4a6c4a;
+  background: var(--state-selected-bg-hover);
+  border-color: var(--state-selected-border-hover);
 }
 
 /* Confirm at bottom, same pattern as Languages screen */
@@ -1274,7 +1556,7 @@ html, body, #root {
 /* ---- Languages screen ---- */
 .languages-screen .languages-empty {
   margin: 0;
-  color: #8e8e93;
+  color: var(--text-muted);
   font-size: 1em;
   line-height: 1.5;
 }
@@ -1312,7 +1594,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   font-size: 1.5em;
-  color: #8e8e93;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -1328,10 +1610,11 @@ html, body, #root {
 }
 
 .languages-screen .languages-section-title {
+  font-family: var(--font-label);
   font-size: 0.95em;
   font-weight: 600;
   margin: 0 0 2rem 0;
-  color: #8e8e93;
+  color: var(--text-label);
   text-align: center;
   justify-self: center;
 }
@@ -1354,17 +1637,17 @@ html, body, #root {
   font-size: clamp(1.25em, 4vw, 1.5em);
   letter-spacing: 0.05em;
   padding: 0.4em 0.75em;
-  border-radius: 0.35em;
-  border: 1px solid #3a3a3c;
-  background: #2c2c2e;
-  color: #e5e5e5;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--rule);
+  background: var(--control-bg);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .languages-lang-btn-selected {
-  background: #2d4a2d;
-  color: #e8f0e8;
-  border-color: #3d5c3d;
+  background: var(--state-selected-bg);
+  color: var(--state-selected-text);
+  border-color: var(--state-selected-border);
 }
 
 .languages-screen .languages-confirm-wrap {
@@ -1378,7 +1661,10 @@ html, body, #root {
   min-width: 8em;
 }
 
-/* ---- Projection screen (independent from control UI) ---- */
+/* ---- Projection screen (independent from control UI) ----
+   Deliberately NOT tokenised. The projection window is audience-facing, read
+   from the back of a dark room, and it is out of scope for the control-side
+   restyle: leaving its colours as literals means no theme can reach it. */
 .projection-screen {
   font-family: 'EB Garamond', Georgia, serif;
   font-size: 16px;
@@ -1447,35 +1733,35 @@ html, body, #root {
 }
 
 .ctrl-record {
-  background: #2c2c2e;
-  color: #b0b0b2;
-  border: 1px solid #444;
+  background: var(--control-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--control-border-soft);
 }
 
 .ctrl-record:hover {
-  background: #3a3a3c;
-  color: #e5e5e5;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .ctrl-record-active {
-  background: #7c1d1d;
-  color: #ffc0c0;
-  border: 1px solid #b34040;
+  background: var(--state-record-bg);
+  color: var(--state-record-text);
+  border: 1px solid var(--state-record-border);
 }
 
 .ctrl-record-active:hover {
-  background: #9b2626;
+  background: var(--state-record-bg-hover);
 }
 
 .ctrl-record-indicator {
   font-size: 0.85em;
-  color: #b0b0b2;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   min-width: 8em;
 }
 
 .ctrl-record-indicator-active {
-  color: #ffc0c0;
+  color: var(--state-record-text);
   font-weight: 600;
 }
 
@@ -1486,9 +1772,9 @@ html, body, #root {
   flex-direction: column;
   gap: 0.35em;
   padding: 0.5em 0.75em;
-  border: 1px solid #3a3a3c;
-  border-radius: 0.5em;
-  background: #1c1c1e;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel-sm);
+  background: var(--panel-bg);
   flex-shrink: 0;
   margin: 0.25em 0;
 }
@@ -1501,56 +1787,59 @@ html, body, #root {
 }
 
 .ctrl-timed-label {
+  font-family: var(--font-label);
   font-size: 0.75em;
   font-weight: 600;
-  color: #888;
+  color: var(--text-soft);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   flex-shrink: 0;
 }
 
 .ctrl-timed-time {
+  font-family: var(--font-numeric);
   font-variant-numeric: tabular-nums;
   font-size: 0.9em;
-  color: #d0d0d2;
+  color: var(--text-numeric);
   min-width: 4em;
   flex-shrink: 0;
 }
 
 .ctrl-timed-line {
   font-size: 0.85em;
-  color: #888;
+  color: var(--text-soft);
   flex-shrink: 0;
 }
 
 .ctrl-timed-drift {
+  font-family: var(--font-numeric);
   font-variant-numeric: tabular-nums;
   font-size: 0.85em;
-  color: #888;
+  color: var(--text-soft);
   min-width: 5em;
   flex-shrink: 0;
 }
 
 .ctrl-timed-drift-warn {
-  color: #f4a22b;
+  color: var(--state-warn);
 }
 
 .ctrl-timed-drift-alert {
-  color: #e05252;
+  color: var(--state-alert);
 }
 
 .ctrl-timed-nudge {
-  background: #2c2c2e;
-  color: #c0c0c2;
-  border: 1px solid #444;
+  background: var(--control-bg);
+  color: var(--control-text-soft);
+  border: 1px solid var(--control-border-soft);
   font-size: 0.78em;
   padding: 0.25em 0.5em;
   min-width: 3.5em;
 }
 
 .ctrl-timed-nudge:hover:not(:disabled) {
-  background: #3a3a3c;
-  color: #e5e5e5;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 /* ---- Timeline save dialog overlay ---- */
@@ -1558,7 +1847,7 @@ html, body, #root {
 .ctrl-timeline-save-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1566,9 +1855,9 @@ html, body, #root {
 }
 
 .ctrl-timeline-save-dialog {
-  background: #2c2c2e;
-  border: 1px solid #444;
-  border-radius: 0.75em;
+  background: var(--dialog-bg);
+  border: 1px solid var(--control-border-soft);
+  border-radius: var(--radius-dialog);
   padding: 1.5em 2em;
   display: flex;
   flex-direction: column;
@@ -1582,7 +1871,7 @@ html, body, #root {
 .ctrl-timeline-save-message {
   margin: 0;
   font-size: 1em;
-  color: #e5e5e5;
+  color: var(--text-primary);
 }
 
 .ctrl-timeline-save-actions {
@@ -1599,13 +1888,14 @@ html, body, #root {
   align-items: center;
   gap: 0.6em;
   padding-top: 0.75em;
-  border-top: 1px solid #2c2c2e;
+  border-top: 1px solid var(--rule-strong);
 }
 
 .ctrl-display-label {
+  font-family: var(--font-label);
   font-size: 0.75em;
   font-weight: 600;
-  color: #8e8e93;
+  color: var(--text-label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1632,23 +1922,23 @@ html, body, #root {
   align-items: center;
   gap: 0.4em;
   font-size: 0.9em;
-  color: #a0a0a5;
+  color: var(--text-status);
 }
 
 .ctrl-custom-profile-input {
   width: 4.5em;
   padding: 0.3em 0.5em;
-  background: #2c2c2e;
-  color: #e5e5e5;
-  border: 1px solid #444;
-  border-radius: 6px;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border-soft);
+  border-radius: var(--radius-control);
   font-size: 1em;
   text-align: center;
 }
 
 .ctrl-custom-profile-input:focus {
   outline: none;
-  border-color: #636366;
+  border-color: var(--control-border-focus);
 }
 
 /* ---- Video control panel (armed view, video-mode song) ---- */
@@ -1671,7 +1961,7 @@ html, body, #root {
 .ctrl-video-nopath-msg {
   margin: 0 0 1em;
   font-size: 1em;
-  color: #a0a0a5;
+  color: var(--text-status);
 }
 
 /* Top row: video preview (left) + lyric column (right) */
@@ -1688,8 +1978,8 @@ html, body, #root {
   flex-shrink: 0;
   width: clamp(200px, 35%, 360px);
   aspect-ratio: 16 / 9;
-  background: #000;
-  border-radius: 6px;
+  background: var(--video-letterbox);
+  border-radius: var(--radius-box);
   overflow: hidden;
 }
 
@@ -1707,14 +1997,14 @@ html, body, #root {
   left: 0;
   right: 0;
   padding: 0.25em 0.5em;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+  background: linear-gradient(transparent, var(--scrim-bar));
 }
 
 .ctrl-video-position-bar {
   width: 100%;
   height: 4px;
   cursor: pointer;
-  accent-color: #7bd88f;
+  accent-color: var(--state-live);
 }
 
 /* Lyric column next to the preview */
@@ -1727,8 +2017,9 @@ html, body, #root {
 }
 
 .ctrl-video-time {
+  font-family: var(--font-numeric);
   font-size: 0.8em;
-  color: #8e8e93;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1736,7 +2027,7 @@ html, body, #root {
   margin: 0;
   font-size: clamp(1.25em, 3.5vw, 1.8em);
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--text-lyric-current);
   line-height: 1.3;
   overflow-wrap: break-word;
 }
@@ -1745,7 +2036,7 @@ html, body, #root {
   margin: 0;
   font-size: clamp(0.9em, 2.5vw, 1.25em);
   font-weight: 500;
-  color: #5c5c60;
+  color: var(--text-dim);
   line-height: 1.25;
   min-height: 1.25em;
   overflow-wrap: break-word;
@@ -1762,15 +2053,15 @@ html, body, #root {
 /* Format warnings */
 .ctrl-video-warnings {
   padding: 0.5em 0.75em;
-  background: #3a2a1a;
-  border: 1px solid #7a4a1a;
-  border-radius: 6px;
+  background: var(--state-warn-bg);
+  border: 1px solid var(--state-warn-border);
+  border-radius: var(--radius-box);
 }
 
 .ctrl-video-warning {
   margin: 0.2em 0;
   font-size: 0.85em;
-  color: #e0a060;
+  color: var(--state-warn-text);
 }
 
 /* Cue strip: scrollable list of timeline markers */
@@ -1780,10 +2071,10 @@ html, body, #root {
   gap: 0.2em;
   max-height: 260px;
   overflow-y: auto;
-  border: 1px solid #3a3a3c;
-  border-radius: 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-box);
   padding: 0.4em 0;
-  background: #1c1c1e;
+  background: var(--panel-bg);
 }
 
 .ctrl-video-cue-marker {
@@ -1795,7 +2086,7 @@ html, body, #root {
   background: none;
   border: none;
   border-radius: 0;
-  color: #a0a0a5;
+  color: var(--text-status);
   font-size: 0.85em;
   text-align: left;
   cursor: pointer;
@@ -1805,29 +2096,30 @@ html, body, #root {
 }
 
 .ctrl-video-cue-marker:hover {
-  background: #2c2c2e;
-  color: #e5e5e5;
+  background: var(--control-bg);
+  color: var(--text-primary);
 }
 
 .ctrl-video-cue-marker-active {
-  background: #1a2d1a;
-  color: #7bd88f;
+  background: var(--state-live-bg);
+  color: var(--state-live);
 }
 
 .ctrl-video-cue-marker-active:hover {
-  background: #223522;
-  color: #7bd88f;
+  background: var(--state-live-bg-hover);
+  color: var(--state-live);
 }
 
 .ctrl-video-cue-time {
+  font-family: var(--font-numeric);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  color: #636366;
+  color: var(--text-faint);
   font-size: 0.9em;
 }
 
 .ctrl-video-cue-marker-active .ctrl-video-cue-time {
-  color: #4d8c5a;
+  color: var(--state-live-dim);
 }
 
 .ctrl-video-cue-line {
@@ -1845,14 +2137,14 @@ html, body, #root {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #636366;
+  color: var(--text-faint);
   font-size: 0.85em;
 }
 
 .ctrl-video-cue-empty {
   margin: 0.5em 0.75em;
   font-size: 0.9em;
-  color: #636366;
+  color: var(--text-faint);
 }
 
 /* ---- End Card (control) ---- */
@@ -1891,15 +2183,16 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   gap: 0.5em;
-  background: rgba(28, 28, 30, 0.92);
+  background: var(--scrim-count-in);
   z-index: 10;
   pointer-events: none;
 }
 
 .beat-count-in-number {
+  font-family: var(--font-numeric);
   font-size: clamp(5rem, 20vw, 14rem);
   font-weight: 300;
-  color: #b0b0b2;
+  color: var(--text-secondary);
   line-height: 1;
   transition: transform 80ms ease-out, color 80ms ease-out;
 }
@@ -1907,7 +2200,7 @@ html, body, #root {
 /* Downbeat: larger and brighter to guide the performer's eye */
 .beat-count-in-downbeat {
   transform: scale(1.15);
-  color: #e5e5e5;
+  color: var(--beat-accent);
   font-weight: 600;
 }
 
@@ -1920,13 +2213,13 @@ html, body, #root {
   display: inline-block;
   width: 0.6em;
   height: 0.6em;
-  border-radius: 50%;
-  background: #3c3c3e;
+  border-radius: var(--radius-round);
+  background: var(--count-in-dot-idle);
   transition: background 80ms ease-out;
 }
 
 .beat-count-in-dot-active {
-  background: #e5e5e5;
+  background: var(--beat-accent);
 }
 
 /* Persistent small beat pulse shown during the song */
@@ -1950,14 +2243,14 @@ html, body, #root {
   display: inline-block;
   width: 0.55em;
   height: 0.55em;
-  border-radius: 50%;
-  background: #b0b0b2;
+  border-radius: var(--radius-round);
+  background: var(--beat-pulse-off);
   animation: beat-pulse-anim 0.35s ease-out forwards;
 }
 
 /* Downbeat pulse is brighter */
 .beat-pulse-down {
-  background: #e5e5e5;
+  background: var(--beat-accent);
 }
 
 .beat-pulse-toggle {
@@ -2008,8 +2301,8 @@ html, body, #root {
   max-width: 92%;
   text-align: center;
   text-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.9),
-    0 0 4px rgba(0, 0, 0, 0.9);
+    0 2px 12px var(--overlay-text-shadow),
+    0 0 4px var(--overlay-text-shadow);
   pointer-events: none;
   z-index: 4;
 }
@@ -2036,30 +2329,33 @@ html, body, #root {
 }
 
 .ctrl-performed-bpm-input {
+  font-family: var(--font-numeric);
   width: 5.5em;
   padding: 0.3em 0.4em;
-  border-radius: 0.4em;
-  border: 1px solid #48484a;
-  background: #2c2c2e;
-  color: #e5e5e5;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-primary);
   font-size: 1em;
   font-variant-numeric: tabular-nums;
 }
 
-.ctrl-performed-bpm-declared {
-  font-size: 0.8em;
-  opacity: 0.6;
-  white-space: nowrap;
+/* Chromium reveals the spinner only on hover or focus. This is a stage control set with a
+   fingertip on a tablet, where there is no hover and finding out the arrows exist by touching
+   the field is a bad way to learn it — so they are always up. */
+.ctrl-performed-bpm-input::-webkit-inner-spin-button,
+.ctrl-performed-bpm-input::-webkit-outer-spin-button {
+  opacity: 1;
 }
 
 /* P6: shown mid-song once Next/Previous has dropped the song into Manual. Deliberately loud —
    the performer has to register "this is not driving itself any more" at a glance, mid-song. */
 .control-manual-override-badge {
   padding: 0.3em 0.7em;
-  border-radius: 0.4em;
-  border: 1px solid #ff9f0a;
-  background: rgba(255, 159, 10, 0.15);
-  color: #ff9f0a;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--state-override);
+  background: var(--state-override-bg);
+  color: var(--state-override);
   font-size: 0.85em;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2067,6 +2363,7 @@ html, body, #root {
 }
 
 .beat-circle {
+  font-family: var(--font-numeric);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2074,10 +2371,10 @@ html, body, #root {
   height: var(--beat-circle-size);
   min-width: var(--beat-circle-size);
   min-height: var(--beat-circle-size);
-  border-radius: 50%;
-  border: 1px solid #48484a;
-  background: #2c2c2e;
-  color: #e5e5e5;
+  border-radius: var(--radius-round);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-primary);
   flex-direction: column;
   gap: 0.25em;
   user-select: none;
@@ -2092,16 +2389,17 @@ html, body, #root {
 }
 
 .beat-circle-beat-number {
+  font-family: var(--font-numeric);
   font-size: clamp(2.4em, 5vw, 2.9em);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: #a0a0a2;
+  color: var(--beat-number-text);
   transition: color 0.08s ease-out;
 }
 
 .beat-circle-downbeat {
-  color: #e5e5e5;
+  color: var(--beat-accent);
   transform: scale(1.12);
   display: inline-block;
   transform-origin: center;
@@ -2115,10 +2413,10 @@ html, body, #root {
 .beat-circle-dot {
   width: 0.35em;
   height: 0.35em;
-  border-radius: 50%;
-  background: #48484a;
+  border-radius: var(--radius-round);
+  background: var(--beat-dot-idle);
 }
 
 .beat-circle-dot-active {
-  background: #e5e5e5;
+  background: var(--beat-accent);
 }

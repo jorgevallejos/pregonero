@@ -44,6 +44,7 @@ import {
   getLibrarySongById,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import { APP_VERSION } from './appVersion'
 import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
@@ -328,7 +329,9 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    expect(screen.queryByRole('banner')).toBeNull()
+    // The old shell specifically — the setup masthead is also a banner, and is expected.
+    expect(document.querySelector('.control-top-bar')).toBeNull()
+    expect(document.querySelector('.control-masthead')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
     expect(queryArmedTransportNextButton()).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
@@ -345,7 +348,9 @@ describe('v0.5 control screen state machine integration', () => {
       { timeout: WAIT_TIMEOUT }
     )
 
-    expect(screen.queryByRole('banner')).toBeNull()
+    // The old shell specifically — the setup masthead is also a banner, and is expected.
+    expect(document.querySelector('.control-top-bar')).toBeNull()
+    expect(document.querySelector('.control-masthead')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /previous/i })).toBeNull()
     expect(queryArmedTransportNextButton()).toBeNull()
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull()
@@ -6202,10 +6207,10 @@ describe('Control performance timer/status button', () => {
     expect(timerRule).toMatch(/width:\s*var\(--beat-circle-size\)/)
     expect(timerRule).toMatch(/height:\s*var\(--beat-circle-size\)/)
     expect(timerRule).toMatch(/padding:\s*0/)
-    expect(timerRule).toMatch(/border-radius:\s*50%/)
-    expect(timerRule).toMatch(/border:\s*1px\s+solid\s+#48484a/)
-    expect(timerRule).toMatch(/background:\s*#2c2c2e/)
-    expect(timerRule).toMatch(/color:\s*#e5e5e5/)
+    expect(timerRule).toMatch(/border-radius:\s*var\(--radius-round\)/)
+    expect(timerRule).toMatch(/border:\s*1px\s+solid\s+var\(--control-border\)/)
+    expect(timerRule).toMatch(/background:\s*var\(--control-bg\)/)
+    expect(timerRule).toMatch(/color:\s*var\(--text-primary\)/)
   })
 
   it('keeps minute text dominant and removes icon styling complexity', () => {
@@ -6225,9 +6230,9 @@ describe('Control performance timer/status button', () => {
     expect(pausedBlock).toBeTruthy()
 
     const pausedRule = pausedBlock![1]
-    expect(pausedRule).toMatch(/background:\s*#4a3d2d/)
-    expect(pausedRule).toMatch(/border-color:\s*#5c4d3d/)
-    expect(pausedRule).toMatch(/color:\s*#f0ebe0/)
+    expect(pausedRule).toMatch(/background:\s*var\(--state-paused-bg\)/)
+    expect(pausedRule).toMatch(/border-color:\s*var\(--state-paused-border\)/)
+    expect(pausedRule).toMatch(/color:\s*var\(--state-paused-text\)/)
   })
 
   it('positions floating actions vertically under the timer circle', () => {
@@ -8334,6 +8339,88 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
   })
 
   /**
+   * Setup panel — the four columns share one line for their big value.
+   *
+   * Each column used to be its own independent grid, so the value row was only as tall as
+   * whatever was left after that column's own buttons. Lyrics display carries two extra
+   * controls, so its value floated ~100px above Song / Projection / Arm. Fixed by making the
+   * outer container own the rows and each column a subgrid of it: the value row is then one
+   * shared row, and the extras get a row of their own between value and buttons.
+   */
+  describe('Setup panel column alignment', () => {
+    const setupCss = () => readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+
+    it('lets the outer container own the four rows, so every column shares them', () => {
+      const outer = setupCss().match(
+        /\.control-center-setup \.control-performance-state \{([^}]*)\}/
+      )
+      expect(outer).toBeTruthy()
+      expect(outer![1]).toMatch(/grid-template-rows:\s*auto\s+minmax\(min-content,\s*1fr\)\s+auto\s+auto/)
+    })
+
+    it('makes each setup column a subgrid spanning those four rows', () => {
+      const section = setupCss().match(
+        /\.control-center-setup \.control-setup-section \{([^}]*)\}/
+      )
+      expect(section).toBeTruthy()
+      expect(section![1]).toMatch(/grid-template-rows:\s*subgrid/)
+      expect(section![1]).toMatch(/grid-row:\s*span\s+4/)
+    })
+
+    it('gives every column the same four children in the same order', async () => {
+      setupControlViewWithReadinessPassing()
+      await armAndReachSetup()
+      const sections = document.querySelectorAll('.control-setup-section')
+      expect(sections.length).toBeGreaterThan(1)
+      sections.forEach((section) => {
+        const classes = Array.from(section.children).map((c) => c.className)
+        expect(classes).toEqual([
+          'control-setup-label',
+          'control-setup-content',
+          'control-setup-extras',
+          'control-setup-buttons',
+        ])
+      })
+    })
+
+    it('puts the transitions toggle in the extras row, not in the button row', async () => {
+      setupWithTimelineSong() // a v2 timeline is what makes the Transitions toggle appear
+      await armAndReachSetup()
+      const toggle = document.querySelector('.control-setup-toggle-area')
+      expect(toggle).toBeTruthy()
+      expect(toggle!.closest('.control-setup-extras')).toBeTruthy()
+      expect(toggle!.closest('.control-setup-buttons')).toBeNull()
+    })
+  })
+
+  /**
+   * The setup screen carries the masthead — the only place in the app that says what this is.
+   * Modelled on `bombista serve`'s, because the two are one suite and should look it.
+   */
+  describe('Setup screen masthead', () => {
+    it('names the app, the suite and the maker', async () => {
+      setupControlViewWithReadinessPassing()
+      await armAndReachSetup()
+      const mast = document.querySelector('.control-masthead')
+      expect(mast).toBeTruthy()
+      expect(mast!.textContent).toContain('Pregonero')
+      expect(mast!.textContent).toContain('Tramoya')
+      expect(mast!.textContent).toContain('Chango Pepper')
+      expect(mast!.textContent).toContain(APP_VERSION)
+    })
+
+    it('is gone once the song is armed — the stage view carries no branding', async () => {
+      setupControlViewWithReadinessPassing()
+      await armAndReachSetup()
+      expect(document.querySelector('.control-masthead')).toBeTruthy()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^arm$/i }))
+      })
+      expect(document.querySelector('.control-masthead')).toBeNull()
+    })
+  })
+
+  /**
    * §P9 — performed-tempo scaling, at the app level.
    *
    * The pure maths lives in performedTempo.test.ts (including the golden-fixture acceptance).
@@ -8362,9 +8449,9 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       vi.useFakeTimers()
       setupTempoSong()
       await armAndReachSetupFakeTimers()
-      // The field shows empty (defaulting), with the recording's tempo alongside it.
-      expect((screen.getByTestId('performed-bpm-input') as HTMLInputElement).value).toBe('')
-      expect(screen.getByTestId('declared-bpm-label').textContent).toContain(String(DECLARED))
+      // The box itself shows the recording's tempo — there is no second label saying it twice.
+      expect((screen.getByTestId('performed-bpm-input') as HTMLInputElement).value).toBe(String(DECLARED))
+      expect(screen.queryByTestId('declared-bpm-label')).toBeNull()
 
       await act(async () => { fireEvent.click(getArmButton()) })
       await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^next$/i })) })
@@ -8375,6 +8462,65 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       expect(getSongIndex()).toBe(0)
       act(() => { vi.advanceTimersByTime(200) })
       expect(getSongIndex()).toBe(1)
+    })
+
+    it('steps in halves and never finer', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      const input = screen.getByTestId('performed-bpm-input') as HTMLInputElement
+      expect(input.getAttribute('step')).toBe('0.5')
+      expect(input.getAttribute('min')).toBe('1')
+    })
+
+    it('snaps a typed value to the nearest half on blur', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      const input = screen.getByTestId('performed-bpm-input')
+      await act(async () => { fireEvent.change(input, { target: { value: '90.3' } }) })
+      await act(async () => { fireEvent.blur(input) })
+      expect((input as HTMLInputElement).value).toBe('90.5')
+      expect(getStoredPerformedBpm('duelo')).toBe(90.5)
+
+      await act(async () => { fireEvent.change(input, { target: { value: '90.2' } }) })
+      await act(async () => { fireEvent.blur(input) })
+      expect((input as HTMLInputElement).value).toBe('90')
+      expect(getStoredPerformedBpm('duelo')).toBe(90)
+    })
+
+    it("leaves the recording's own tempo alone on blur, however odd the number is", async () => {
+      vi.useFakeTimers()
+      const song = {
+        id: 'odd',
+        title: 'Odd',
+        items: VALID_LINES,
+        timelineVersion: 2,
+        leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
+        timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
+        tempo: { bpm: 66.67, numerator: 4, denominator: 4, countInBars: 1 },
+      }
+      saveSetlistStore(createInitialSnapshot([song]))
+      setupControlViewWithReadinessPassing()
+      setCurrentSongId('odd')
+      await armAndReachSetupFakeTimers()
+      const input = screen.getByTestId('performed-bpm-input') as HTMLInputElement
+      expect(input.value).toBe('66.67')
+      await act(async () => { fireEvent.blur(input) })
+      // Snapping this to 66.5 would silently retime the whole song against the recording.
+      expect(input.value).toBe('66.67')
+      expect(getStoredPerformedBpm('odd')).toBeNull()
+    })
+
+    it('an emptied box comes back to the recording tempo on blur', async () => {
+      vi.useFakeTimers()
+      setupTempoSong()
+      await armAndReachSetupFakeTimers()
+      const input = screen.getByTestId('performed-bpm-input')
+      await act(async () => { fireEvent.change(input, { target: { value: '' } }) })
+      await act(async () => { fireEvent.blur(input) })
+      expect((input as HTMLInputElement).value).toBe(String(DECLARED))
+      expect(getStoredPerformedBpm('duelo')).toBeNull()
     })
 
     it('ACCEPTANCE: at 1.5x the declared tempo the cue times scale by 2/3', async () => {
