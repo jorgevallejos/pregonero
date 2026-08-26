@@ -13,6 +13,7 @@ const allTrue: PerformanceControlPrerequisites = {
   translationLanguageSelected: true,
   singingLanguageSelected: true,
   projectionOpen: true,
+  songReadyForGig: true,
 }
 
 describe('performance control state machine', () => {
@@ -44,6 +45,7 @@ describe('performance control state machine', () => {
         translationLanguageSelected: false,
         singingLanguageSelected: false,
         projectionOpen: false,
+        songReadyForGig: false,
       }
       expect(getPerformanceControlState(none, false)).toBe('SETUP')
     })
@@ -129,5 +131,27 @@ describe('performance control state machine', () => {
     it('ARMED → navigation enabled', () => {
       expect(isNavigationEnabled('ARMED')).toBe(true)
     })
+  })
+})
+
+describe('the gig gate', () => {
+  it('holds a song whose visuals are not set up out of READY_TO_ARM', () => {
+    const prereqs: PerformanceControlPrerequisites = { ...allTrue, songReadyForGig: false }
+    expect(getPerformanceControlState(prereqs, false)).toBe('SETUP')
+    expect(isReadyToArm(prereqs)).toBe(false)
+  })
+
+  it('refuses the arm outright, not just the label', () => {
+    const prereqs: PerformanceControlPrerequisites = { ...allTrue, songReadyForGig: false }
+    expect(tryArm(prereqs, false)).toBe(false)
+  })
+
+  it('drops an armed song out of ARMED the moment its gig stops carrying it', () => {
+    const prereqs: PerformanceControlPrerequisites = { ...allTrue, songReadyForGig: false }
+    expect(getPerformanceControlState(prereqs, true)).toBe('SETUP')
+  })
+
+  it('lets everything else through when the gate is satisfied', () => {
+    expect(getPerformanceControlState(allTrue, false)).toBe('READY_TO_ARM')
   })
 })

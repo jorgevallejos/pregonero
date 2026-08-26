@@ -2,7 +2,8 @@
  * Performance control state machine — behavioral contract from spec.
  *
  * States: SETUP | READY_TO_ARM | ARMED
- * Readiness: songSelected && translationLanguageSelected && singingLanguageSelected && projectionOpen
+ * Readiness: songSelected && translationLanguageSelected && singingLanguageSelected &&
+ * projectionOpen && songReadyForGig
  *
  * This module is UI-agnostic and contains only pure logic. The control screen (or any consumer)
  * should build PerformanceControlPrerequisites from app state and drive the armed flag via
@@ -16,6 +17,15 @@ export interface PerformanceControlPrerequisites {
   translationLanguageSelected: boolean
   singingLanguageSelected: boolean
   projectionOpen: boolean
+  /**
+   * **The hard gate.** A song whose visuals are not set up cannot be armed, so the failure lands
+   * on the setup screen instead of on the wall.
+   *
+   * The verdict comes from `gigReadiness.ts` and from nowhere else; this field carries it in, and
+   * this module must not re-derive it. With no gig folder open the gate is off and this is true,
+   * which is why it defaults that way for callers that predate the gig.
+   */
+  songReadyForGig: boolean
 }
 
 export function isReadyToArm(prereqs: PerformanceControlPrerequisites): boolean {
@@ -23,7 +33,8 @@ export function isReadyToArm(prereqs: PerformanceControlPrerequisites): boolean 
     prereqs.songSelected &&
     prereqs.translationLanguageSelected &&
     prereqs.singingLanguageSelected &&
-    prereqs.projectionOpen
+    prereqs.projectionOpen &&
+    prereqs.songReadyForGig
   )
 }
 

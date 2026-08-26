@@ -2427,3 +2427,176 @@ html, body, #root {
 .beat-circle-dot-active {
   background: var(--beat-accent);
 }
+
+/* ── The gig, and the readiness delta it renders ─────────────────────────────────────────────
+   Nothing here is a live state, so nothing here takes the armed green. A step that is not yet
+   done is the normal state of a gig being built and reads as dim text; only a refusal — a file
+   that will not parse, a mapping of the wrong room — takes the fail colour, and takes it as an
+   outline rather than a fill, because it is a desk problem and not a stage one. */
+
+.control-setup-note {
+  font-size: 0.8125em;
+  color: var(--text-status);
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.control-arm-blocked {
+  width: 100%;
+  text-align: left;
+  border-left: 2px solid var(--state-warn-border);
+  padding: 0.35em 0 0.35em 0.75em;
+  font-size: 0.8125em;
+  color: var(--state-warn-text);
+  line-height: 1.4;
+}
+
+.control-arm-blocked-title {
+  margin: 0 0 0.25em;
+  color: var(--text-primary);
+}
+
+.control-arm-blocked ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.control-arm-blocked-hint {
+  margin: 0.35em 0 0;
+  color: var(--text-dim);
+}
+
+.songs-song-btn-blocked {
+  border-style: dashed;
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.songs-song-blocked-reason {
+  display: block;
+  margin-top: 0.4em;
+  font-size: 0.55em;
+  line-height: 1.3;
+  color: var(--state-warn-text);
+}
+
+.gig-screen .gig-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5em;
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 2em 0 3em;
+  text-align: left;
+}
+
+.gig-section-title {
+  margin: 0 0 0.5em;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.gig-id {
+  margin: 0;
+  font-size: 1.25em;
+  color: var(--text-primary);
+}
+
+.gig-folder {
+  margin: 0.15em 0 0;
+  font-family: var(--font-control);
+  font-size: 0.8125em;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.gig-empty,
+.gig-hint {
+  margin: 0.5em 0 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.gig-hint {
+  color: var(--text-dim);
+}
+
+.gig-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  margin-top: 0.9em;
+}
+
+.gig-refusals {
+  border: 1px solid var(--state-record-border);
+  padding: 0.9em 1.1em;
+  color: var(--state-record-text);
+}
+
+.gig-refusals ul,
+.gig-steps ul,
+.gig-songs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gig-refusals li {
+  line-height: 1.45;
+  margin-bottom: 0.35em;
+}
+
+.gig-step,
+.gig-song {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15em 1em;
+  padding: 0.6em 0;
+  border-bottom: 1px solid var(--rule-faint);
+}
+
+.gig-step-name,
+.gig-song-title {
+  color: var(--text-primary);
+}
+
+.gig-step-status,
+.gig-song-status {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: center;
+}
+
+.gig-step-complete .gig-step-status,
+.gig-song-ready .gig-song-status {
+  color: var(--state-ok);
+}
+
+.gig-step-broken .gig-step-status,
+.gig-song-blocked .gig-song-status {
+  color: var(--state-fail);
+}
+
+.gig-step-missing,
+.gig-song-missing,
+.gig-song-notes {
+  grid-column: 1 / -1;
+  margin: 0.25em 0 0;
+  padding-left: 1.1em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  list-style: disc;
+}
+
+.gig-song-notes {
+  color: var(--text-dim);
+}

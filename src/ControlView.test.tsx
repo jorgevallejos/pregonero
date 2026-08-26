@@ -289,7 +289,7 @@ describe('v0.5 control screen state machine integration', () => {
     )
   })
 
-  it('2. In Setup state, the sections appear in this exact order: Song, Lyrics display, Projection, Arm', async () => {
+  it('2. In Setup state, the sections appear in this exact order: Gig, Song, Lyrics display, Projection, Arm', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -310,12 +310,15 @@ describe('v0.5 control screen state machine integration', () => {
 
     const main = screen.getByRole('main')
     const sections = main.querySelectorAll('.control-setup-section')
-    expect(sections.length).toBeGreaterThanOrEqual(4)
+    expect(sections.length).toBeGreaterThanOrEqual(5)
     const firstLabels = Array.from(sections).map((s) => s.querySelector('.control-setup-label')?.textContent)
-    expect(firstLabels[0]).toBe('Song')
-    expect(firstLabels[1]).toBe('Lyrics display')
-    expect(firstLabels[2]).toBe('Projection')
-    expect(firstLabels[3]).toBe('Arm')
+    // The gig comes first because it is what the rest of the panel is inside: which night, then
+    // which song of it, then how it looks and where it goes.
+    expect(firstLabels[0]).toBe('Gig')
+    expect(firstLabels[1]).toBe('Song')
+    expect(firstLabels[2]).toBe('Lyrics display')
+    expect(firstLabels[3]).toBe('Projection')
+    expect(firstLabels[4]).toBe('Arm')
   })
 
   it('2b. In Setup state, old top navigation shell is not rendered (no top bar, no bottom transport)', async () => {

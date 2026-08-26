@@ -718,6 +718,17 @@ export function moveSongInSetlist(
   return reorderSongsInSetlist(setlistId, idx, j)
 }
 
+/**
+ * The active setlist's rows in order, **including references whose file could not be read**.
+ * The gig's readiness needs to see a broken row to report it; `getOrderedSongsForActiveSetlist`
+ * drops it, which is right for performing and wrong for reporting.
+ */
+export function getOrderedEntriesForActiveSetlist(): LibraryEntry[] {
+  const snap = getSnapshot()
+  if (!snap.activeSetlistId) return []
+  return orderedEntriesForSetlistId(snap, snap.activeSetlistId)
+}
+
 export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
   if (!snap.activeSetlistId) return []
