@@ -27,7 +27,7 @@ import {
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
-import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
+import { getPlayedSongs, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
@@ -52,6 +52,11 @@ import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
+
+/** The played log flattened to ids, for the assertions that only care that a song is in it. */
+function playedSongIds(): string[] {
+  return getPlayedSongs().map((e) => e.songId)
+}
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -4850,14 +4855,14 @@ describe('ControlView performer state flow', () => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
       await navigateToLastLyric()
-      expect(getPlayedSongIds()).not.toContain('duelo')
+      expect(playedSongIds()).not.toContain('duelo')
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
 
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-      expect(getPlayedSongIds()).toContain('duelo')
+      expect(playedSongIds()).toContain('duelo')
     })
 
     it('when performer unarms before end-of-song (hold-to-confirm), song is NOT marked as played', async () => {
@@ -4874,7 +4879,7 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
       })
-      expect(getPlayedSongIds()).not.toContain('duelo')
+      expect(playedSongIds()).not.toContain('duelo')
 
       const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
       vi.useFakeTimers()
@@ -4890,7 +4895,7 @@ describe('ControlView performer state flow', () => {
       vi.useRealTimers()
 
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-      expect(getPlayedSongIds()).not.toContain('duelo')
+      expect(playedSongIds()).not.toContain('duelo')
     })
 
     it('Setlist: played song is visually darkened (songs-song-btn-played) and shows checkmark', async () => {
@@ -8359,5 +8364,105 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       act(() => { vi.advanceTimersByTime(5_840 + 100) })
       expect(getSongIndex()).toBe(1)
     })
+  })
+})
+
+describe('the setlist is played once', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('offers no next-song tile once the setlist is done, so a repeat cannot resume it', async () => {
+    vi.useFakeTimers()
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    const { unmount } = render(<App initialHash="#/" />)
+
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { fireEvent.click(getArmButton()) })
+    await navigateToLastLyric()
+    act(() => { vi.advanceTimersByTime(6_000) })
+
+    // Walk the setlist through: duelo, then pimiento via the tile.
+    await act(async () => { fireEvent.click(screen.getByTestId('next-song-tile')) })
+    expect(getCurrentSongId()).toBe('pimiento')
+
+    // pimiento is one line in this library, so one Next reaches its last lyric.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Next' })) })
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.queryByTestId('next-song-tile')).toBeNull()
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Unarm/ })) })
+    expect(playedSongIds()).toEqual(['duelo', 'pimiento'])
+
+    // The repeat: duelo again, from the top. Before this change `nextSongForTile` was computed
+    // from duelo's index in the setlist, so the app would have offered Pimiento a second time
+    // and silently restarted the running order.
+    unmount()
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { fireEvent.click(getArmButton()) })
+    await navigateToLastLyric()
+    act(() => { vi.advanceTimersByTime(6_000) })
+
+    expect(screen.getByText('Mundo')).toBeTruthy()
+    expect(screen.queryByTestId('next-song-tile')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Unarm/ }).textContent).toBe('Unarm')
+
+    // Ending the repeat returns to the end-of-setlist state and appends a second performance.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Unarm/ })) })
+    expect(playedSongIds()).toEqual(['duelo', 'pimiento', 'duelo'])
+    expect(screen.queryByTestId('next-song-tile')).toBeNull()
+  })
+
+  it('records the finished song with a real end time and the time it was loaded', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => { fireEvent.click(getArmButton()) })
+    await navigateToLastLyric()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Unarm/ })) })
+
+    const log = getPlayedSongs()
+    expect(log).toHaveLength(1)
+    expect(log[0].songId).toBe('duelo')
+    expect(log[0].endedAt).not.toBeNull()
+    expect(log[0].startedAt).not.toBeNull()
+    expect(Date.parse(log[0].endedAt as string)).toBeGreaterThanOrEqual(
+      Date.parse(log[0].startedAt as string)
+    )
+  })
+
+  it('does not record a song the performer unarmed away from before the end', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    setSongIndex(0)
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => { fireEvent.click(getArmButton()) })
+
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.pointerDown(unarmBtn) })
+    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+    await act(async () => { fireEvent.pointerUp(unarmBtn) })
+
+    expect(getPlayedSongs()).toEqual([])
   })
 })
