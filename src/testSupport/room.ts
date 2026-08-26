@@ -63,10 +63,17 @@ function defaultsFor(shapes: readonly VisualShape[]): Record<string, string[]> {
   return out
 }
 
-/** The default room: one lyrics shape and one video shape, both filling the frame. */
+/**
+ * The default room: a video shape, a lyrics shape and an intro shape, all filling the frame.
+ *
+ * Three shapes over the same patch of wall is not how a room is really mapped — it is the smallest
+ * arrangement in which every song-aware type has somewhere to land, so a test can assert *which*
+ * shape a thing appeared in.
+ */
 export const DEFAULT_ROOM_SHAPES: VisualShape[] = [
   shape('video-1', 'song-video'),
   shape('lyrics-1', 'song-lyrics'),
+  shape('intro-1', 'song-intro'),
 ]
 
 /** Opens a gig and puts a room in it. Returns the shapes, in paint order. */

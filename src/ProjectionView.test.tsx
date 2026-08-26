@@ -672,7 +672,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-    expect(screen.getByText('(Tragedy of Roasted Pig)')).toBeTruthy()
+    expect(screen.getByText('Tragedy of Roasted Pig')).toBeTruthy()
   })
 
   it('shows intro tagline in projection language when intro is present', async () => {
@@ -899,7 +899,8 @@ describe('The projection is a compositor (regression guard: no full-frame render
 
     expect(document.querySelector('.projection-animation-region')).toBeNull()
     expect(document.querySelector('.projection-subtitle-band')).toBeNull()
-    const root = document.querySelector('[data-shape-id="lyrics-1"]') as HTMLElement
+    // The intro has a shape of its own now: `song-intro` is a type, not a mode of the lyrics slot.
+    const root = document.querySelector('[data-shape-id="intro-1"]') as HTMLElement
     expect(root.contains(screen.getByTestId('song-intro-screen'))).toBe(true)
   })
 })
@@ -983,7 +984,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-    expect(screen.getByText('(Tragedy of Roasted Pig)')).toBeTruthy()
+    expect(screen.getByText('Tragedy of Roasted Pig')).toBeTruthy()
     expect(screen.getByText('Fight your destiny.')).toBeTruthy()
   })
 
@@ -1000,8 +1001,8 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // Confirms the intro is riding in the lyrics shape while the video shape holds the media —
-    // two shapes, not one full frame with an overlay.
+    // Three shapes, not one full frame with an overlay: the media in its own, the title card in
+    // its own, and the lyric slot standing by.
     expect(screen.getByTestId('shape-video')).toBeTruthy()
     expect(document.querySelector('[data-shape-id="lyrics-1"]')).toBeTruthy()
   })
@@ -1368,5 +1369,187 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     // A shape is a place that can hold content. With no `song-video` shape there is no place, so
     // there is no video — and the lyrics fall back to the performer's own navigation.
     expect(document.querySelector('video')).toBeNull()
+  })
+})
+
+describe('Typed shapes drive what appears where', () => {
+  const SONG = {
+    id: 'tragedia',
+    title: 'Tragedia de cerdo asado',
+    items: TWO_LINES,
+    title_translations: { en: 'Tragedy of Roasted Pig' },
+    intro: { en: 'A pig, a fire, and a family.' },
+  }
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  async function arm(songId = SONG.id) {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(songId)
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+  }
+
+  function inShape(shapeId: string): HTMLElement | null {
+    return document.querySelector(`[data-shape-id="${shapeId}"]`)
+  }
+
+  it('puts the title card in the song-intro shapes and the lyric in the song-lyrics shapes', async () => {
+    installRoom()
+    installLibrary([SONG])
+    await arm()
+
+    // `song-lyrics` and `song-video` are two types, not one "main" slot, and `song-intro` is a
+    // third: the intro is not a mode the lyric slot goes into.
+    expect(inShape('intro-1')!.contains(screen.getByTestId('song-intro-screen'))).toBe(true)
+    expect(inShape('lyrics-1')!.querySelector('.layer-intro')).toBeNull()
+
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+    expect(inShape('lyrics-1')!.textContent).toContain('Hello')
+  })
+
+  it('lights every intro shape the gig assigns, not just the first', async () => {
+    installRoom({
+      shapes: [
+        shape('panel-a', 'song-intro'),
+        shape('panel-b', 'song-intro', [[0.5, 0], [1, 0], [1, 0.5], [0.5, 0.5]]),
+      ],
+      defaults: { 'song-intro': ['panel-a', 'panel-b'] },
+    })
+    installLibrary([SONG])
+    await arm()
+    expect(screen.getAllByTestId('song-intro-screen')).toHaveLength(2)
+  })
+
+  it('shows no title card at all when the gig has no shape to put one in', async () => {
+    // Absence is the empty state. Nothing is declared empty and nothing falls back to a full
+    // frame — a shape is a place that can hold content, and there is no place.
+    installRoom({
+      shapes: [shape('lyrics-only', 'song-lyrics')],
+      defaults: { 'song-lyrics': ['lyrics-only'] },
+    })
+    installLibrary([SONG])
+    await arm()
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+  })
+
+  it('leaves a shape dark when the playing song points at a different one', async () => {
+    installRoom({
+      shapes: [shape('for-tragedia', 'song-intro'), shape('for-vidas', 'song-intro')],
+      defaults: {},
+      songs: {
+        tragedia: { 'song-intro': ['for-tragedia'] },
+        vidas: { 'song-intro': ['for-vidas'] },
+      },
+    })
+    installLibrary([SONG])
+    await arm()
+    expect(inShape('for-tragedia')).toBeTruthy()
+    // Not blacked out, not declared empty — simply not there.
+    expect(inShape('for-vidas')).toBeNull()
+  })
+})
+
+describe('Shapes Pregonero does not coordinate', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  async function mountProjection() {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+  }
+
+  /**
+   * A logo, or any number of pictures, up from power-up to teardown. **There is no `logo` case in
+   * Pregonero and there must not be one**: the test for being coordinated is not "is it on the
+   * wall" but "does Pregonero decide when it appears", and here the answer is no. They are on
+   * because the projector is on — before any arm, during a song, and after.
+   */
+  it('paints a static shape with nothing armed, and keeps painting it once a song starts', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'logo.png': '/media/logo.png' }))
+    installRoom({
+      shapes: [
+        shape('corner-logo', 'image', FULL_FRAME, { layer: { type: 'image', src: 'logo.png' } }),
+        shape('lyrics-1', 'song-lyrics'),
+      ],
+      defaults: { 'song-lyrics': ['lyrics-1'] },
+    })
+    await mountProjection()
+
+    expect(screen.getByTestId('shape-static-corner-logo')).toBeTruthy()
+
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+
+    expect(screen.getByTestId('shape-static-corner-logo')).toBeTruthy()
+  })
+
+  it('paints a fill, which is the wall’s black and not content', async () => {
+    installRoom({
+      shapes: [shape('keepout', 'fill', FULL_FRAME, { layer: { type: 'fill', color: '#000000' } })],
+      defaults: {},
+    })
+    await mountProjection()
+    expect(screen.getByTestId('shape-fill-keepout')).toBeTruthy()
+  })
+
+  it('paints nothing at all for a test pattern', async () => {
+    // `pattern` is Muralista's default for a new shape and its fallback for a layer this build
+    // does not know. It is an authoring aid, and one on a wall at a gig would be a bug that looks
+    // like a feature.
+    installRoom({
+      shapes: [shape('untouched', 'pattern'), shape('mystery', 'something-new')],
+      defaults: {},
+    })
+    await mountProjection()
+    expect(document.querySelector('[data-shape-id="untouched"]')).toBeNull()
+    expect(document.querySelector('[data-shape-id="mystery"]')).toBeNull()
+  })
+
+  it('respects a shape hidden in Muralista', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'logo.png': '/media/logo.png' }))
+    installRoom({
+      shapes: [
+        shape('hidden-logo', 'image', FULL_FRAME, {
+          layer: { type: 'image', src: 'logo.png' },
+          visible: false,
+        }),
+      ],
+      defaults: {},
+    })
+    await mountProjection()
+    expect(document.querySelector('[data-shape-id="hidden-logo"]')).toBeNull()
   })
 })

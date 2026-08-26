@@ -1,13 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { UNIT_SIZE } from './vendor/warp.js'
 import {
+  fitInBox,
   textLayoutInsetX,
   TEXT_INSET_Y,
   type TextFields,
 } from './shapeTextLayout'
-
-const FIT_ITERATIONS = 14
-const MIN_PX = 8
 
 type Props = {
   text: string
@@ -58,31 +56,16 @@ export function ShapeText({
       setFontSize(maxPx)
       return
     }
-    const insetX = textLayoutInsetX(boxWidth)
-    const availW = box.clientWidth - 2 * insetX
-    const availH = box.clientHeight - 2 * TEXT_INSET_Y
-    if (!(availW > 0) || !(availH > 0)) {
-      // Nothing has been measured — the element is not laid out, which is the ordinary state in
-      // jsdom. A fit against a zero-width box collapses straight to the floor, so do not fit.
-      setFontSize(maxPx)
-      return
-    }
-    const fits = (px: number) => {
-      inner.style.fontSize = `${px}px`
-      return inner.scrollWidth <= availW && inner.scrollHeight <= availH
-    }
-    if (fits(maxPx)) {
-      setFontSize(maxPx)
-      return
-    }
-    let lo = MIN_PX
-    let hi = maxPx
-    for (let i = 0; i < FIT_ITERATIONS; i++) {
-      const mid = (lo + hi) / 2
-      if (fits(mid)) lo = mid
-      else hi = mid
-    }
-    setFontSize(lo)
+    setFontSize(
+      fitInBox(
+        box,
+        inner,
+        (px) => { inner.style.fontSize = `${px}px` },
+        maxPx,
+        textLayoutInsetX(boxWidth),
+        TEXT_INSET_Y
+      )
+    )
   }, [text, boxWidth, maxPx])
 
   const strokeStyle = fields.outline && fields.outlineWidth > 0

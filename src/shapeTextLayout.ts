@@ -132,3 +132,60 @@ export function textLayoutInsetX(boxWidth: number): number {
 }
 
 export const TEXT_INSET_Y = Math.round(TEXT_INSET * UNIT_SIZE)
+
+export const FIT_ITERATIONS = 14
+export const TEXT_MIN_PX = 8
+
+/**
+ * **Auto-fit: shrink until it fits, never grow past the maximum.**
+ *
+ * Measured in the *unwarped* content box — the space before `matrix3d` — which is the natural
+ * place for it and the reason the guarantee holds with no geometry bookkeeping. That box is
+ * `boxWidth` by `UNIT_SIZE`, and the counter-scale maps it exactly onto the unit square the
+ * homography consumes, so fitting here is still fitting the quad however the quad is shaped.
+ * A quad redrawn at a different **size** does not change the box width at all — only its
+ * proportions can — so a resize rescales already-fitted content with no refit involved.
+ *
+ * Fitting is monotonic (a bigger size never needs fewer lines), so a binary search converges on
+ * the largest size that fits. Both axes are checked: wrapping handles the ordinary case, and
+ * `scrollWidth` catches the single word longer than the box, which cannot wrap at all.
+ *
+ * `apply` sets whatever the caller is searching over — a font size on one element, or the custom
+ * property every part of a multi-part card is a multiple of, so the card shrinks as one thing.
+ *
+ * Returns the maximum untouched where the box has not been measured. jsdom reports zero for every
+ * dimension, and a fit against a zero-width box collapses straight to the floor: content that is
+ * simply tiny is a silent, plausible-looking failure, and it cost Muralista a debugging round.
+ */
+export function fitInBox(
+  box: HTMLElement,
+  measured: HTMLElement,
+  apply: (px: number) => void,
+  maxPx: number,
+  insetX: number,
+  insetY: number
+): number {
+  const availW = box.clientWidth - 2 * insetX
+  const availH = box.clientHeight - 2 * insetY
+  if (!(availW > 0) || !(availH > 0)) {
+    apply(maxPx)
+    return maxPx
+  }
+
+  const fits = (px: number) => {
+    apply(px)
+    return measured.scrollWidth <= availW && measured.scrollHeight <= availH
+  }
+
+  if (fits(maxPx)) return maxPx
+
+  let lo = TEXT_MIN_PX
+  let hi = maxPx
+  for (let i = 0; i < FIT_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2
+    if (fits(mid)) lo = mid
+    else hi = mid
+  }
+  apply(lo)
+  return lo
+}
