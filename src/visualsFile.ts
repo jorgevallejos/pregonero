@@ -25,15 +25,73 @@ export const SONG_REASSIGNABLE_TYPES = ['song-lyrics', 'song-video', 'song-intro
 export type SongAwareType = (typeof SONG_AWARE_TYPES)[number]
 export type SongReassignableType = (typeof SONG_REASSIGNABLE_TYPES)[number]
 
+/** A normalised point. Resolution-independent by construction, which is the whole point of it. */
+export type Point = [number, number]
+
 /**
- * One mapped region. Geometry is Muralista's business and is not modelled here beyond keeping
- * it: this stage renders nothing, and E2 is where corners start mattering.
+ * One mapped region.
+ *
+ * **Geometry is Muralista's, and none of it is interpreted here.** What this file does is *read*
+ * the four corners out of the record so the warp can be evaluated at the real output size; the
+ * maths that turns them into a transform is `src/vendor/warp.js`, which is Muralista's code run
+ * unchanged.
  */
 export type VisualShape = {
   id: string
   name?: string
-  layer?: { type?: string }
+  /** The content frame: four normalised corners, `[TL, TR, BR, BL]`. */
+  corners?: Point[] | null
+  /** The clipping ring: three or more normalised points. At exactly four it *is* the frame. */
+  outline?: Point[] | null
+  layer?: { type?: string } & Record<string, unknown>
+  visible?: boolean
   [key: string]: unknown
+}
+
+function isPoint(p: unknown): p is Point {
+  return Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && isFinite(n))
+}
+
+/** Four finite normalised points — the shape both `corners` and a four-point outline take. */
+export function isQuad(q: unknown): q is Point[] {
+  return Array.isArray(q) && q.length === 4 && q.every(isPoint)
+}
+
+/** Three or more finite normalised points. Fewer than three is not a polygon. */
+export function isPointRing(pts: unknown): pts is Point[] {
+  return Array.isArray(pts) && pts.length >= 3 && pts.every(isPoint)
+}
+
+/**
+ * **The four corners the warp uses**, or null when there are none to be had.
+ *
+ * While the outline has exactly four points, *the outline is the frame* — the same four points,
+ * not a copy of them. Past four there is no quad to read off it, so `corners` is consulted: it
+ * holds the last four-corner value the shape had, and the extra points only clip. This is
+ * Muralista's rule, read from Muralista's file; the only thing Pregonero does with the answer is
+ * hand it to `frameMatrix3d`.
+ */
+export function shapeFrame(shape: VisualShape | null | undefined): Point[] | null {
+  if (!shape) return null
+  if (isQuad(shape.outline)) return shape.outline
+  return isQuad(shape.corners) ? shape.corners : null
+}
+
+/** The clipping ring, falling back to the frame — what a shape meant before outlines existed. */
+export function shapeOutline(shape: VisualShape | null | undefined): Point[] | null {
+  if (!shape) return null
+  if (isPointRing(shape.outline)) return shape.outline
+  return isQuad(shape.corners) ? shape.corners : null
+}
+
+/** True while the outline *is* the frame, in which case it clips nothing and gets no clip at all. */
+export function shapeOutlineIsFrame(shape: VisualShape | null | undefined): boolean {
+  return isQuad(shape?.outline)
+}
+
+/** A shape hidden in Muralista stays hidden on the wall. Absent means visible, as it does there. */
+export function shapeIsVisible(shape: VisualShape): boolean {
+  return shape.visible !== false
 }
 
 /** `{ type: [shapeId] }`, as Muralista's `sanitizeAssignmentMap` writes it. */
@@ -143,6 +201,12 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
  * Ids are checked against the live shape list *and* against the type, so a shape that was deleted
  * or retyped since the assignment was made stops resolving rather than resolving to something
  * else.
+ *
+ * **A shape hidden in Muralista does not resolve**, which is the same answer Muralista's own
+ * output window gives (`renderOutput` filters on `shape.visible`). It is filtered *here*, in the
+ * one lookup, rather than at render time — a hidden shape that satisfied the arm gate and then
+ * painted nothing would be exactly the disagreement between the gate and the wall that having one
+ * readiness function exists to prevent.
  */
 export function resolveShapesForType(
   visuals: VisualsFile,
@@ -154,5 +218,5 @@ export function resolveShapesForType(
   const ids = perSong && perSong.length > 0 ? perSong : (visuals.songVisuals.defaults[type] ?? [])
   return ids
     .map((id) => visuals.shapes.find((s) => s.id === id))
-    .filter((s): s is VisualShape => s !== undefined && shapeTypeOf(s) === type)
+    .filter((s): s is VisualShape => s !== undefined && shapeTypeOf(s) === type && shapeIsVisible(s))
 }

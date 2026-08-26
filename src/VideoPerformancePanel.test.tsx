@@ -27,7 +27,7 @@ vi.mock('./mediaPathStore', () => ({
 
 const setVideoTransportCommandMock = vi.fn()
 
-vi.mock('./VideoProjectionRegion', () => ({
+vi.mock('./videoTransport', () => ({
   setVideoSeekTarget: vi.fn(),
   setVideoTransportCommand: setVideoTransportCommandMock,
 }))

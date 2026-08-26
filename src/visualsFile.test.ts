@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { parseVisualsFile, resolveShapesForType, shapeTypeOf } from './visualsFile'
+import {
+  parseVisualsFile,
+  resolveShapesForType,
+  shapeFrame,
+  shapeIsVisible,
+  shapeOutline,
+  shapeOutlineIsFrame,
+  shapeTypeOf,
+  type Point,
+} from './visualsFile'
 
 const GIG = '2026-09-12-bar-eduard'
 
@@ -120,5 +129,71 @@ describe('resolveShapesForType', () => {
       GIG
     )
     expect(resolveShapesForType(gone, 'song-lyrics', 'vidas')).toEqual([])
+  })
+})
+
+describe('a shape’s geometry, read out of Muralista’s file', () => {
+  const FRAME: Point[] = [
+    [0.1, 0.1],
+    [0.9, 0.2],
+    [0.85, 0.8],
+    [0.15, 0.7],
+  ]
+
+  it('takes the outline as the frame while it has exactly four points', () => {
+    // Not a copy of the frame and not synchronised with it — the same four points. That is what
+    // makes one set of handles enough in Muralista, and it is Muralista's rule, not ours.
+    expect(shapeFrame({ id: 'a', outline: FRAME, corners: null })).toBe(FRAME)
+  })
+
+  it('falls back to `corners` past four outline points, which is the pinned quad', () => {
+    const ring: Point[] = [...FRAME, [0.5, 0.95]]
+    expect(shapeFrame({ id: 'a', outline: ring, corners: FRAME })).toBe(FRAME)
+  })
+
+  it('has no frame when there is none to be had, rather than inventing one', () => {
+    expect(shapeFrame({ id: 'a' })).toBeNull()
+    expect(shapeFrame({ id: 'a', corners: [[0, 0]] as Point[] })).toBeNull()
+    expect(shapeFrame(null)).toBeNull()
+  })
+
+  it('reads an outline of three or more points, and nothing shorter', () => {
+    const triangle: Point[] = [
+      [0, 0],
+      [1, 0],
+      [0.5, 1],
+    ]
+    expect(shapeOutline({ id: 'a', outline: triangle })).toBe(triangle)
+    // Two points is not a polygon: it would paint nothing while sitting in the list looking live.
+    expect(shapeOutline({ id: 'a', outline: [[0, 0], [1, 1]] as Point[], corners: FRAME })).toBe(FRAME)
+  })
+
+  it('knows when the outline is the frame, which is when it clips nothing', () => {
+    expect(shapeOutlineIsFrame({ id: 'a', outline: FRAME })).toBe(true)
+    expect(shapeOutlineIsFrame({ id: 'a', outline: [...FRAME, [0.5, 0.95]] as Point[] })).toBe(false)
+  })
+
+  it('treats an absent `visible` as visible, the way Muralista does', () => {
+    expect(shapeIsVisible({ id: 'a' })).toBe(true)
+    expect(shapeIsVisible({ id: 'a', visible: true })).toBe(true)
+    expect(shapeIsVisible({ id: 'a', visible: false })).toBe(false)
+  })
+})
+
+describe('a hidden shape', () => {
+  it('does not resolve, so the gate and the wall cannot disagree about it', () => {
+    // Muralista's own output filters on `shape.visible`. Filtering it here, in the one lookup,
+    // is what stops a hidden shape passing the arm gate and then painting nothing.
+    const visuals = parseVisualsFile(
+      doc({
+        shapes: [
+          { id: 's1', name: 'Left wall', layer: { type: 'song-lyrics' }, visible: false },
+          { id: 's2', name: 'Right wall', layer: { type: 'song-lyrics' } },
+        ],
+      }),
+      GIG
+    )
+    expect(resolveShapesForType(visuals, 'song-lyrics', null)).toEqual([])
+    expect(resolveShapesForType(visuals, 'song-lyrics', 'duelo').map((s) => s.id)).toEqual(['s2'])
   })
 })

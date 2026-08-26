@@ -5,7 +5,9 @@ import reactPlugin from "eslint-plugin-react";
 
 export default [
   {
-    ignores: ["dist", "node_modules"],
+    // `src/vendor` is Muralista's code, vendored byte-for-byte and never edited here. Linting it
+    // would produce findings whose only possible fix is an edit this repo is not allowed to make.
+    ignores: ["dist", "node_modules", "src/vendor/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

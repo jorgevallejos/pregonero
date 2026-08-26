@@ -26,32 +26,16 @@ import {
   type SongValidation,
 } from './gigReadiness'
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
+import { broadcastVisuals } from './visualsBroadcast'
+import { getRememberedGigFolder, rememberGigFolder } from './gigFolderStore'
 import { getOrderedEntriesForActiveSetlist, type LibraryEntry } from './setlistStore'
 import { getMediaPath } from './mediaPathStore'
 import * as platform from './platform'
 
-export const GIG_FOLDER_KEY = 'pregoneroGigFolder'
-
-/** The chosen gig folder, remembered across launches the way Muralista remembers its media folder. */
-export function getRememberedGigFolder(): string | null {
-  try {
-    if (typeof localStorage === 'undefined') return null
-    const path = localStorage.getItem(GIG_FOLDER_KEY)
-    return path && path.length > 0 ? path : null
-  } catch {
-    return null
-  }
-}
-
-export function rememberGigFolder(folderPath: string | null): void {
-  try {
-    if (typeof localStorage === 'undefined') return
-    if (folderPath) localStorage.setItem(GIG_FOLDER_KEY, folderPath)
-    else localStorage.removeItem(GIG_FOLDER_KEY)
-  } catch {
-    /* unavailable in some environments */
-  }
-}
+// The folder memory itself lives in `gigFolderStore`, so the Projection window can ask whether a
+// gig is open without importing everything below. Re-exported here because this is where the rest
+// of the app already looks for it.
+export { GIG_FOLDER_KEY, getRememberedGigFolder, rememberGigFolder } from './gigFolderStore'
 
 // ── The snapshot, and who is listening ───────────────────────────────────────────────────────
 
@@ -107,6 +91,7 @@ function publish(next: GigReadiness): GigReadiness {
 export function resetGigSession(): void {
   current = null
   rememberGigFolder(null)
+  broadcastVisuals(null, null)
 }
 
 // ── Gathering ────────────────────────────────────────────────────────────────────────────────
@@ -177,6 +162,10 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
   const folderPath = getRememberedGigFolder()
 
   if (folderPath === null) {
+    // No gig folder open means there is nothing to project. The Projection window goes dark, and
+    // that is the answer rather than a fallback — the same empty-state model as a shape whose song
+    // is not playing.
+    broadcastVisuals(null, null)
     return publish(
       computeGigReadiness({
         folderPath: null,
@@ -234,6 +223,10 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
       visualsProblem = e instanceof Error ? e.message : String(e)
     }
   }
+
+  // Write-through on every read of the gig folder, not only when something changed: the
+  // Projection window's mount-time read is only correct if this key is never behind the folder.
+  broadcastVisuals(folderPath, visuals)
 
   const [mediaResolution, validation] = await Promise.all([
     resolveMedia(setlist),

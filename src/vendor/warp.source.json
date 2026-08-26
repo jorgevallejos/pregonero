@@ -1,0 +1,10 @@
+{
+  "module": "warp.js",
+  "owner": "muralista",
+  "path": "mapper/warp.js",
+  "tag": "v1.4.0",
+  "sha256": "17e3a25ef61074b622965c6df2e2b8ec7a50fc6f5ffb698c160eead701c15cb6",
+  "test": "warp.test.mjs",
+  "testTag": "v1.4.0",
+  "vendoredOn": "2026-08-26"
+}

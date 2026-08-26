@@ -18,6 +18,8 @@ import {
 } from './songState'
 import type { SongItem } from './songState'
 import { installLibrary } from './testSupport/library'
+import { closeRoom, installRoom, shape, FULL_FRAME } from './testSupport/room'
+import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
 import { KEY_ARMED_BROADCAST, setStoredArmed } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
@@ -123,6 +125,9 @@ describe('Projection screen', () => {
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    // The room the wall is painted into. Without a gig folder there is nothing to project and
+    // the Projection window is dark, which is its own test below.
+    installRoom()
   })
 
   it('shows only the current translated lyric line (no next-line preview)', async () => {
@@ -250,7 +255,10 @@ describe('Projection screen', () => {
       dispatchStorageUpdate()
       await act(async () => { await Promise.resolve() })
 
-      const lyric = screen.getByText('Hello')
+      // The opacity is on the lyric box — the thing laid out inside the shape's unit square.
+      // The text node inside it carries the type, not the fade.
+      expect(screen.getByText('Hello')).toBeTruthy()
+      const lyric = screen.getByTestId('shape-lyrics-lyrics-1')
       expect(lyric.style.opacity).toBe('1')
 
       await act(async () => {
@@ -380,6 +388,9 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    // The room the wall is painted into. Without a gig folder there is nothing to project and
+    // the Projection window is dark, which is its own test below.
+    installRoom()
   })
 
   it('shows the logo when mounted mid-song (index 3), not the current lyric', async () => {
@@ -628,6 +639,9 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    // The room the wall is painted into. Without a gig folder there is nothing to project and
+    // the Projection window is dark, which is its own test below.
+    installRoom()
   })
 
   it('shows the song title on the intro screen when a song is loaded and not started', async () => {
@@ -726,6 +740,9 @@ describe('End card screen on projection', () => {
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    // The room the wall is painted into. Without a gig folder there is nothing to project and
+    // the Projection window is dark, which is its own test below.
+    installRoom()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       text: vi.fn().mockResolvedValue(END_CARD_CONTENT),
     }))
@@ -812,20 +829,52 @@ describe('End card screen on projection', () => {
   })
 })
 
-describe('Non-video projection layout (regression guard: centered full-screen, no split)', () => {
+describe('The projection is a compositor (regression guard: no full-frame renderer)', () => {
   beforeEach(() => {
     cleanup()
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    installRoom()
   })
 
   /**
-   * Non-video intro screen: the projection-animation-region / projection-subtitle-band
-   * split must NOT appear. Everything should render inside a single centered projection-screen
-   * (no split div structure).
+   * The renderer this replaces was a single full frame with a superimposed subtitle: an
+   * animation region, a subtitle band, and a centred flex screen. **None of it may come back.**
+   * Leaving it in beside the compositor would mean two rendering paths, one of them never
+   * exercised until the night it is.
    */
-  it('non-video intro screen does NOT use the animation-region/subtitle-band split layout', async () => {
+  it('renders lyrics inside a warped shape, not as a centred full frame', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await act(async () => { await Promise.resolve() })
+
+    setSongIndex(0)
+    setBlank(false)
+    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeTruthy()
+    }, { timeout: 3000 })
+
+    expect(document.querySelector('.projection-animation-region')).toBeNull()
+    expect(document.querySelector('.projection-subtitle-band')).toBeNull()
+    expect(document.querySelector('.projection-lyric-overlay')).toBeNull()
+
+    const root = document.querySelector('[data-shape-id="lyrics-1"]') as HTMLElement
+    expect(root).toBeTruthy()
+    expect(root.contains(screen.getByText('Hello'))).toBe(true)
+  })
+
+  it('draws the intro inside a shape too, with no split layout anywhere', async () => {
     installLibrary([{
       id: 'no-video-song',
       title: 'No Video Song',
@@ -844,73 +893,14 @@ describe('Non-video projection layout (regression guard: centered full-screen, n
     simulateArm()
     await act(async () => { await Promise.resolve() })
 
-    // Intro screen should appear
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: 3000 })
 
-    // The split layout divs must NOT exist for a non-video song
     expect(document.querySelector('.projection-animation-region')).toBeNull()
     expect(document.querySelector('.projection-subtitle-band')).toBeNull()
-  })
-
-  /**
-   * Non-video lyric phrase: the projection-animation-region / projection-subtitle-band
-   * split must NOT appear. The lyric should be centered on the full screen.
-   */
-  it('non-video lyric does NOT use the animation-region/subtitle-band split layout', async () => {
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('test')
-    setProjectionLanguage('en')
-    window.location.hash = '#/projection'
-
-    render(<App initialHash="#/projection" />)
-    simulateArm()
-    await act(async () => { await Promise.resolve() })
-
-    setSongIndex(0)
-    setBlank(false)
-    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Hello')).toBeTruthy()
-    }, { timeout: 3000 })
-
-    // The split layout divs must NOT exist for a non-video song
-    expect(document.querySelector('.projection-animation-region')).toBeNull()
-    expect(document.querySelector('.projection-subtitle-band')).toBeNull()
-  })
-
-  /**
-   * Non-video projection-screen should use centered flex layout (alignItems: center,
-   * justifyContent: center) — not a column-stacked split.
-   */
-  it('non-video projection-screen has centered flex layout (not column split)', async () => {
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
-    setSongIndex(0)
-    setBlank(false)
-    setCurrentSongId('test')
-    setProjectionLanguage('en')
-    window.location.hash = '#/projection'
-
-    render(<App initialHash="#/projection" />)
-    simulateArm()
-    await act(async () => { await Promise.resolve() })
-    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Hello')).toBeTruthy()
-    }, { timeout: 3000 })
-
-    const screen_ = document.querySelector('.projection-screen') as HTMLElement
-    expect(screen_).toBeTruthy()
-    // Should be centered (alignItems: center), not a column split
-    expect(screen_.style.alignItems).toBe('center')
-    expect(screen_.style.justifyContent).toBe('center')
+    const root = document.querySelector('[data-shape-id="lyrics-1"]') as HTMLElement
+    expect(root.contains(screen.getByTestId('song-intro-screen'))).toBe(true)
   })
 })
 
@@ -922,6 +912,9 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
+    // The room the wall is painted into. Without a gig folder there is nothing to project and
+    // the Projection window is dark, which is its own test below.
+    installRoom()
   })
 
   async function setupVideoSongArmed(song: {
@@ -1007,12 +1000,14 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // Confirms we're in the video compositor path, not the centered non-video layout.
-    expect(document.querySelector('.projection-animation-region')).toBeTruthy()
+    // Confirms the intro is riding in the lyrics shape while the video shape holds the media —
+    // two shapes, not one full frame with an overlay.
+    expect(screen.getByTestId('shape-video')).toBeTruthy()
+    expect(document.querySelector('[data-shape-id="lyrics-1"]')).toBeTruthy()
   })
 
   it('intro screen disappears once a play transport command arrives (video starts)', async () => {
-    const { VIDEO_TRANSPORT_KEY } = await import('./VideoProjectionRegion')
+    const { VIDEO_TRANSPORT_KEY } = await import('./videoTransport')
     await setupVideoSongArmed({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -1035,5 +1030,343 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     await waitFor(() => {
       expect(screen.queryByTestId('song-intro-screen')).toBeNull()
     }, { timeout: WAIT_TIMEOUT })
+  })
+})
+
+describe('The wall is dark when there is no gig', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    // Deliberately no installRoom(): no gig folder is open.
+  })
+
+  /**
+   * **No gig folder open means there is nothing to project.** Every gig has a `visuals.json` and
+   * there is no fallback path; the full-frame renderer that used to serve this case is gone, and
+   * keeping it alive to serve it would have meant a second rendering path exercised only on the
+   * night it mattered. Dark is the answer, and it is the same empty-state model as a shape whose
+   * song is not playing.
+   */
+  it('paints no lyric at all with no gig folder open', async () => {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    dispatchStorageUpdate()
+    await flushEffects()
+
+    expect(screen.queryByText('Hello')).toBeNull()
+    expect(document.querySelector('.shape-root')).toBeNull()
+    expect(screen.getByTestId('projection-screen')).toBeTruthy()
+  })
+
+  it('goes dark the moment the gig is closed, without a reload', async () => {
+    installRoom()
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+
+    closeRoom()
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: KEY_VISUALS_BROADCAST, newValue: null })
+      )
+    })
+
+    expect(screen.queryByText('Hello')).toBeNull()
+    expect(document.querySelector('.shape-root')).toBeNull()
+  })
+})
+
+describe('The lookup lights a set of shapes, and never caps it at one', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  async function showFirstLyric() {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getAllByText('Hello').length).toBeGreaterThan(0), {
+      timeout: 3000,
+    })
+  }
+
+  /**
+   * Two shapes showing the same lyric is how a corner or a pillar gets spanned, and how an
+   * original sits beside its translation. Muralista's authoring UI offers one shape per type
+   * today, so real files contain sets of size one naturally — and **no code may depend on that**.
+   */
+  it('lights every lyrics shape the gig assigns, not the first one', async () => {
+    installRoom({
+      shapes: [
+        shape('wall-left', 'song-lyrics', [[0, 0], [0.5, 0], [0.5, 1], [0, 1]]),
+        shape('wall-right', 'song-lyrics', [[0.5, 0], [1, 0], [1, 1], [0.5, 1]]),
+      ],
+      defaults: { 'song-lyrics': ['wall-left', 'wall-right'] },
+    })
+    await showFirstLyric()
+
+    expect(screen.getAllByText('Hello')).toHaveLength(2)
+    expect(document.querySelector('[data-shape-id="wall-left"]')).toBeTruthy()
+    expect(document.querySelector('[data-shape-id="wall-right"]')).toBeTruthy()
+  })
+
+  it('prefers a song’s own reassignment over the gig-level shape', async () => {
+    installRoom({
+      shapes: [
+        shape('house', 'song-lyrics'),
+        shape('panel', 'song-lyrics', [[0, 0], [0.4, 0], [0.4, 0.4], [0, 0.4]]),
+      ],
+      defaults: { 'song-lyrics': ['house'] },
+      songs: { test: { 'song-lyrics': ['panel'] } },
+    })
+    await showFirstLyric()
+
+    expect(document.querySelector('[data-shape-id="panel"]')).toBeTruthy()
+    // A shape the playing song does not point at is dark. Nothing declares it empty.
+    expect(document.querySelector('[data-shape-id="house"]')).toBeNull()
+  })
+
+  it('paints in the file’s own order, because list order is paint order', async () => {
+    installRoom({
+      shapes: [
+        shape('under', 'song-lyrics'),
+        shape('over', 'song-lyrics'),
+      ],
+      defaults: { 'song-lyrics': ['over', 'under'] },
+    })
+    await showFirstLyric()
+
+    const painted = [...document.querySelectorAll('[data-shape-id]')].map(
+      (el) => (el as HTMLElement).dataset.shapeId
+    )
+    // The assignment lists `over` first; the wall's z-order is the shape list's, not the
+    // assignment's, so `over` is still painted last and therefore on top.
+    expect(painted).toEqual(['under', 'over'])
+  })
+
+  it('skips a shape whose corners are degenerate rather than painting a guess', async () => {
+    installRoom({
+      shapes: [
+        shape('good', 'song-lyrics'),
+        shape('collinear', 'song-lyrics', [[0, 0], [0.5, 0], [1, 0], [0.5, 0]]),
+      ],
+      defaults: { 'song-lyrics': ['good', 'collinear'] },
+    })
+    await showFirstLyric()
+
+    expect(document.querySelector('[data-shape-id="good"]')).toBeTruthy()
+    expect(document.querySelector('[data-shape-id="collinear"]')).toBeNull()
+  })
+})
+
+describe('The matrix is derived at the real output size, every render', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+  })
+
+  /**
+   * The projector at a venue is not the display the room was mapped on. A matrix cached across a
+   * resize or a display change renders perfectly and lands in the wrong place, with nothing
+   * crashing and nothing warning — which is why this is asserted against the real numbers rather
+   * than against "it re-rendered".
+   */
+  it('recomputes the warp when the window changes size', async () => {
+    const { frameMatrix3d } = await import('./vendor/warp.js')
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+
+    const wrapperOf = (id: string) =>
+      (document.querySelector(`[data-shape-id="${id}"] .shape-wrapper`) as HTMLElement).style
+        .transform
+
+    expect(wrapperOf('lyrics-1')).toBe(frameMatrix3d(FULL_FRAME, 1024, 768))
+
+    Object.defineProperty(window, 'innerWidth', { value: 1920, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 1080, configurable: true })
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(wrapperOf('lyrics-1')).toBe(frameMatrix3d(FULL_FRAME, 1920, 1080))
+  })
+})
+
+describe('In Video mode the video is the clock, and the lyric is in another shape', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * The two are separate shapes now — `song-lyrics` and `song-video` are two types, not one "main"
+   * slot — so the subtitle no longer rides on the video element that produced its timing. The
+   * element's own `currentTime` still decides which line is showing: it is where lyrics landing on
+   * the beat lives, and putting a process boundary between the clock and the pixels is the thing
+   * the whole architecture is arranged to avoid.
+   */
+  it('shows the cue the video’s own clock resolves to, in the lyrics shape', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    const LINES: SongItem[] = [
+      { languages: { es: 'Hola', en: 'Hello' } },
+      { languages: { es: 'Mundo', en: 'World' } },
+    ]
+    installLibrary([
+      {
+        id: 'tragedia',
+        title: 'Tragedia',
+        items: LINES,
+        media: { type: 'video' as const, src: 'test.mp4' },
+        timeline: [
+          { start: 0, end: 2 },
+          { start: 2, end: 4 },
+        ],
+      },
+    ])
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/test.mp4' }))
+    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('tragedia')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+
+    let now = 2.5
+    Object.defineProperty(HTMLVideoElement.prototype, 'currentTime', {
+      get: () => now,
+      set: () => {},
+      configurable: true,
+    })
+    HTMLVideoElement.prototype.play = vi.fn(() => Promise.resolve())
+    HTMLVideoElement.prototype.pause = vi.fn()
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+
+    const { VIDEO_TRANSPORT_KEY } = await import('./videoTransport')
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: VIDEO_TRANSPORT_KEY,
+          newValue: JSON.stringify({ action: 'play', nonce: Date.now() }),
+        })
+      )
+    })
+
+    const video = document.querySelector('video') as HTMLVideoElement
+    await act(async () => { video.dispatchEvent(new Event('timeupdate')) })
+
+    const lyricShape = document.querySelector('[data-shape-id="lyrics-1"]') as HTMLElement
+    expect(lyricShape.textContent).toBe('World')
+    // The video is in its own shape, and the lyric is not inside it.
+    const videoShape = document.querySelector('[data-shape-id="video-1"]') as HTMLElement
+    expect(videoShape.contains(video)).toBe(true)
+    expect(videoShape.textContent).toBe('')
+
+    now = 0.5
+    await act(async () => { video.dispatchEvent(new Event('timeupdate')) })
+    expect(lyricShape.textContent).toBe('Hello')
+  })
+
+  it('does not mount a video at all when the gig has no shape to put it in', async () => {
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    installRoom({
+      shapes: [shape('lyrics-only', 'song-lyrics')],
+      defaults: { 'song-lyrics': ['lyrics-only'] },
+    })
+    installLibrary([
+      {
+        id: 'tragedia',
+        title: 'Tragedia',
+        items: TWO_LINES,
+        media: { type: 'video' as const, src: 'test.mp4' },
+        timeline: [{ start: 0, end: 2 }],
+      },
+    ])
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/test.mp4' }))
+    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId('tragedia')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+
+    // A shape is a place that can hold content. With no `song-video` shape there is no place, so
+    // there is no video — and the lyrics fall back to the performer's own navigation.
+    expect(document.querySelector('video')).toBeNull()
   })
 })
