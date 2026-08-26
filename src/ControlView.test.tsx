@@ -8482,3 +8482,128 @@ describe('The contact panel condition is broadcast from the control window', () 
     expect(lit()).toBe(true)
   })
 })
+
+// ── The debrief ──────────────────────────────────────────────────────────────────────────────
+
+describe('The debrief is offered when the setlist ends', () => {
+  const WAIT_TIMEOUT = 3000
+
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('is not offered while the setlist is still being played', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    expect(screen.queryByTestId('debrief-panel')).toBeNull()
+    expect(screen.queryByTestId('debrief-reopen')).toBeNull()
+  })
+
+  it('surfaces once the last setlist song has been played, prefilled', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    addPlayedSong('duelo')
+    addPlayedSong('pimiento')
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    // The setlist as performed, already on the page. He is asked only what only he knows.
+    expect(screen.getByTestId('debrief-played').textContent).toContain('Duelo')
+  })
+
+  /**
+   * **Not modal, and this is the test that says why.** A repeat happens *after* the setlist ends,
+   * so a debrief that took over the screen would land exactly on the moment the app has to honour
+   * a request. The performance controls stay on the page beside it.
+   */
+  it('leaves the performance controls reachable behind it', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    addPlayedSong('duelo')
+    addPlayedSong('pimiento')
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => { fireEvent.click(getArmButton()) })
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+    expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+  })
+
+  it('is dismissable, and comes back when he asks for it', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    addPlayedSong('duelo')
+    addPlayedSong('pimiento')
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => { fireEvent.click(screen.getByTestId('debrief-dismiss')) })
+    expect(screen.queryByTestId('debrief-panel')).toBeNull()
+
+    await act(async () => { fireEvent.click(screen.getByTestId('debrief-reopen')) })
+    expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+  })
+
+  it('does not reopen itself after he has said Later', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    addPlayedSong('duelo')
+    addPlayedSong('pimiento')
+    setupControlViewWithReadinessPassing()
+    const { unmount } = render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => { fireEvent.click(screen.getByTestId('debrief-dismiss')) })
+
+    // "Never offered" and "dismissed" are different states, and this is where the difference
+    // shows: a remount must not push it back into his face.
+    unmount()
+    cleanup()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-reopen')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    expect(screen.queryByTestId('debrief-panel')).toBeNull()
+  })
+
+  it('keeps its answers across a dismissal', async () => {
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    addPlayedSong('duelo')
+    addPlayedSong('pimiento')
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('debrief-panel')).toBeTruthy()
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'decent' })) })
+    await act(async () => { fireEvent.click(screen.getByTestId('debrief-dismiss')) })
+    await act(async () => { fireEvent.click(screen.getByTestId('debrief-reopen')) })
+
+    expect(screen.getByRole('button', { name: 'decent' }).getAttribute('aria-pressed')).toBe('true')
+  })
+})

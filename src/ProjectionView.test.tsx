@@ -1553,3 +1553,38 @@ describe('The contact panel, and what it replaced', () => {
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
   })
 })
+
+describe('The debrief never reaches the projection', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom()
+  })
+
+  /**
+   * Control window only. The debrief is a thing Jorge fills in while packing up; the wall in front
+   * of an audience is not where it belongs, and nothing about the setlist ending changes that.
+   */
+  it('shows no debrief panel even with the setlist done and the panel open', async () => {
+    const { setDebriefOpen } = await import('./debriefState')
+    const { addPlayedSong } = await import('./playedSongsState')
+    addPlayedSong('test')
+    setDebriefOpen(true)
+
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(0)
+    setBlank(false)
+    setCurrentSongId('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+
+    expect(screen.queryByTestId('debrief-panel')).toBeNull()
+    expect(screen.queryByTestId('debrief-reopen')).toBeNull()
+  })
+})

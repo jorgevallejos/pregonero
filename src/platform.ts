@@ -72,6 +72,22 @@ export async function writeGigFile(
   }
 }
 
+/** Writes `debrief.md` into the gig folder. */
+export async function writeDebriefFile(
+  folderPath: string,
+  text: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.writeDebriefFile !== 'function') {
+    return { ok: false, error: 'The gig folder can only be written from the desktop app.' }
+  }
+  try {
+    return await a.writeDebriefFile(folderPath, text)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** `bombista validate --for-performance`. Never fails closed: no binary means `skipped`. */
 export async function validateSongForPerformance(
   songPath: string

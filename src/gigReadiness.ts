@@ -70,6 +70,9 @@ export type SongReadiness = {
 export type GigReadiness = {
   folderPath: string | null
   gigId: string | null
+  /** The gig's own identity fields, carried so the debrief can name the night without a second read. */
+  date: string | null
+  venue: { name?: string; city?: string } | null
   /**
    * `off` when no gig folder is open. There is no gig for a song to be un-ready against, so the
    * gate blocks nothing and the app behaves as it did before this stage. Round G's setup flow is
@@ -202,6 +205,8 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
   return {
     folderPath: null,
     gigId: null,
+    date: null,
+    venue: null,
     gate: 'off',
     steps: [2, 3, 4, 5].map((step) => ({
       step,
@@ -317,6 +322,8 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   return {
     folderPath: input.folderPath,
     gigId: input.gig?.id ?? null,
+    date: input.gig?.date ?? null,
+    venue: input.gig?.venue ?? null,
     gate: 'on',
     steps: [
       { step: 2, name: STEP_NAMES[2]!, status: step2Status, missing: step2Missing },

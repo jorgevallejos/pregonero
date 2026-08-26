@@ -47,6 +47,11 @@ declare global {
         folderPath: string,
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /** Writes `debrief.md` into the gig folder. Pregonero writes it, then Jorge edits it. */
+      writeDebriefFile: (
+        folderPath: string,
+        text: string
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
       /** `bombista validate --for-performance`. A missing binary comes back as `skipped`. */
       validateSongForPerformance: (songPath: string) => Promise<SongValidationResult>
     }
