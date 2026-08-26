@@ -26,8 +26,8 @@ import {
   parseSongFile,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
-import { KEY_END_CARD_VISIBLE } from './endCardState'
 import { getPlayedSongs, addPlayedSong } from './playedSongsState'
+import { KEY_CONTACT_LIT_BROADCAST } from './gigContactState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
@@ -6078,42 +6078,11 @@ describe('Control pre-first-lyric intro display', () => {
   })
 })
 
-describe('End Card — control view', () => {
-  beforeEach(() => {
-    cleanup()
-    vi.clearAllMocks()
-    clearStorage()
-    installProductionLikeLibrary()
-    localStorage.removeItem(KEY_END_CARD_VISIBLE)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    cleanup()
-    delete (window as unknown as { electronAPI?: unknown }).electronAPI
-    localStorage.removeItem(KEY_END_CARD_VISIBLE)
-  })
-
-  it('End Card button is NOT rendered in the armed footer', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-
-    expect(screen.queryByTestId('end-card-btn')).toBeNull()
-    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
-  })
-})
-
 // ── §5 + §6 — simplified performance screens ──────────────────────────────
 
 describe('§6 non-video armed screen', () => {
   beforeEach(() => {
+    cleanup()
     vi.clearAllMocks()
     clearStorage()
     installProductionLikeLibrary()
@@ -6123,21 +6092,6 @@ describe('§6 non-video armed screen', () => {
     vi.useRealTimers()
     cleanup()
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
-  })
-
-  it('End Card button is NOT rendered in the non-video armed screen', async () => {
-    setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-
-    expect(screen.queryByTestId('end-card-btn')).toBeNull()
-    expect(screen.queryByRole('button', { name: /end card/i })).toBeNull()
   })
 
   it('Previous, Next, Restart, Unarm are all present in non-video armed screen', async () => {
@@ -8467,5 +8421,64 @@ describe('the setlist is played once', () => {
     await act(async () => { fireEvent.pointerUp(unarmBtn) })
 
     expect(getPlayedSongs()).toEqual([])
+  })
+})
+
+// ── The contact panel's condition, written through from the window that can answer it ────────
+
+describe('The contact panel condition is broadcast from the control window', () => {
+  const WAIT_TIMEOUT = 3000
+
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function lit(): boolean {
+    return localStorage.getItem(KEY_CONTACT_LIT_BROADCAST) !== '0'
+  }
+
+  /**
+   * The Projection window is handed the answer, not the inputs — `armed` is this window's session,
+   * the played log is this window's session, and the playable setlist is its readiness snapshot.
+   * What is asserted here is that the answer is written **on every change of the value**, not only
+   * inside a click handler: the reader takes it at mount, so a broadcast that only moved on a
+   * click would go stale against a fresh session's own state.
+   */
+  it('writes the answer at mount, before anything is armed', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+    // Nothing is armed, so the wall carries his details.
+    expect(lit()).toBe(true)
+  })
+
+  it('goes dark on arm and lit again on unarm', async () => {
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => { fireEvent.click(getArmButton()) })
+    await waitFor(() => expect(lit()).toBe(false), { timeout: WAIT_TIMEOUT })
+
+    vi.useFakeTimers()
+    const unarmBtn = screen.getByRole('button', { name: /^Unarm/ })
+    await act(async () => { fireEvent.pointerDown(unarmBtn) })
+    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+    vi.useRealTimers()
+
+    expect(lit()).toBe(true)
   })
 })

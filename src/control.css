@@ -2156,29 +2156,6 @@ html, body, #root {
 
 /* ---- End Card (control) ---- */
 
-/* ---- End Card (projection) ---- */
-.projection-end-card-screen {
-  font-family: 'EB Garamond', Georgia, serif;
-}
-
-.projection-end-card-line {
-  margin: 0;
-  font-size: clamp(1.2rem, 3.5vw, 2.8rem);
-  color: #e5e5e5;
-  font-weight: 400;
-  line-height: 1.6;
-}
-
-.projection-end-card-line:first-child {
-  font-size: clamp(1.6rem, 5vw, 4rem);
-  font-weight: 600;
-  margin-bottom: 0.5em;
-}
-
-.projection-end-card-line:empty {
-  display: none;
-}
-
 /* ---- Beat indicator (performer view only) ---- */
 
 /* Count-in overlay: covers the performing stage area with a centred number + dot row */

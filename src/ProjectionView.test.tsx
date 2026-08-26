@@ -20,9 +20,8 @@ import type { SongItem } from './songState'
 import { installLibrary } from './testSupport/library'
 import { closeRoom, installRoom, shape, FULL_FRAME } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
-import { KEY_ARMED_BROADCAST, setStoredArmed } from './performanceState'
+import { KEY_ARMED_BROADCAST } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
-import { KEY_END_CARD_VISIBLE } from './endCardState'
 import { KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 
 function createStorage(): Storage {
@@ -376,7 +375,7 @@ function setupIntroScreenState(song: {
   window.location.hash = '#/projection'
 }
 
-describe('Projection lifecycle: logo on mount, intro on arm', () => {
+describe('Projection lifecycle: the wall shows what is playing', () => {
   const PERF_SONG = {
     id: 'perf-song',
     title: 'Performance Song',
@@ -393,7 +392,14 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     installRoom()
   })
 
-  it('shows the logo when mounted mid-song (index 3), not the current lyric', async () => {
+  /**
+   * The projection window reopened mid-song shows **the line that is playing**, immediately.
+   *
+   * It used to show the logo instead, and wait for the next arm transition to reveal anything —
+   * which made sense while there was a logo to hold the wall. With that fallback gone, waiting
+   * would mean a black wall until the performer unarmed and re-armed, in the middle of a song.
+   */
+  it('shows the current lyric when reopened mid-song, without waiting for an arm', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines([
@@ -412,10 +418,9 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     render(<App initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
-    expect(screen.queryByText('L4')).toBeNull()
-    const logo = document.querySelector('img[aria-hidden="true"]') as HTMLElement
-    expect(logo).toBeTruthy()
-    expect(logo.style.opacity).toBe('1')
+    await waitFor(() => expect(screen.getByText('L4')).toBeTruthy(), { timeout: 3000 })
+    // And there is no logo anywhere to have shown instead.
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
   })
 
   it('shows intro screen after arm transition (non-armed to armed)', async () => {
@@ -443,20 +448,23 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     }, { timeout: 3000 })
   })
 
-  it('reveals content on the first arm of a session even when a stale broadcast value from a previous launch is already in localStorage (first-launch stuck-logo bug)', async () => {
-    // KEY_ARMED_BROADCAST lives in localStorage and can survive an app relaunch (e.g. the app
-    // quit while armed) even though sessionStorage-backed armed state is fresh. Pre-seed the
-    // broadcast key exactly as a leftover session would, using the real production writer
-    // (not a hardcoded '1') so this exercises the actual arm() -> storage-value contract.
-    setStoredArmed(true)
-    setStoredArmed(false) // unarm removes KEY_ARMED (session) but leaves the leftover scenario realistic
-    localStorage.setItem(KEY_ARMED_BROADCAST, '1') // simulate a stale leftover value from a prior launch
+  /**
+   * The stale-broadcast case this replaces was the Projection window's own: it keyed off
+   * `KEY_ARMED_BROADCAST` to decide when to stop showing the logo, and a value left in
+   * `localStorage` by a previous launch could wedge it there. **The nonce that fixes it stays** —
+   * it is not logo plumbing, it is the storage-event fix documented in `CLAUDE.md`, and
+   * `performanceState.test.ts` is where it is tested. What is gone is this window's dependence on
+   * it: nothing here now waits for an arm transition before showing anything.
+   */
+  it('does not wait on the arm broadcast for anything', async () => {
+    // Exactly the leftover a previous launch leaves behind.
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1')
 
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
-    setSongIndex(0)
-    setBlank(false)
+    setSongIndex(-1)
+    setBlank(true)
     setCurrentSongId(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
@@ -465,23 +473,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     render(<App initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
-    // Logo should still be showing pre-arm.
-    const logoBefore = document.querySelector('img[aria-hidden="true"]') as HTMLElement
-    expect(logoBefore).toBeTruthy()
-    expect(logoBefore.style.opacity).toBe('1')
-
-    // The real arm write (what the Control window's "Arm" button ultimately calls), then
-    // dispatch the storage event with the ACTUAL value it produced — not a hardcoded '1' —
-    // as a real cross-window listener in another renderer process would receive.
-    setStoredArmed(true)
-    const broadcastValue = localStorage.getItem(KEY_ARMED_BROADCAST)
-    window.dispatchEvent(new StorageEvent('storage', { key: KEY_ARMED_BROADCAST, newValue: broadcastValue }))
-    await act(async () => { await Promise.resolve() })
-
-    setSongIndex(-1)
-    setBlank(true)
-    window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
-
+    // No arm event has been dispatched, and the title card is on the wall regardless.
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
     }, { timeout: 3000 })
@@ -605,7 +597,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     }, { timeout: 3000 })
   })
 
-  it('shows logo again after unmount and remount during performing', async () => {
+  it('comes back showing the song, not a logo, after an unmount and remount', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
@@ -624,10 +616,8 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     render(<App initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
-    expect(screen.queryByText('Hello')).toBeNull()
-    const logo = document.querySelector('img[aria-hidden="true"]') as HTMLElement
-    expect(logo).toBeTruthy()
-    expect(logo.style.opacity).toBe('1')
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
   })
 })
 
@@ -728,104 +718,6 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('song-intro-screen')).toBeNull()
     }, { timeout: WAIT_TIMEOUT })
-  })
-})
-
-describe('End card screen on projection', () => {
-  const END_CARD_CONTENT = '# Thanks for listening\n\nChango Pepper'
-  const WAIT_TIMEOUT = 3000
-
-  beforeEach(() => {
-    cleanup()
-    localStorage.clear()
-    sessionStorage.clear()
-    window.location.hash = '#/'
-    // The room the wall is painted into. Without a gig folder there is nothing to project and
-    // the Projection window is dark, which is its own test below.
-    installRoom()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      text: vi.fn().mockResolvedValue(END_CARD_CONTENT),
-    }))
-  })
-
-  afterEach(() => {
-    localStorage.removeItem(KEY_END_CARD_VISIBLE)
-  })
-
-  function setupProjectionWithEndCard() {
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    setSongLines(TWO_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('test')
-    setProjectionLanguage('en')
-    window.location.hash = '#/projection'
-  }
-
-  it('shows end-card screen when KEY_END_CARD_VISIBLE is set in localStorage', async () => {
-    setupProjectionWithEndCard()
-    render(<App initialHash="#/projection" />)
-
-    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
-    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('end-card screen renders the content from end-card.md', async () => {
-    setupProjectionWithEndCard()
-    render(<App initialHash="#/projection" />)
-
-    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
-    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
-
-    await waitFor(() => {
-      const screen_ = screen.getByTestId('end-card-screen')
-      expect(screen_.textContent).toMatch(/Thanks for listening/)
-      expect(screen_.textContent).toMatch(/Chango Pepper/)
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('hides end-card screen when KEY_END_CARD_VISIBLE is removed from localStorage', async () => {
-    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
-    setupProjectionWithEndCard()
-    render(<App initialHash="#/projection" />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    localStorage.removeItem(KEY_END_CARD_VISIBLE)
-    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: null }))
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('end-card-screen')).toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('normal lyric content is not shown while end-card is active', async () => {
-    setupProjectionWithEndCard()
-    render(<App initialHash="#/projection" />)
-    await flushEffects()
-    simulateArm()
-    await flushEffects()
-    setSongIndex(0)
-    setBlank(false)
-    dispatchStorageUpdate()
-
-    await waitFor(() => {
-      expect(screen.getByText('Hello')).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    localStorage.setItem(KEY_END_CARD_VISIBLE, '1')
-    window.dispatchEvent(new StorageEvent('storage', { key: KEY_END_CARD_VISIBLE, newValue: '1' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('end-card-screen')).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-    expect(screen.queryByText('Hello')).toBeNull()
   })
 })
 
@@ -1551,5 +1443,113 @@ describe('Shapes Pregonero does not coordinate', () => {
     })
     await mountProjection()
     expect(document.querySelector('[data-shape-id="hidden-logo"]')).toBeNull()
+  })
+})
+
+describe('The contact panel, and what it replaced', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+  })
+
+  const CONTACT_SHAPE = shape('contact-1', 'gig-contact', FULL_FRAME, {
+    layer: { type: 'gig-contact', text: 'changopepper.be' },
+  })
+
+  async function mountProjection(songId = 'test') {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    setCurrentSongId(songId)
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+  }
+
+  it('is lit when nothing is armed — the wall carries his details from power-up', async () => {
+    installRoom({
+      shapes: [CONTACT_SHAPE, shape('lyrics-1', 'song-lyrics')],
+      defaults: { 'gig-contact': ['contact-1'], 'song-lyrics': ['lyrics-1'] },
+    })
+    await mountProjection()
+    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+    expect(screen.getByText('changopepper.be')).toBeTruthy()
+  })
+
+  it('goes dark when the Control window says the condition is false', async () => {
+    installRoom({
+      shapes: [CONTACT_SHAPE],
+      defaults: { 'gig-contact': ['contact-1'] },
+    })
+    await mountProjection()
+    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+
+    const { KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
+    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '0')
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST, newValue: '0' })
+      )
+    })
+
+    // Not blacked out and not declared empty — simply not there, like every other unlit shape.
+    expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
+    expect(document.querySelector('[data-shape-id="contact-1"]')).toBeNull()
+  })
+
+  it('is a gig-level fact: a per-song reassignment of it is not honoured', async () => {
+    installRoom({
+      shapes: [CONTACT_SHAPE, shape('contact-2', 'gig-contact')],
+      defaults: { 'gig-contact': ['contact-1'] },
+      songs: { test: { 'gig-contact': ['contact-2'] } },
+    })
+    await mountProjection()
+    // It is defined once at gig visual setup, which is why the type is not called `song-contact`.
+    expect(document.querySelector('[data-shape-id="contact-1"]')).toBeTruthy()
+    expect(document.querySelector('[data-shape-id="contact-2"]')).toBeNull()
+  })
+
+  it('lights every contact shape the gig names, not just the first', async () => {
+    installRoom({
+      shapes: [
+        CONTACT_SHAPE,
+        shape('contact-2', 'gig-contact', [[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]], {
+          layer: { type: 'gig-contact', text: 'changopepper.be' },
+        }),
+      ],
+      defaults: { 'gig-contact': ['contact-1', 'contact-2'] },
+    })
+    await mountProjection()
+    expect(screen.getAllByTestId('gig-contact-panel')).toHaveLength(2)
+  })
+
+  /**
+   * The two fallbacks the contact panel replaces. Both existed to put *something* on the wall when
+   * no song was presenting, which is what a `gig-contact` shape does properly — tuned to the room
+   * instead of read from a text file. Neither may come back.
+   */
+  it('has no end card and no logo fallback left anywhere', async () => {
+    installRoom({
+      shapes: [CONTACT_SHAPE, shape('lyrics-1', 'song-lyrics')],
+      defaults: { 'gig-contact': ['contact-1'], 'song-lyrics': ['lyrics-1'] },
+    })
+    // The key the end card used to watch. Nothing reads it now, and setting it changes nothing.
+    localStorage.setItem('liveLyricEndCardVisible', '1')
+    await mountProjection()
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: 'liveLyricEndCardVisible', newValue: '1' })
+      )
+    })
+
+    expect(screen.queryByTestId('end-card-screen')).toBeNull()
+    expect(document.querySelector('.projection-end-card-screen')).toBeNull()
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
+    // And the wall still has something on it, because the contact shape is what carries it now.
+    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
   })
 })

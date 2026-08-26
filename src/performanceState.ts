@@ -109,6 +109,12 @@ export function usePerformanceState(
 ): {
   state: PerformanceState
   checks: PerformanceChecks
+  /**
+   * The raw armed flag, which `state` cannot be read back out of: with a check failing, an armed
+   * performance still reports `setup`. The contact panel's condition keys off *armed*, not off
+   * what the control screen is showing, so it needs this one.
+   */
+  armed: boolean
   arm: () => void
   unarm: () => void
 } {
@@ -140,5 +146,5 @@ export function usePerformanceState(
     [checks, index, armed]
   )
 
-  return { state, checks, arm, unarm }
+  return { state, checks, armed, arm, unarm }
 }
