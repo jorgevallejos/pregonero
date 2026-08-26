@@ -1058,17 +1058,6 @@ html, body, #root {
   min-width: 120px;
 }
 
-.manage-setlists-import-input-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
 
 .songs-top-bar > .songs-manage-setlists {
   margin-left: auto;
@@ -1356,6 +1345,24 @@ html, body, #root {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A library row whose song file could not be read. The row stays: the reference is real and
+   the fix is in songs/, so hiding it would hide the problem. */
+.manage-setlists-song-row--unreadable .manage-setlists-song-title {
+  color: var(--text-dim);
+  flex: 0 1 auto;
+}
+
+.manage-setlists-song-unreadable {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--state-warn);
+  font-family: var(--font-label);
+  font-size: 0.8em;
 }
 
 .manage-setlists-song-actions {

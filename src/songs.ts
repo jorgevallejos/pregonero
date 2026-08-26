@@ -1,7 +1,7 @@
 /**
- * Optional reference catalog (e.g. tests or tooling). The app does not bootstrap the persisted
- * library from this file; first launch uses an empty v2 snapshot until songs are imported or added.
- * v1→v2 migration still resolves each legacy row’s `path` via `fetch`.
+ * Optional reference catalog (e.g. tests or tooling). The app does not bootstrap its library from
+ * this file: first launch has an empty library until song files are added from the manage screen.
+ * Each `id` here is the file name without `.json`, which is the same rule `songIdFromPath` uses.
  */
 export type SongSeedEntry = { readonly id: string; readonly title: string; readonly path: string }
 

@@ -29,7 +29,6 @@ import {
   prevIndex,
   resetLoadedSongState,
   tryParseSongItemsArray,
-  tryParsePersistedSongItemsArray,
   setCurrentSongId,
   setCurrentSongTitle,
   setProjectionLanguage,
@@ -1103,22 +1102,6 @@ describe('parseSongFile — media field', () => {
       media: null,
     })
     expect(() => parseSongFile(json)).toThrow(/"media" must be an object/)
-  })
-})
-
-describe('tryParsePersistedSongItemsArray', () => {
-  it('accepts canonical persisted lyric lines with nested languages', () => {
-    const items = [{ languages: { es: 'A', en: 'B' } }]
-    expect(tryParsePersistedSongItemsArray(items)).toEqual([
-      { languages: { es: 'A', en: 'B' } },
-    ])
-  })
-
-  it('still accepts flat file-style lyric objects', () => {
-    const items = [{ es: 'A', en: 'B' }]
-    expect(tryParsePersistedSongItemsArray(items)).toEqual([
-      { languages: { es: 'A', en: 'B' } },
-    ])
   })
 })
 

@@ -31,9 +31,9 @@ import { getPlayedSongIds, addPlayedSong } from './playedSongsState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
-  createInitialSnapshot,
   createEmptySetlist,
   DEFAULT_SETLIST_ID,
+  dropLibraryCache,
   ensureSongLibraryHydrated,
   getActiveSetlistId,
   loadSetlistStore,
@@ -42,8 +42,10 @@ import {
   saveSetlistStore,
   setActiveSetlistId,
   getLibrarySongById,
+  type LibrarySong,
   type SetlistStoreSnapshot,
 } from './setlistStore'
+import { installLibrary } from './testSupport/library'
 import { APP_VERSION } from './appVersion'
 import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
@@ -154,20 +156,16 @@ function setupControlViewWithReadinessFailing() {
 function clearStorage() {
   sessionStorage.clear()
   localStorage.clear()
+  dropLibraryCache()
 }
 
-/** Full v2 library with one line per bundled song id (matches `SONGS` catalog). */
+/** References for every bundled song id (matches the `SONGS` catalog), resolved to one line each. */
 function installProductionLikeLibrary(): void {
   const line: SongItem = { languages: { es: 't', en: 't' } }
-  const songs = SONGS.map((s) => ({
-    id: s.id,
-    title: s.title,
-    items: [line],
-  }))
-  saveSetlistStore(createInitialSnapshot(songs))
+  installLibrary(SONGS.map((s) => ({ id: s.id, title: s.title, items: [line] })))
 }
 
-/** Installs a v2 library from inline JSON (same shape as public *.json files). */
+/** Installs a library from inline JSON, as reading those files out of `songs/` would produce. */
 function installLibraryFromJsonFiles(files: Record<string, string>): void {
   const songs = Object.entries(files).map(([path, json]) => {
     const parsed = parseSongFile(json)
@@ -180,7 +178,7 @@ function installLibraryFromJsonFiles(files: Record<string, string>): void {
       ...(parsed.notes !== undefined && parsed.notes.length > 0 ? { notes: parsed.notes } : {}),
     }
   })
-  saveSetlistStore(createInitialSnapshot(songs))
+  installLibrary(songs)
 }
 
 /** Trigger storage listeners so hooks re-read from localStorage (simulates another tab changing config). */
@@ -3005,7 +3003,44 @@ describe('ControlView performer state flow', () => {
       expect(within(footer as HTMLElement).getByRole('button', { name: 'Confirm' })).toBeTruthy()
     })
 
-    it('New song import adds the file to the library list', async () => {
+    const SONG_DIR = '/Users/jorge/Chango Pepper/songs'
+
+    function songJson(title: string): string {
+      return JSON.stringify({ title, lyrics: [{ es: 'a', en: 'b' }] })
+    }
+
+    /**
+     * Stands in for `songs/` and the native picker. The id of an added song comes from its file
+     * name, so a file called `ui-import.json` becomes the song `ui-import`.
+     */
+    function stubSongPicker(files: Record<string, string>): { paths: string[] } {
+      const chosen = { paths: [] as string[] }
+      ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+        isProjectionOpen: vi.fn().mockResolvedValue(false),
+        onProjectionOpened: vi.fn(() => vi.fn()),
+        onProjectionClosed: vi.fn(() => vi.fn()),
+        openProjection: vi.fn().mockResolvedValue(undefined),
+        closeProjection: vi.fn().mockResolvedValue(undefined),
+        openFileDialog: vi.fn().mockResolvedValue(null),
+        openSongFileDialog: vi.fn(() => Promise.resolve(chosen.paths)),
+        readSongFile: vi.fn((path: string) =>
+          Promise.resolve(
+            files[path] !== undefined
+              ? { ok: true, text: files[path] }
+              : { ok: false, error: `ENOENT: no such file, open '${path}'` }
+          )
+        ),
+      }
+      return chosen
+    }
+
+    async function clickNewSong() {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'New song' }))
+      })
+    }
+
+    async function renderManageSetlistsWithEmptySetlist(strict = false) {
       clearStorage()
       await act(async () => {
         await ensureSongLibraryHydrated()
@@ -3013,349 +3048,191 @@ describe('ControlView performer state flow', () => {
       createEmptySetlist()
       sessionStorage.setItem('liveLyricLaunched', '1')
       window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
-      await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
-      })
-
-      const json = JSON.stringify({
-        id: 'ui-import',
-        title: 'From File',
-        lyrics: [{ es: 'a', en: 'b' }],
-      })
-      const file = new File([json], 'song.json', { type: 'application/json' })
-      const input = screen.getByTestId('import-song-input')
-
-      await act(async () => {
-        fireEvent.change(input, { target: { files: [file] } })
-      })
-
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('1 song imported.')
-      })
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Add From File to setlist New setlist' })).toBeTruthy()
-      })
-
-      alertSpy.mockRestore()
-    })
-
-    it('importing a new song updates the draft but does not persist until Confirm', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
+      render(strict ? (
+        <StrictMode>
+          <App />
+        </StrictMode>
+      ) : (
+        <App />
+      ))
       await waitFor(() => {
         expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Edit songs in setlist New setlist' }))
       })
+    }
 
-      const json = JSON.stringify({
-        id: 'draft-import-only',
-        title: 'Draft Only',
-        lyrics: [{ es: 'a', en: 'b' }],
-      })
-      const file = new File([json], 'song.json', { type: 'application/json' })
-      const input = screen.getByTestId('import-song-input')
+    it('New song adds the picked file to the library list', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      const chosen = stubSongPicker({ [`${SONG_DIR}/ui-import.json`]: songJson('From File') })
+      await renderManageSetlistsWithEmptySetlist()
 
-      await act(async () => {
-        fireEvent.change(input, { target: { files: [file] } })
+      chosen.paths = [`${SONG_DIR}/ui-import.json`]
+      await clickNewSong()
+
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('1 song added.')
       })
       await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('1 song imported.')
+        expect(screen.getByRole('button', { name: 'Add From File to setlist New setlist' })).toBeTruthy()
       })
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
-        false
-      )
+      alertSpy.mockRestore()
+    })
+
+    it('the library stores the path, not the song', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      const chosen = stubSongPicker({ [`${SONG_DIR}/ui-import.json`]: songJson('From File') })
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/ui-import.json`]
+      await clickNewSong()
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('1 song added.')
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      })
+
+      await waitFor(() => {
+        expect(loadSetlistStore()!.library).toContainEqual({
+          id: 'ui-import',
+          path: `${SONG_DIR}/ui-import.json`,
+        })
+      })
+      expect(localStorage.getItem('liveLyricSetlistStore')).not.toContain('From File')
+      alertSpy.mockRestore()
+    })
+
+    it('adding a song updates the draft but does not persist until Confirm', async () => {
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      const chosen = stubSongPicker({ [`${SONG_DIR}/draft-import-only.json`]: songJson('Draft Only') })
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/draft-import-only.json`]
+      await clickNewSong()
+      await waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith('1 song added.')
+      })
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'draft-import-only')).toBe(false)
+
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
-        expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'draft-import-only')).toBe(
-          true
-        )
+        expect(loadSetlistStore()!.library.some((r) => r.id === 'draft-import-only')).toBe(true)
       })
       alertSpy.mockRestore()
     })
 
-    it('multi-file New song import adds each valid song to the draft and lists add controls', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('picking several files adds each of them and lists add controls', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/batch-a.json`]: songJson('Batch A'),
+        [`${SONG_DIR}/batch-b.json`]: songJson('Batch B'),
+      })
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/batch-a.json`, `${SONG_DIR}/batch-b.json`]
+      await clickNewSong()
 
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
-
-      const f1 = new File(
-        [
-          JSON.stringify({
-            id: 'batch-a',
-            title: 'Batch A',
-            lyrics: [{ es: 'a', en: 'b' }],
-          }),
-        ],
-        'a.json',
-        { type: 'application/json' }
-      )
-      const f2 = new File(
-        [
-          JSON.stringify({
-            id: 'batch-b',
-            title: 'Batch B',
-            lyrics: [{ es: 'c', en: 'd' }],
-          }),
-        ],
-        'b.json',
-        { type: 'application/json' }
-      )
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: { files: [f1, f2] },
-        })
-      })
-
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+        expect(alertSpy).toHaveBeenCalledWith('2 songs added.')
       })
       await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: 'Add Batch A to setlist New setlist' })
-        ).toBeTruthy()
-        expect(
-          screen.getByRole('button', { name: 'Add Batch B to setlist New setlist' })
-        ).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Add Batch A to setlist New setlist' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Add Batch B to setlist New setlist' })).toBeTruthy()
       })
       alertSpy.mockRestore()
     })
 
-    it('multi-file import shows the result alert exactly once under Strict Mode', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('shows the result alert exactly once under Strict Mode', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(
-        <StrictMode>
-          <App />
-        </StrictMode>
-      )
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/strict-a.json`]: songJson('Strict A'),
+        [`${SONG_DIR}/strict-b.json`]: songJson('Strict B'),
+      })
+      await renderManageSetlistsWithEmptySetlist(true)
+
+      chosen.paths = [`${SONG_DIR}/strict-a.json`, `${SONG_DIR}/strict-b.json`]
+      await clickNewSong()
 
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
-
-      const f1 = new File(
-        [
-          JSON.stringify({
-            id: 'strict-a',
-            title: 'Strict A',
-            lyrics: [{ es: 'a', en: 'b' }],
-          }),
-        ],
-        'a.json',
-        { type: 'application/json' }
-      )
-      const f2 = new File(
-        [
-          JSON.stringify({
-            id: 'strict-b',
-            title: 'Strict B',
-            lyrics: [{ es: 'c', en: 'd' }],
-          }),
-        ],
-        'b.json',
-        { type: 'application/json' }
-      )
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: { files: [f1, f2] },
-        })
-      })
-
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+        expect(alertSpy).toHaveBeenCalledWith('2 songs added.')
       })
       expect(alertSpy).toHaveBeenCalledTimes(1)
       alertSpy.mockRestore()
     })
 
-    it('multi-file import skips duplicates and invalid JSON and summarizes counts', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('a file already in the library is counted as a duplicate, whatever folder it came from', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/mix-ok.json`]: songJson('Mix Ok'),
+        [`${SONG_DIR}/old/mix-ok.json`]: songJson('Mix Ok'),
+      })
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/mix-ok.json`, `${SONG_DIR}/old/mix-ok.json`]
+      await clickNewSong()
 
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+        expect(alertSpy).toHaveBeenCalledWith('1 song added.\n1 already in the library.')
       })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
+      alertSpy.mockRestore()
+    })
 
-      const ok = new File(
-        [JSON.stringify({ id: 'mix-ok', title: 'Mix Ok', lyrics: [{ es: 'a', en: 'b' }] })],
-        'ok.json',
-        { type: 'application/json' }
-      )
-      const dup = new File(
-        [JSON.stringify({ id: 'mix-ok', title: 'Dup', lyrics: [{ es: 'x', en: 'y' }] })],
-        'dup.json',
-        { type: 'application/json' }
-      )
-      const bad = new File(['{'], 'bad.json', { type: 'application/json' })
-
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: { files: [ok, dup, bad] },
-        })
+    it('a file that will not parse is added anyway, and says so', async () => {
+      // libertad.json is exactly this case today: a real song whose timeline does not match its
+      // lyric count. Refusing it would hide the song; showing it broken names the fix.
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/shape-ok.json`]: songJson('Shape Ok'),
+        [`${SONG_DIR}/broken.json`]: JSON.stringify({ title: 'Missing lyrics' }),
       })
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/shape-ok.json`, `${SONG_DIR}/broken.json`]
+      await clickNewSong()
 
       await waitFor(() => {
         expect(alertSpy).toHaveBeenCalledWith(
-          '1 song imported.\n1 duplicate skipped.\n1 invalid file skipped.'
+          '2 songs added.\n1 file could not be read. It was added anyway and shows as unreadable.'
         )
+      })
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(`Could not read ${SONG_DIR}/broken.json`))).toBeTruthy()
       })
       alertSpy.mockRestore()
     })
 
-    it('multi-file import skips invalid song-shape JSON alongside valid files', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('a file the picker returns but the disk cannot read is added as a broken row', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
+      const chosen = stubSongPicker({})
+      await renderManageSetlistsWithEmptySetlist()
+
+      chosen.paths = [`${SONG_DIR}/gone.json`]
+      await clickNewSong()
 
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
-
-      const ok = new File(
-        [JSON.stringify({ id: 'shape-ok', title: 'Shape Ok', lyrics: [{ es: 'a', en: 'b' }] })],
-        'ok.json',
-        { type: 'application/json' }
-      )
-      const badShape = new File(
-        [JSON.stringify({ title: 'Missing lyrics' })],
-        'bad.json',
-        { type: 'application/json' }
-      )
-
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: { files: [ok, badShape] },
-        })
-      })
-
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('1 song imported.\n1 invalid file skipped.')
+        expect(screen.getByText(new RegExp(`Could not read ${SONG_DIR}/gone.json`))).toBeTruthy()
       })
       alertSpy.mockRestore()
     })
 
-    it('Back after multi-file import discards drafts without persisting songs', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('Back after adding songs discards the draft without persisting references', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/discard-a.json`]: songJson('Discard A'),
+        [`${SONG_DIR}/discard-b.json`]: songJson('Discard B'),
+      })
+      await renderManageSetlistsWithEmptySetlist()
 
+      chosen.paths = [`${SONG_DIR}/discard-a.json`, `${SONG_DIR}/discard-b.json`]
+      await clickNewSong()
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
+        expect(alertSpy).toHaveBeenCalledWith('2 songs added.')
       })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
-      const f1 = new File(
-        [
-          JSON.stringify({
-            id: 'discard-a',
-            title: 'Discard A',
-            lyrics: [{ es: 'a', en: 'b' }],
-          }),
-        ],
-        'a.json',
-        { type: 'application/json' }
-      )
-      const f2 = new File(
-        [
-          JSON.stringify({
-            id: 'discard-b',
-            title: 'Discard B',
-            lyrics: [{ es: 'c', en: 'd' }],
-          }),
-        ],
-        'b.json',
-        { type: 'application/json' }
-      )
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: { files: [f1, f2] },
-        })
-      })
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
-      })
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-a')).toBe(false)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'discard-a')).toBe(false)
 
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
       await act(async () => {
@@ -3365,84 +3242,41 @@ describe('ControlView performer state flow', () => {
       await waitFor(() => {
         expect(window.location.hash).toBe('#/songs')
       })
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-a')).toBe(false)
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'discard-b')).toBe(false)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'discard-a')).toBe(false)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'discard-b')).toBe(false)
 
       window.location.hash = '#/songs/manage-setlists'
       await waitFor(() => {
         expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
       })
       await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
+        fireEvent.click(screen.getByRole('button', { name: 'Edit songs in setlist New setlist' }))
       })
       expect(screen.queryByRole('button', { name: 'Add Discard A to setlist New setlist' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Add Discard B to setlist New setlist' })).toBeNull()
-
       alertSpy.mockRestore()
     })
 
-    it('Confirm after multi-file import persists all imported songs', async () => {
-      clearStorage()
-      await act(async () => {
-        await ensureSongLibraryHydrated()
-      })
-      createEmptySetlist()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
+    it('Confirm after adding songs persists every reference', async () => {
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
+      const chosen = stubSongPicker({
+        [`${SONG_DIR}/persist-a.json`]: songJson('Persist A'),
+        [`${SONG_DIR}/persist-b.json`]: songJson('Persist B'),
+      })
+      await renderManageSetlistsWithEmptySetlist()
 
+      chosen.paths = [`${SONG_DIR}/persist-a.json`, `${SONG_DIR}/persist-b.json`]
+      await clickNewSong()
       await waitFor(() => {
-        expect(screen.getByTestId('manage-setlists-screen')).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Edit songs in setlist New setlist' })
-        )
-      })
-      await act(async () => {
-        fireEvent.change(screen.getByTestId('import-song-input'), {
-          target: {
-            files: [
-              new File(
-                [
-                  JSON.stringify({
-                    id: 'persist-a',
-                    title: 'Persist A',
-                    lyrics: [{ es: 'a', en: 'b' }],
-                  }),
-                ],
-                'a.json',
-                { type: 'application/json' }
-              ),
-              new File(
-                [
-                  JSON.stringify({
-                    id: 'persist-b',
-                    title: 'Persist B',
-                    lyrics: [{ es: 'c', en: 'd' }],
-                  }),
-                ],
-                'b.json',
-                { type: 'application/json' }
-              ),
-            ],
-          },
-        })
-      })
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('2 songs imported.')
+        expect(alertSpy).toHaveBeenCalledWith('2 songs added.')
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
-        const lib = loadSetlistStore()!.songLibrary.songs
-        expect(lib.some((s) => s.id === 'persist-a')).toBe(true)
-        expect(lib.some((s) => s.id === 'persist-b')).toBe(true)
+        const lib = loadSetlistStore()!.library
+        expect(lib.some((r) => r.id === 'persist-a')).toBe(true)
+        expect(lib.some((r) => r.id === 'persist-b')).toBe(true)
       })
       alertSpy.mockRestore()
     })
@@ -4265,12 +4099,12 @@ describe('ControlView performer state flow', () => {
       expect(confirmSpy).not.toHaveBeenCalled()
       expect(alertSpy).not.toHaveBeenCalled()
       expect(screen.queryByRole('button', { name: /Delete Vidas from library/ })).toBeNull()
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(true)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
       })
       await waitFor(() => {
-        expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(false)
+        expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(false)
       })
       const defaultSl = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!
       expect(defaultSl.songIds).not.toContain('vidas')
@@ -4332,7 +4166,7 @@ describe('ControlView performer state flow', () => {
       expect(alertSpy).toHaveBeenCalled()
       const msg = alertSpy.mock.calls[0]![0] as string
       expect(msg).toContain('Default')
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(true)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
       confirmSpy.mockRestore()
       alertSpy.mockRestore()
     })
@@ -4368,7 +4202,7 @@ describe('ControlView performer state flow', () => {
       const msg = alertSpy.mock.calls[0]![0] as string
       expect(msg).toContain('Default')
       expect(msg).toContain('Tonight')
-      expect(loadSetlistStore()!.songLibrary.songs.some((s) => s.id === 'vidas')).toBe(true)
+      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
       confirmSpy.mockRestore()
       alertSpy.mockRestore()
     })
@@ -4651,18 +4485,17 @@ describe('ControlView performer state flow', () => {
       })
     })
 
+    const DUELO_LINE: SongItem = { languages: { es: 'a', en: 'b' } }
+    const DUELO_NO_MEDIA: LibrarySong = { id: 'duelo', title: 'Duelo', items: [DUELO_LINE] }
+    const DUELO_WITH_MEDIA: LibrarySong = {
+      ...DUELO_NO_MEDIA,
+      media: { type: 'video', src: 'duelo.mp4' },
+    }
+
     describe('camera button — direct picker (§3)', () => {
+      /** A song whose file declares a video: the only kind with a Locate video button. */
       function seedSetlistWithSong() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        const snap = {
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: {
-            songs: [{ id: 'duelo', title: 'Duelo', items: [line] }],
-          },
-        }
-        saveSetlistStore(snap)
+        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
       }
 
       function renderManageSetlists(openFileDialogImpl?: () => Promise<string | null>) {
@@ -4689,7 +4522,7 @@ describe('ControlView performer state flow', () => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
         const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        expect(within(row).getByRole('button', { name: /Link video for Duelo/i })).toBeTruthy()
+        expect(within(row).getByRole('button', { name: /Locate video for Duelo/i })).toBeTruthy()
       })
 
       it('choosing a .mov file alerts a web-playable warning', async () => {
@@ -4704,7 +4537,7 @@ describe('ControlView performer state flow', () => {
         await act(async () => {
           fireEvent.click(
             within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
+              name: /Locate video for Duelo/i,
             })
           )
         })
@@ -4726,7 +4559,7 @@ describe('ControlView performer state flow', () => {
         await act(async () => {
           fireEvent.click(
             within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
+              name: /Locate video for Duelo/i,
             })
           )
         })
@@ -4734,7 +4567,7 @@ describe('ControlView performer state flow', () => {
         expect(openFileMock).toHaveBeenCalledTimes(1)
       })
 
-      it('choosing a file via camera button sets song.media and registers the path', async () => {
+      it('choosing a file records the local path and leaves the song file alone', async () => {
         clearStorage()
         seedSetlistWithSong()
         const chosenPath = '/Users/jorge/videos/duelo.mp4'
@@ -4746,47 +4579,33 @@ describe('ControlView performer state flow', () => {
         await act(async () => {
           fireEvent.click(
             within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Link video for Duelo/i,
+              name: /Locate video for Duelo/i,
             })
           )
         })
         await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.src).toBe('duelo.mp4')
-          expect(song.media?.type).toBe('video')
+          const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+          expect(paths['duelo.mp4']).toBe(chosenPath)
         })
-        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-        expect(paths['duelo.mp4']).toBe(chosenPath)
+        // The library persists a reference and nothing else — media stays the song file's field.
+        expect(localStorage.getItem('liveLyricSetlistStore')).not.toContain('media')
       })
 
-      it('camera button has --linked class when song already has media', async () => {
+      it('camera button has --linked class once the video has been located', async () => {
         clearStorage()
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: {
-            songs: [{
-              id: 'duelo',
-              title: 'Duelo',
-              items: [line],
-              media: { type: 'video', src: 'duelo.mp4' },
-            }],
-          },
-        })
+        seedSetlistWithSong()
+        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
         renderManageSetlists()
 
         await waitFor(() => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
         const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
       })
 
-      it('camera button does not have --linked class when song has no media', async () => {
+      it('camera button does not have --linked class before the video is located', async () => {
         clearStorage()
         seedSetlistWithSong()
         renderManageSetlists()
@@ -4795,54 +4614,42 @@ describe('ControlView performer state flow', () => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
         const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
+      })
+
+      it('a song whose file declares no video has no camera button at all', async () => {
+        clearStorage()
+        installLibrary([DUELO_NO_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
+        renderManageSetlists()
+
+        await waitFor(() => {
+          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
+        })
+        const row = screen.getByTestId('manage-setlist-song-row-duelo')
+        expect(within(row).queryByRole('button', { name: /Locate video for Duelo/i })).toBeNull()
       })
     })
 
     describe('camera button — library rows + empty-state affordance (§9)', () => {
+      /** A library-only song whose file declares a video, with no local path recorded yet. */
       function seedLibraryOnly() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [],
-          activeSetlistId: '',
-          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
-        })
+        installLibrary([DUELO_WITH_MEDIA], [], '')
       }
 
-      function seedLibraryOnlyWithMedia() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [],
-          activeSetlistId: '',
-          songLibrary: {
-            songs: [{ id: 'duelo', title: 'Duelo', items: [line], media: { type: 'video' as const, src: 'duelo.mp4' } }],
-          },
-        })
+      /** The same song, with the local copy already located. */
+      function seedLibraryOnlyLocated() {
+        installLibrary([DUELO_WITH_MEDIA], [], '')
+        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
       }
 
-      function seedSetlistWithMediaSong() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: {
-            songs: [{ id: 'duelo', title: 'Duelo', items: [line], media: { type: 'video' as const, src: 'duelo.mp4' } }],
-          },
-        })
+      function seedSetlistLocated() {
+        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
+        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
       }
 
-      function seedSetlistWithNoMediaSong() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
-        })
+      function seedSetlistNotLocated() {
+        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
       }
 
       function renderManageSetlists9(openFileDialogImpl?: () => Promise<string | null>) {
@@ -4860,16 +4667,25 @@ describe('ControlView performer state flow', () => {
         render(<App />)
       }
 
-      it('library song row has a video-link camera button', async () => {
+      it('library song row has a camera button when the song file declares a video', async () => {
         clearStorage()
         seedLibraryOnly()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        expect(within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })).toBeTruthy()
+        expect(within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })).toBeTruthy()
       })
 
-      it('clicking library camera button calls openFileDialog and links the video', async () => {
+      it('library song row has no camera button when the song file declares no video', async () => {
+        clearStorage()
+        installLibrary([DUELO_NO_MEDIA], [], '')
+        renderManageSetlists9()
+
+        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
+        expect(within(libraryPanel).queryByRole('button', { name: /Locate video for Duelo/i })).toBeNull()
+      })
+
+      it('clicking library camera button calls openFileDialog and records the path', async () => {
         clearStorage()
         seedLibraryOnly()
         const chosenPath = '/Users/jorge/videos/duelo.mp4'
@@ -4877,151 +4693,103 @@ describe('ControlView performer state flow', () => {
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
         await act(async () => {
-          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i }))
+          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i }))
         })
         await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.media?.src).toBe('duelo.mp4')
-          expect(song.media?.type).toBe('video')
+          const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
+          expect(paths['duelo.mp4']).toBe(chosenPath)
         })
-        const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-        expect(paths['duelo.mp4']).toBe(chosenPath)
       })
 
-      it('library camera button has --linked class when song already has media', async () => {
+      it('library camera button has --linked class once the video is located', async () => {
         clearStorage()
-        seedLibraryOnlyWithMedia()
+        seedLibraryOnlyLocated()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
       })
 
-      it('library camera button does not have --linked class when song has no media', async () => {
+      it('library camera button does not have --linked class before the video is located', async () => {
         clearStorage()
         seedLibraryOnly()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
       })
 
-      it('setlist camera button has --add class when song has no media', async () => {
+      it('setlist camera button has --add class before the video is located', async () => {
         clearStorage()
-        seedSetlistWithNoMediaSong()
+        seedSetlistNotLocated()
         renderManageSetlists9()
 
         await waitFor(() => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
         const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
       })
 
-      it('setlist camera button does not have --add class when song has media', async () => {
+      it('setlist camera button does not have --add class once the video is located', async () => {
         clearStorage()
-        seedSetlistWithMediaSong()
+        seedSetlistLocated()
         renderManageSetlists9()
 
         await waitFor(() => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
         const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
       })
 
-      it('library camera button has --add class when song has no media', async () => {
+      it('library camera button has --add class before the video is located', async () => {
         clearStorage()
         seedLibraryOnly()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
       })
 
-      it('library camera button does not have --add class when song has media', async () => {
+      it('library camera button does not have --add class once the video is located', async () => {
         clearStorage()
-        seedLibraryOnlyWithMedia()
+        seedLibraryOnlyLocated()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
       })
 
-      it('camera button linked state has a checkmark badge', async () => {
+      it('camera button located state has a checkmark badge', async () => {
         clearStorage()
-        seedLibraryOnlyWithMedia()
+        seedLibraryOnlyLocated()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.textContent).toContain('✓')
       })
 
-      it('camera button without media has "+" badge and no checkmark', async () => {
+      it('camera button before locating has "+" badge and no checkmark', async () => {
         clearStorage()
         seedLibraryOnly()
         renderManageSetlists9()
 
         const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Link video for Duelo/i })
+        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
         expect(cameraBtn.textContent).toContain('+')
         expect(cameraBtn.textContent).not.toContain('✓')
       })
     })
 
-    describe('timeline-import button (§16)', () => {
-      function seedSetlistSongNoTimeline() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
-        })
-      }
-
-      function seedSetlistSongWithTimeline() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }],
-          activeSetlistId: 'sl-1',
-          songLibrary: {
-            songs: [{ id: 'duelo', title: 'Duelo', items: [line], timeline: [{ start: 0, end: 1 }] }],
-          },
-        })
-      }
-
-      function seedLibrarySongNoTimeline() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [],
-          activeSetlistId: '',
-          songLibrary: { songs: [{ id: 'duelo', title: 'Duelo', items: [line] }] },
-        })
-      }
-
-      function seedLibrarySongWithTimeline() {
-        const line: SongItem = { languages: { es: 'a', en: 'b' } }
-        saveSetlistStore({
-          version: 7 as const,
-          setlists: [],
-          activeSetlistId: '',
-          songLibrary: {
-            songs: [{ id: 'duelo', title: 'Duelo', items: [line], timeline: [{ start: 0, end: 1 }] }],
-          },
-        })
-      }
-
+    describe('timelines come from the song file (§16)', () => {
       function renderManageSetlists16() {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
         ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
@@ -5037,206 +4805,32 @@ describe('ControlView performer state flow', () => {
         render(<App />)
       }
 
-      it('setlist song row has a timeline-import button when song has no timeline (--add class)', async () => {
+      it('offers no way to import a timeline onto a song', async () => {
         clearStorage()
-        seedSetlistSongNoTimeline()
+        installLibrary([DUELO_NO_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
         renderManageSetlists16()
 
         await waitFor(() => {
           expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
         })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const btn = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btn).toBeTruthy()
-        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
-        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
+        expect(screen.queryByRole('button', { name: /Import timeline for Duelo/i })).toBeNull()
+        expect(screen.queryByTestId('import-timeline-input')).toBeNull()
       })
 
-      it('setlist song row timeline button has --linked class when song has a timeline', async () => {
+      it('a timeline in the song file reaches the app without being written to storage', () => {
         clearStorage()
-        seedSetlistSongWithTimeline()
-        renderManageSetlists16()
+        installLibrary([
+          {
+            ...DUELO_NO_MEDIA,
+            timeline: [{ start: 0, end: 1 }],
+            timelineVersion: 2,
+            leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
+          },
+        ])
 
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const btn = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
-        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
-      })
-
-      it('timeline button has "+" badge when no timeline and "✓" badge when has timeline on setlist rows', async () => {
-        clearStorage()
-        seedSetlistSongNoTimeline()
-        renderManageSetlists16()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const btnNoTl = within(row).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btnNoTl.textContent).toContain('+')
-        expect(btnNoTl.textContent).not.toContain('✓')
-        cleanup()
-
-        clearStorage()
-        seedSetlistSongWithTimeline()
-        renderManageSetlists16()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row2 = screen.getByTestId('manage-setlist-song-row-duelo')
-        const btnTl = within(row2).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btnTl.textContent).toContain('✓')
-        expect(btnTl.textContent).not.toContain('+')
-      })
-
-      it('library song row has a timeline-import button with --add class when no timeline', async () => {
-        clearStorage()
-        seedLibrarySongNoTimeline()
-        renderManageSetlists16()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const btn = within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
-      })
-
-      it('library song row timeline button has --linked class when song has a timeline', async () => {
-        clearStorage()
-        seedLibrarySongWithTimeline()
-        renderManageSetlists16()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const btn = within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i })
-        expect(btn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
-      })
-
-      it('clicking setlist timeline button then selecting a valid JSON file writes timeline to the song', async () => {
-        clearStorage()
-        seedSetlistSongNoTimeline()
-        renderManageSetlists16()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        await act(async () => {
-          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
-        })
-
-        // P3: the import file must be a valid timeline v2 envelope (timelineVersion + leadIn +
-        // timeline) — a bare { timeline: [...] } (v1-shaped) is now rejected by the guard.
-        const jsonText = JSON.stringify({
-          timelineVersion: 2,
-          leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
-          timeline: [{ start: 0, end: 1 }],
-        })
-        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
-        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
-        await act(async () => {
-          fireEvent.change(input, { target: { files: [mockFile] } })
-        })
-
-        await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.timeline).toEqual([{ start: 0, end: 1 }])
-          expect(song.timelineVersion).toBe(2)
-          expect(song.leadIn).toEqual({ durationSec: 0, source: 'none', confidence: 'low', apply: false })
-        })
-      })
-
-      it('clicking library timeline button then selecting a valid JSON file writes timeline to the song', async () => {
-        clearStorage()
-        seedLibrarySongNoTimeline()
-        renderManageSetlists16()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        await act(async () => {
-          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Import timeline for Duelo/i }))
-        })
-
-        const jsonText = JSON.stringify({
-          timelineVersion: 2,
-          leadIn: { durationSec: 0, source: 'none', confidence: 'low', apply: false },
-          timeline: [{ start: 0, end: 2 }, { start: 2, end: 4 }],
-        })
-        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
-        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
-        await act(async () => {
-          fireEvent.change(input, { target: { files: [mockFile] } })
-        })
-
-        await waitFor(() => {
-          const store = loadSetlistStore()!
-          const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-          expect(song.timeline).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }])
-          expect(song.timelineVersion).toBe(2)
-        })
-      })
-
-      it('P3: importing a v1-shaped timeline file (no timelineVersion) is rejected with the older-Bombista message', async () => {
-        clearStorage()
-        seedSetlistSongNoTimeline()
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
-        renderManageSetlists16()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        await act(async () => {
-          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
-        })
-
-        const jsonText = JSON.stringify({ timeline: [{ start: 0, end: 1 }] })
-        const mockFile = new File([jsonText], 'timeline.json', { type: 'application/json' })
-        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
-        await act(async () => {
-          fireEvent.change(input, { target: { files: [mockFile] } })
-        })
-
-        await waitFor(() => {
-          expect(alertMock).toHaveBeenCalledWith(
-            expect.stringMatching(/This timeline was made by an older Bombista — re-run the extractor\./)
-          )
-        })
-        const store = loadSetlistStore()!
-        const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-        expect(song.timeline).toBeUndefined()
-        alertMock.mockRestore()
-      })
-
-      it('importing an invalid JSON file shows an alert and does not change the song', async () => {
-        clearStorage()
-        seedSetlistSongNoTimeline()
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
-        renderManageSetlists16()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        await act(async () => {
-          fireEvent.click(within(row).getByRole('button', { name: /Import timeline for Duelo/i }))
-        })
-
-        const mockFile = new File(['not valid json'], 'timeline.json', { type: 'application/json' })
-        const input = document.querySelector<HTMLInputElement>('[data-testid="import-timeline-input"]')!
-        await act(async () => {
-          fireEvent.change(input, { target: { files: [mockFile] } })
-        })
-
-        await waitFor(() => {
-          expect(alertMock).toHaveBeenCalledWith(expect.stringMatching(/invalid timeline/i))
-        })
-
-        const store = loadSetlistStore()!
-        const song = store.songLibrary.songs.find((s) => s.id === 'duelo')!
-        expect(song.timeline).toBeUndefined()
-        alertMock.mockRestore()
+        expect(getLibrarySongById('duelo')?.timeline).toEqual([{ start: 0, end: 1 }])
+        expect(getLibrarySongById('duelo')?.timelineVersion).toBe(2)
+        expect(localStorage.getItem('liveLyricSetlistStore')).not.toContain('timeline')
       })
     })
   })
@@ -6268,7 +5862,7 @@ describe('Control pre-first-lyric notes display', () => {
     items: SongItem[]
     notes?: string
   }) {
-    saveSetlistStore(createInitialSnapshot([song]))
+    installLibrary([song])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     setSongLines(song.items)
@@ -6398,7 +5992,7 @@ describe('Control pre-first-lyric intro display', () => {
     items: SongItem[]
     intro?: Record<string, string>
   }) {
-    saveSetlistStore(createInitialSnapshot([song]))
+    installLibrary([song])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     setSongLines(song.items)
@@ -6578,7 +6172,7 @@ describe('§6 non-video armed screen', () => {
       items: VALID_LINES,
       tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
     }
-    const snapshot = createInitialSnapshot([songWithTempo, { id: 'pimiento', title: 'Pimiento', items: VALID_LINES }])
+    const snapshot = installLibrary([songWithTempo, { id: 'pimiento', title: 'Pimiento', items: VALID_LINES }])
     saveSetlistStore(snapshot)
     setCurrentSongId('duelo')
 
@@ -6636,7 +6230,7 @@ describe('§6 non-video armed screen', () => {
       items: VALID_LINES,
       tempo: { bpm: 140, numerator: 3, denominator: 4, countInBars: 1 },
     }
-    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('luz-y-sal')
     render(<App initialHash="#/" />)
@@ -6685,7 +6279,7 @@ describe('§6 non-video armed screen', () => {
       items: VALID_LINES,
       tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
     }
-    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
     render(<App initialHash="#/" />)
@@ -6723,7 +6317,7 @@ describe('§6 non-video armed screen', () => {
       items: VALID_LINES,
       tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
     }
-    saveSetlistStore(createInitialSnapshot([songWithTempo]))
+    installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
     render(<App initialHash="#/" />)
@@ -6774,7 +6368,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -6802,7 +6396,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
       title: 'Duelo',
       items: VALID_LINES,
     }
-    saveSetlistStore(createInitialSnapshot([plainSong]))
+    installLibrary([plainSong])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     setSongLines(VALID_LINES)
@@ -7005,7 +6599,7 @@ describe('§17 C2 — Projection status text ignores leftover screenSize for non
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -7036,7 +6630,7 @@ describe('§17 C2 — Projection status text ignores leftover screenSize for non
       items: VALID_LINES,
       tempo: { bpm: 140, numerator: 3, denominator: 4, countInBars: 1 },
     }
-    saveSetlistStore(createInitialSnapshot([plainSong]))
+    installLibrary([plainSong])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     sessionStorage.setItem('liveLyricScreenSize', 'big')
@@ -7138,7 +6732,7 @@ describe('§5 video armed screen — End Card absent', () => {
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     // Provide a resolved path so the panel renders with video
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
 
@@ -7174,7 +6768,7 @@ describe('§5 video armed screen — End Card absent', () => {
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
 
     setupControlViewWithReadinessPassing()
@@ -7228,7 +6822,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -7256,7 +6850,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
       title: 'Duelo',
       items: VALID_LINES,
     }
-    saveSetlistStore(createInitialSnapshot([plainSong]))
+    installLibrary([plainSong])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     setSongLines(VALID_LINES)
@@ -7499,7 +7093,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -7527,7 +7121,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
       title: 'Duelo',
       items: VALID_LINES,
     }
-    saveSetlistStore(createInitialSnapshot([plainSong]))
+    installLibrary([plainSong])
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
     setSongLines(VALID_LINES)
@@ -7622,7 +7216,7 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithVideo]))
+    installLibrary([songWithVideo])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -7724,7 +7318,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       // Line 0 covers [0, 2)s of song time, line 1 covers [2, 100)s.
       timeline: [{ start: 0, end: 2 }, { start: 2, end: 100 }],
     }
-    saveSetlistStore(createInitialSnapshot([songWithTimeline]))
+    installLibrary([songWithTimeline])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
   }
@@ -7736,7 +7330,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       items: VALID_LINES,
       tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
     }
-    saveSetlistStore(createInitialSnapshot([songNoTimeline]))
+    installLibrary([songNoTimeline])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
   }
@@ -7748,7 +7342,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       title: 'Duelo',
       items: VALID_LINES,
     }
-    saveSetlistStore(createInitialSnapshot([plainSong]))
+    installLibrary([plainSong])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
   }
@@ -8082,7 +7676,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         // docs/timeline-v2-contract.md), line 1 covers [5.84, ...).
         timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
       }
-      saveSetlistStore(createInitialSnapshot([songWithTimelineV2]))
+      installLibrary([songWithTimelineV2])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
     }
@@ -8174,7 +7768,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         // 120bpm 4/4 → 500ms per beat, 2000ms per bar.
         tempo: { bpm: 120, numerator: 4, denominator: 4, countInBars: 1 },
       }
-      saveSetlistStore(createInitialSnapshot([song]))
+      installLibrary([song])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
     }
@@ -8278,7 +7872,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         { id: 'duelo', title: 'Duelo', items: VALID_LINES, timelineVersion: 2, leadIn: v2LeadIn, timeline: v2Timeline },
         { id: 'otra', title: 'Otra', items: OTHER_LINES, timelineVersion: 2, leadIn: v2LeadIn, timeline: v2Timeline },
       ]
-      saveSetlistStore(createInitialSnapshot(songs))
+      installLibrary(songs)
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
       await armAndReachSetup()
@@ -8440,7 +8034,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
         tempo: { bpm: DECLARED, numerator: 4, denominator: 4, countInBars: 1 },
       }
-      saveSetlistStore(createInitialSnapshot([song]))
+      installLibrary([song])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
     }
@@ -8500,7 +8094,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
         tempo: { bpm: 66.67, numerator: 4, denominator: 4, countInBars: 1 },
       }
-      saveSetlistStore(createInitialSnapshot([song]))
+      installLibrary([song])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('odd')
       await armAndReachSetupFakeTimers()
@@ -8622,7 +8216,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         leadIn: { durationSec: 7.26, source: 'measured' as const, confidence: 'low' as const, apply: false },
         timeline: [{ start: 0, end: 6 }, { start: 6, end: 200 }],
       }
-      saveSetlistStore(createInitialSnapshot([song]))
+      installLibrary([song])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
       await armAndReachSetupFakeTimers()
@@ -8650,7 +8244,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
         // Line 0 owns a long window, so Auto would keep snapping back to it for 5.84s.
         timeline: [{ start: 0, end: 5.84 }, { start: 5.84, end: 200 }],
       }
-      saveSetlistStore(createInitialSnapshot([song]))
+      installLibrary([song])
       setupControlViewWithReadinessPassing()
       setCurrentSongId('duelo')
     }

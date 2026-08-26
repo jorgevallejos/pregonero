@@ -17,7 +17,7 @@ import {
   setSingingLanguage,
 } from './songState'
 import type { SongItem } from './songState'
-import { createInitialSnapshot, saveSetlistStore } from './setlistStore'
+import { installLibrary } from './testSupport/library'
 import { KEY_ARMED_BROADCAST, setStoredArmed } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { KEY_END_CARD_VISIBLE } from './endCardState'
@@ -94,7 +94,7 @@ function setupSongLibraryWithNotes(song: {
   items: SongItem[]
   notes?: string
 }) {
-  saveSetlistStore(createInitialSnapshot([song]))
+  installLibrary([song])
 }
 
 /** Projection must not have a next-line preview element (preview is on control screen only). */
@@ -357,7 +357,7 @@ function setupIntroScreenState(song: {
   title_translations?: Record<string, string>
   intro?: Record<string, string>
 }) {
-  saveSetlistStore(createInitialSnapshot([song]))
+  installLibrary([song])
   sessionStorage.setItem('liveLyricLaunched', '1')
   setSongLines(song.items)
   setSongIndex(-1)
@@ -383,7 +383,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
   })
 
   it('shows the logo when mounted mid-song (index 3), not the current lyric', async () => {
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines([
       { languages: { es: 'L1', en: 'L1' } },
@@ -408,7 +408,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
   })
 
   it('shows intro screen after arm transition (non-armed to armed)', async () => {
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
@@ -441,7 +441,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     setStoredArmed(false) // unarm removes KEY_ARMED (session) but leaves the leftover scenario realistic
     localStorage.setItem(KEY_ARMED_BROADCAST, '1') // simulate a stale leftover value from a prior launch
 
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
@@ -477,7 +477,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
   })
 
   it('T2: audience is black (intro suppressed) while the Auto blackout is active at index -1', async () => {
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
@@ -520,7 +520,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
   })
 
   it('shows first lyric after arm transition followed by advancing to index 0', async () => {
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
@@ -558,7 +558,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
     // localStorage; the Projection re-reads it on the storage event. The lyric must appear even
     // though the blackout flag is still set (blackout only suppresses the intro at index -1, so
     // gaps between cues stay black — it must NOT suppress a real cue).
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(-1)
@@ -595,7 +595,7 @@ describe('Projection lifecycle: logo on mount, intro on arm', () => {
   })
 
   it('shows logo again after unmount and remount during performing', async () => {
-    saveSetlistStore(createInitialSnapshot([PERF_SONG]))
+    installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
@@ -826,12 +826,11 @@ describe('Non-video projection layout (regression guard: centered full-screen, n
    * (no split div structure).
    */
   it('non-video intro screen does NOT use the animation-region/subtitle-band split layout', async () => {
-    const { saveSetlistStore, createInitialSnapshot } = await import('./setlistStore')
-    saveSetlistStore(createInitialSnapshot([{
+    installLibrary([{
       id: 'no-video-song',
       title: 'No Video Song',
       items: [{ languages: { es: 'Hola', en: 'Hello' } }],
-    }]))
+    }])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
     setSongIndex(-1)
@@ -933,11 +932,11 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     intro?: Record<string, string>
   }) {
     const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
-    saveSetlistStore(createInitialSnapshot([{
+    installLibrary([{
       ...song,
       media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
-    }]))
+    }])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     // Since 3bff124, video display defaults to 'none' (Videoclip: None) — the performer must
     // explicitly opt in to Small/Big before the Projection window shows the video compositor

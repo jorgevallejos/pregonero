@@ -60,9 +60,8 @@ function validateLyricLine(obj: Record<string, unknown>, index: number): LyricLi
 
 /**
  * The CP song format carries sung lines only — no section markers, no meta entries (P4).
- * This is a file-load / import boundary rule only: `SectionMarker`, `isSection`, and section
- * rendering elsewhere in the app are unaffected, as is the persisted-store path
- * (`tryParsePersistedSongItemsArray`), which must keep accepting a library already on disk.
+ * This is a file-load boundary rule only: `SectionMarker`, `isSection`, and section rendering
+ * elsewhere in the app are unaffected.
  */
 function validateLyricsItem(item: unknown, index: number): SongItem {
   if (item !== null && typeof item === 'object') {
@@ -88,47 +87,6 @@ export function tryParseSongItemsArray(items: unknown): SongItem[] | null {
   } catch {
     return null
   }
-}
-
-function tryParsePersistedLyricsItem(item: unknown, index: number): SongItem | null {
-  if (item === null || typeof item !== 'object') return null
-  const obj = item as Record<string, unknown>
-  if (obj.type === 'section') {
-    if (typeof obj.label !== 'string') return null
-    return { type: 'section', label: obj.label }
-  }
-  if (
-    'languages' in obj &&
-    obj.languages !== null &&
-    typeof obj.languages === 'object' &&
-    !Array.isArray(obj.languages)
-  ) {
-    try {
-      return validateLyricLine(obj.languages as Record<string, unknown>, index)
-    } catch {
-      return null
-    }
-  }
-  try {
-    return validateLyricLine(obj, index)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Validates persisted `items` as canonical `SongItem[]` (lyric lines use `{ languages: { … } }`).
- * Also accepts flat `{ "es": "…" }` objects for forward compatibility.
- */
-export function tryParsePersistedSongItemsArray(items: unknown): SongItem[] | null {
-  if (!Array.isArray(items)) return null
-  const out: SongItem[] = []
-  for (let i = 0; i < items.length; i++) {
-    const one = tryParsePersistedLyricsItem(items[i], i)
-    if (one === null) return null
-    out.push(one)
-  }
-  return out
 }
 
 export interface TimelineEntry {

@@ -35,18 +35,6 @@ export const GOLDEN_TIMELINE_ENTRIES: TimelineEntry[] = [
   { start: 76.64, end: 98.84 },
 ]
 
-/** The 3-key envelope produced by Bombista / accepted by the A+ timeline-import button. */
-export const GOLDEN_TIMELINE_IMPORT_ENVELOPE = {
-  timelineVersion: 2,
-  leadIn: GOLDEN_LEAD_IN,
-  timeline: GOLDEN_TIMELINE_ENTRIES,
-}
-
-/** Same envelope, but v1-shaped (no timelineVersion/leadIn) — must be rejected on both load paths. */
-export const V1_SHAPED_TIMELINE_IMPORT_ENVELOPE = {
-  timeline: GOLDEN_TIMELINE_ENTRIES,
-}
-
 /** 20 placeholder sung lines (not the real Libertad lyrics), one per timeline entry. */
 export const GOLDEN_LYRICS_20 = Array.from({ length: 20 }, (_, i) => ({
   es: `Línea ${i + 1}`,
