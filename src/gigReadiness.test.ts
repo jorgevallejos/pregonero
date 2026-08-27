@@ -91,9 +91,20 @@ describe('with no gig folder open', () => {
     expect(r.playableSongIds).toEqual(['duelo'])
   })
 
-  it('reports every step as not yet, never as broken', () => {
+  it('reports every gig step as not yet, never as broken', () => {
     const r = computeGigReadiness(input({ folderPath: null }))
-    expect(r.steps.map((s) => s.status)).toEqual(['not-yet', 'not-yet', 'not-yet', 'not-yet'])
+    expect(r.steps.filter((s) => s.step > 1).map((s) => s.status)).toEqual([
+      'not-yet',
+      'not-yet',
+      'not-yet',
+      'not-yet',
+      'not-yet',
+    ])
+  })
+
+  it('still answers step 1, because songs are gig-independent', () => {
+    const r = computeGigReadiness(input({ folderPath: null }))
+    expect(r.steps.find((s) => s.step === 1)!.status).toBe('complete')
   })
 
   it('emptyGigReadiness is the same shape', () => {
@@ -117,6 +128,8 @@ describe('the common case: a song set up by doing nothing at all', () => {
   it('is ready with every step complete', () => {
     const r = computeGigReadiness(input())
     expect(r.steps.map((s) => s.status)).toEqual([
+      'complete',
+      'complete',
       'complete',
       'complete',
       'complete',
@@ -287,7 +300,13 @@ describe('the per-step verdict', () => {
         setlist: [],
       })
     )
-    expect(r.steps.map((s) => s.status)).toEqual(['not-yet', 'not-yet', 'not-yet', 'not-yet'])
+    expect(r.steps.filter((s) => s.step > 1).map((s) => s.status)).toEqual([
+      'not-yet',
+      'not-yet',
+      'not-yet',
+      'not-yet',
+      'not-yet',
+    ])
     expect(r.refusals).toEqual([])
   })
 
@@ -363,5 +382,67 @@ describe('the playable setlist', () => {
       })
     )
     expect(r.playableSongIds).toEqual(['a'])
+  })
+})
+
+describe('step 1: the songs, and the library is its subject', () => {
+  function step1(overrides: Partial<GigReadinessInput> = {}) {
+    return computeGigReadiness(input(overrides)).steps.find((s) => s.step === 1)!
+  }
+
+  it('is complete when the library holds a song that reads', () => {
+    expect(step1({ library: [row(song('duelo'))] }).status).toBe('complete')
+  })
+
+  it('is not yet with no songs at all, and says what a song needs', () => {
+    const s = step1({ library: [], setlist: [] })
+    expect(s.status).toBe('not-yet')
+    expect(s.missing[0]).toMatch(/lyrics and audio/)
+  })
+
+  it('is not yet when nothing in the library reads', () => {
+    expect(step1({ library: [brokenRow('libertad', '20 against 24')] }).status).toBe('not-yet')
+  })
+
+  it('names an unreadable reference as work, not as a blocker', () => {
+    const s = step1({ library: [row(song('duelo')), brokenRow('libertad', '20 against 24')] })
+    expect(s.status).toBe('complete')
+    expect(s.missing).toEqual([])
+    expect(s.notes).toEqual(['libertad: 20 against 24'])
+  })
+
+  it('carries a bombista finding as a note, never as a block', () => {
+    const s = step1({
+      library: [row(song('duelo'))],
+      validation: { duelo: { status: 'failed', messages: ['timeline is short'] } },
+    })
+    expect(s.status).toBe('complete')
+    expect(s.notes).toEqual(['duelo: bombista: timeline is short'])
+  })
+
+  it('falls back to the setlist when no separate library is given', () => {
+    expect(step1({ library: undefined }).status).toBe('complete')
+  })
+
+  it('holds the later steps: a gig cannot be complete while step 1 is not', () => {
+    const r = computeGigReadiness(input({ library: [], setlist: [] }))
+    expect(r.steps.find((s) => s.step === 5)!.status).toBe('not-yet')
+    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+  })
+})
+
+describe('step 6: derived until the confirmation is recorded', () => {
+  it('is complete when every step before it is', () => {
+    expect(computeGigReadiness(input()).steps.find((s) => s.step === 6)!.status).toBe('complete')
+  })
+
+  it('is not yet while anything before it is', () => {
+    const r = computeGigReadiness(input({ visualsPresent: false, visuals: null }))
+    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+  })
+
+  it('is broken when an earlier step is a loud refusal', () => {
+    const r = computeGigReadiness(input({ visualsProblem: 'visuals.json belongs to gig "x".' }))
+    expect(r.steps.find((s) => s.step === 6)!.status).toBe('broken')
   })
 })

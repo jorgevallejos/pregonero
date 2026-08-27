@@ -54,6 +54,13 @@ export type GigStep = {
   status: StepStatus
   /** What is missing, in the words the screen shows. Empty when the step is complete. */
   missing: string[]
+  /**
+   * Work this step knows about that does not hold it up — an unreadable reference sitting in the
+   * library, a `bombista` finding. Same distinction `SongReadiness` draws, for the same reason: a
+   * step that could never complete while a known-broken file exists is a guided path nobody can
+   * walk, and `libertad.json` is deliberately kept in the library rather than hidden.
+   */
+  notes: string[]
 }
 
 export type SongReadiness = {
@@ -151,6 +158,11 @@ export type GigReadinessInput = {
   validation: Readonly<Record<string, SongValidation>>
   /** What last happened to the running order, when anything did. Carried through, never computed. */
   adoption?: SetlistAdoptionNotice | null
+  /**
+   * The whole library, for step 1 — which is about the songs and not about this gig. Defaults to
+   * the setlist, so a caller that has no separate view of the library still gets a real verdict.
+   */
+  library?: readonly SetlistSongInput[]
 }
 
 function lyricLineCount(song: LibrarySong): number {
@@ -207,13 +219,60 @@ function contentMissingFor(
 }
 
 const STEP_NAMES: Record<number, string> = {
+  1: 'The songs',
   2: 'The gig',
   3: 'Gig visuals',
   4: 'Song visuals',
   5: 'Readiness at the venue',
+  6: 'Setup confirmed',
 }
 
-function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness {
+/**
+ * **Step 1: prepare the songs.** First in the flow because songs are **gig-independent** and are
+ * often done days ahead, and the only step whose subject is the library rather than the gig.
+ *
+ * Everything inside a song file is Bombista's — this asks only whether the library holds a song at
+ * all, which is what step 2 needs in order to draw a setlist from one. A reference that will not
+ * read and a `bombista` finding are **notes**: they are work, and a step that could never complete
+ * while `libertad.json` sits in the library would be a guided path nobody could walk.
+ */
+function computeStep1(
+  library: readonly SetlistSongInput[],
+  validation: Readonly<Record<string, SongValidation>>
+): GigStep {
+  const notes: string[] = []
+  for (const entry of library) {
+    if (entry.song === null) {
+      notes.push(`${entry.title}: ${entry.error ?? `${entry.path} could not be read`}`)
+    }
+    const verdict = validation[entry.id]
+    if (verdict?.status === 'failed') {
+      for (const message of verdict.messages) notes.push(`${entry.title}: bombista: ${message}`)
+    }
+  }
+  const readable = library.filter((entry) => entry.song !== null)
+  const missing =
+    readable.length > 0
+      ? []
+      : [
+          library.length === 0
+            ? 'No songs yet. A song needs lyrics and audio: `bombista new`, the words, then align.'
+            : 'No song in the library reads yet.',
+        ]
+  return {
+    step: 1,
+    name: STEP_NAMES[1]!,
+    status: missing.length === 0 ? 'complete' : 'not-yet',
+    missing,
+    notes,
+  }
+}
+
+function readinessWithoutGig(
+  setlist: readonly SetlistSongInput[],
+  library: readonly SetlistSongInput[] = setlist,
+  validation: Readonly<Record<string, SongValidation>> = {}
+): GigReadiness {
   const songs: SongReadiness[] = setlist.map((entry) => ({
     songId: entry.id,
     title: entry.title,
@@ -227,12 +286,17 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     date: null,
     venue: null,
     gate: 'off',
-    steps: [2, 3, 4, 5].map((step) => ({
-      step,
-      name: STEP_NAMES[step]!,
-      status: 'not-yet' as StepStatus,
-      missing: ['No gig folder is open.'],
-    })),
+    steps: [
+      // Step 1 is real with no gig open: songs are gig-independent, which is why they come first.
+      computeStep1(library, validation),
+      ...[2, 3, 4, 5, 6].map((step) => ({
+        step,
+        name: STEP_NAMES[step]!,
+        status: 'not-yet' as StepStatus,
+        missing: ['No gig folder is open.'],
+        notes: [],
+      })),
+    ],
     songs,
     playableSongIds: songs.filter((s) => s.ready).map((s) => s.songId),
     refusals: [],
@@ -242,7 +306,9 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
 }
 
 export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
-  if (input.folderPath === null) return readinessWithoutGig(input.setlist)
+  if (input.folderPath === null) {
+    return readinessWithoutGig(input.setlist, input.library ?? input.setlist, input.validation)
+  }
 
   const refusals: string[] = []
   if (input.gigProblem) refusals.push(input.gigProblem)
@@ -334,8 +400,11 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   const step4Status: StepStatus =
     step3Status !== 'complete' ? 'not-yet' : step4Missing.length > 0 ? 'not-yet' : 'complete'
 
+  // ── Step 1: the songs. Gig-independent, which is why it is first ──────────────────────────
+  const step1 = computeStep1(input.library ?? input.setlist, input.validation)
+
   // ── Step 5: the venue. It reconfirms; it does not discover ────────────────────────────────
-  const earlier: StepStatus[] = [step2Status, step3Status, step4Status]
+  const earlier: StepStatus[] = [step1.status, step2Status, step3Status, step4Status]
   const step5Status: StepStatus = earlier.includes('broken')
     ? 'broken'
     : earlier.every((s) => s === 'complete')
@@ -344,6 +413,13 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   const step5Missing =
     step5Status === 'complete' ? [] : ['Everything above has to be true before the venue check.']
 
+  // ── Step 6: setup confirmed. **Derived, for now.** The confirmation is the one thing the design
+  // deliberately stores, and storing it — with what it was confirmed against, so it can go stale —
+  // is the next stage's. Until then this is the honest answer: the checks pass, or they do not.
+  const step6Status: StepStatus = step5Status === 'complete' ? 'complete' : step5Status
+  const step6Missing =
+    step6Status === 'complete' ? [] : ['The readiness check at the venue has not passed yet.']
+
   return {
     folderPath: input.folderPath,
     gigId: input.gig?.id ?? null,
@@ -351,10 +427,18 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     venue: input.gig?.venue ?? null,
     gate: 'on',
     steps: [
-      { step: 2, name: STEP_NAMES[2]!, status: step2Status, missing: step2Missing },
-      { step: 3, name: STEP_NAMES[3]!, status: step3Status, missing: step3Missing },
-      { step: 4, name: STEP_NAMES[4]!, status: step4Status, missing: step4Missing },
-      { step: 5, name: STEP_NAMES[5]!, status: step5Status, missing: step5Missing },
+      step1,
+      { step: 2, name: STEP_NAMES[2]!, status: step2Status, missing: step2Missing, notes: [] },
+      { step: 3, name: STEP_NAMES[3]!, status: step3Status, missing: step3Missing, notes: [] },
+      { step: 4, name: STEP_NAMES[4]!, status: step4Status, missing: step4Missing, notes: [] },
+      { step: 5, name: STEP_NAMES[5]!, status: step5Status, missing: step5Missing, notes: [] },
+      {
+        step: 6,
+        name: STEP_NAMES[6]!,
+        status: step6Status,
+        missing: step6Missing,
+        notes: [],
+      },
     ],
     songs,
     playableSongIds,

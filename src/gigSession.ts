@@ -75,6 +75,7 @@ export function getGigReadiness(): GigReadiness {
     visuals: null,
     visualsProblem: null,
     setlist: readSetlist(),
+    library: readLibrary(),
     mediaResolution: {},
     validation: {},
   })
@@ -89,6 +90,18 @@ export function subscribeGigReadiness(listener: () => void): () => void {
 function readSetlist(): SetlistSongInput[] {
   try {
     return getOrderedEntriesForActiveSetlist().map(toSetlistInput)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The whole library as readiness input, for step 1 — which is about the songs and not about this
+ * gig, and is why songs come first in the flow.
+ */
+function readLibrary(): SetlistSongInput[] {
+  try {
+    return getLibraryEntries().map(toSetlistInput)
   } catch {
     return []
   }
@@ -266,6 +279,7 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
         visuals: null,
         visualsProblem: null,
         setlist: readSetlist(),
+        library: readLibrary(),
         mediaResolution: {},
         validation: {},
       })
@@ -410,6 +424,7 @@ async function publishFromFolder(
       visuals,
       visualsProblem,
       setlist,
+      library: readLibrary(),
       mediaResolution,
       validation,
       adoption: lastAdoption,

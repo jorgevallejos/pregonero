@@ -1388,21 +1388,6 @@ html, body, #root {
   line-height: 1;
 }
 
-.manage-setlists-icon-btn--linked {
-  color: var(--state-linked);
-}
-
-.manage-setlists-icon-btn--add .video-link-btn-badge,
-.manage-setlists-icon-btn--linked .video-link-btn-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  font-size: 0.5em;
-  font-weight: 700;
-  line-height: 1;
-  pointer-events: none;
-}
-
 .manage-setlists-icon-svg {
   display: block;
   flex-shrink: 0;
@@ -2594,6 +2579,177 @@ html, body, #root {
 
 .gig-song-notes {
   color: var(--text-dim);
+}
+
+.control-rig-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* ---- The setup flow: six ordered steps, and a forward button that greys ----
+   The block is on the guided path only. Every step stays readable and every song stays listed;
+   only moving on is held, and a blocked step says the escape hatch out loud. */
+.gig-step-select {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.gig-step-select:focus-visible {
+  outline: 1px solid var(--text-dim);
+  outline-offset: 2px;
+}
+
+.gig-step-here {
+  border-left: 2px solid var(--text-primary);
+  padding-left: 0.6em;
+}
+
+.gig-step-notes {
+  grid-column: 1 / -1;
+  margin: 0.25em 0 0;
+  padding-left: 1.1em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-dim);
+  list-style: disc;
+}
+
+.setup-step-page {
+  border: 1px solid var(--rule, #423e37);
+  padding: 0.9em 1.1em;
+}
+
+.setup-escape-hatch {
+  margin: 0.9em 0 0;
+  padding: 0.6em 0.8em;
+  border-left: 2px solid var(--text-dim);
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.setup-blocked {
+  margin: 0.5em 0 0;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--state-fail);
+}
+
+.setup-nav {
+  display: flex;
+  gap: 0.75em;
+  margin-top: 1em;
+}
+
+.setup-songs,
+.setup-shapes,
+.song-subflow {
+  list-style: none;
+  margin: 0.6em 0 0;
+  padding: 0;
+}
+
+.song-subflow {
+  list-style: decimal;
+  padding-left: 1.2em;
+}
+
+.song-subflow li {
+  margin-bottom: 0.4em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.song-subflow-name {
+  display: block;
+  color: var(--text-primary);
+}
+
+.setup-song {
+  padding: 0.6em 0;
+  border-bottom: 1px solid var(--rule-faint);
+}
+
+.setup-song-title {
+  display: block;
+  color: var(--text-primary);
+}
+
+.setup-song-problem {
+  display: block;
+  margin-top: 0.2em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--state-fail);
+}
+
+.song-doors-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  margin-top: 0.5em;
+}
+
+.song-door-body {
+  margin-top: 0.6em;
+  padding-left: 0.8em;
+  border-left: 1px solid var(--rule-faint);
+}
+
+.song-door-title {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.setup-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3em 1em;
+  margin: 0.6em 0 0;
+}
+
+.setup-facts dt {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.setup-facts dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.setup-shapes li,
+.setup-rig li,
+.setup-evidence li {
+  font-size: 0.875em;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.setup-rig ul,
+.setup-evidence ul {
+  list-style: none;
+  margin: 0.5em 0 0;
+  padding: 0;
+}
+
+.setup-rig label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
 }
 
 /* ---- Folders: where this machine keeps the songs and the media ----

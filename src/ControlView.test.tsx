@@ -289,7 +289,7 @@ describe('v0.5 control screen state machine integration', () => {
     )
   })
 
-  it('2. In Setup state, the sections appear in this exact order: Gig, Song, Lyrics display, Projection, Arm', async () => {
+  it('2. In Setup state, the sections appear in this exact order: Gig, Song, Lyrics display, Projection, Rig, Arm', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -318,7 +318,27 @@ describe('v0.5 control screen state machine integration', () => {
     expect(firstLabels[1]).toBe('Song')
     expect(firstLabels[2]).toBe('Lyrics display')
     expect(firstLabels[3]).toBe('Projection')
-    expect(firstLabels[4]).toBe('Arm')
+    // The rig sits immediately before Arm because that is the last moment before the room sees
+    // anything, and it is the same four lines step 5 shows at the venue.
+    expect(firstLabels[4]).toBe('Rig')
+    expect(firstLabels[5]).toBe('Arm')
+  })
+
+  it('2a. The rig is four lines to read, stored nowhere', async () => {
+    setupControlViewInitial()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    render(<App initialHash="#/" />)
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    const rig = screen.getByTestId('control-rig')
+    expect(rig.querySelectorAll('.control-rig-list li')).toHaveLength(4)
+    expect(rig.querySelectorAll('input')).toHaveLength(0)
   })
 
   it('2b. In Setup state, old top navigation shell is not rendered (no top bar, no bottom transport)', async () => {
@@ -4500,13 +4520,17 @@ describe('ControlView performer state flow', () => {
       media: { type: 'video', src: 'duelo.mp4' },
     }
 
-    describe('camera button — direct picker (§3)', () => {
-      /** A song whose file declares a video: the only kind with a Locate video button. */
-      function seedSetlistWithSong() {
-        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
-      }
+    /**
+     * **The camera button is gone, and its absence is the rule.** Two doors on a song and only
+     * two — modify the song, modify its visuals — and a *Locate video…* button on a song row was
+     * a third. It is not a capability that was lost: the media folder resolves a name without
+     * anybody clicking, and the per-source link lives on the folders screen, where every name the
+     * files ask for is listed rather than only a song's own declared media.
+     */
+    describe('two doors on a song, and only two', () => {
+      const DUELO_WITH_MEDIA_ONLY: LibrarySong = DUELO_WITH_MEDIA
 
-      function renderManageSetlists(openFileDialogImpl?: () => Promise<string | null>) {
+      function renderManageSetlists() {
         vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
         ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
           isProjectionOpen: vi.fn().mockResolvedValue(false),
@@ -4514,286 +4538,25 @@ describe('ControlView performer state flow', () => {
           onProjectionClosed: vi.fn(() => vi.fn()),
           openProjection: vi.fn().mockResolvedValue(undefined),
           closeProjection: vi.fn().mockResolvedValue(undefined),
-          openFileDialog: openFileDialogImpl ?? vi.fn().mockResolvedValue(null),
+          openFileDialog: vi.fn().mockResolvedValue(null),
         }
         window.location.hash = '#/songs/manage-setlists'
         sessionStorage.setItem('liveLyricLaunched', '1')
-        render(<App />)
+        return render(<App initialHash="#/songs/manage-setlists" />)
       }
 
-      it('each setlist song row has a camera button', async () => {
-        clearStorage()
-        seedSetlistWithSong()
+      it('offers no Locate video button on a setlist row, even for a song that declares media', async () => {
+        installLibrary([DUELO_WITH_MEDIA_ONLY], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
         renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        expect(within(row).getByRole('button', { name: /Locate video for Duelo/i })).toBeTruthy()
+        const row = await screen.findByTestId('manage-setlist-song-row-duelo')
+        expect(within(row).queryByRole('button', { name: /Locate video/i })).toBeNull()
       })
 
-      it('choosing a .mov file alerts a web-playable warning', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
-        renderManageSetlists(() => Promise.resolve('/Users/jorge/videos/duelo.mov'))
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Locate video for Duelo/i,
-            })
-          )
-        })
-        await waitFor(() => {
-          expect(alertMock).toHaveBeenCalledWith(expect.stringMatching(/ProRes.*MOV|MOV.*ProRes|not web-playable/i))
-        })
-        alertMock.mockRestore()
-      })
-
-      it('clicking the camera button calls openFileDialog directly without showing a dialog', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        const openFileMock = vi.fn().mockResolvedValue(null)
-        renderManageSetlists(() => openFileMock())
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Locate video for Duelo/i,
-            })
-          )
-        })
-        expect(screen.queryByTestId('link-video-dialog')).toBeNull()
-        expect(openFileMock).toHaveBeenCalledTimes(1)
-      })
-
-      it('choosing a file records the local path and leaves the song file alone', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        const chosenPath = '/Users/jorge/videos/duelo.mp4'
-        renderManageSetlists(() => Promise.resolve(chosenPath))
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        await act(async () => {
-          fireEvent.click(
-            within(screen.getByTestId('manage-setlist-song-row-duelo')).getByRole('button', {
-              name: /Locate video for Duelo/i,
-            })
-          )
-        })
-        await waitFor(() => {
-          const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-          expect(paths['duelo.mp4']).toBe(chosenPath)
-        })
-        // The library persists a reference and nothing else — media stays the song file's field.
-        expect(localStorage.getItem('liveLyricSetlistStore')).not.toContain('media')
-      })
-
-      it('camera button has --linked class once the video has been located', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
+      it('offers no Locate video button on a library row either', async () => {
+        installLibrary([DUELO_WITH_MEDIA_ONLY], [{ id: 'sl-1', name: 'Tonight', songIds: [] }], 'sl-1')
         renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
-      })
-
-      it('camera button does not have --linked class before the video is located', async () => {
-        clearStorage()
-        seedSetlistWithSong()
-        renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
-      })
-
-      it('a song whose file declares no video has no camera button at all', async () => {
-        clearStorage()
-        installLibrary([DUELO_NO_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
-        renderManageSetlists()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        expect(within(row).queryByRole('button', { name: /Locate video for Duelo/i })).toBeNull()
-      })
-    })
-
-    describe('camera button — library rows + empty-state affordance (§9)', () => {
-      /** A library-only song whose file declares a video, with no local path recorded yet. */
-      function seedLibraryOnly() {
-        installLibrary([DUELO_WITH_MEDIA], [], '')
-      }
-
-      /** The same song, with the local copy already located. */
-      function seedLibraryOnlyLocated() {
-        installLibrary([DUELO_WITH_MEDIA], [], '')
-        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
-      }
-
-      function seedSetlistLocated() {
-        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
-        localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'duelo.mp4': '/v/duelo.mp4' }))
-      }
-
-      function seedSetlistNotLocated() {
-        installLibrary([DUELO_WITH_MEDIA], [{ id: 'sl-1', name: 'Tonight', songIds: ['duelo'] }], 'sl-1')
-      }
-
-      function renderManageSetlists9(openFileDialogImpl?: () => Promise<string | null>) {
-        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.reject(new Error('No fetch'))))
-        ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
-          isProjectionOpen: vi.fn().mockResolvedValue(false),
-          onProjectionOpened: vi.fn(() => vi.fn()),
-          onProjectionClosed: vi.fn(() => vi.fn()),
-          openProjection: vi.fn().mockResolvedValue(undefined),
-          closeProjection: vi.fn().mockResolvedValue(undefined),
-          openFileDialog: openFileDialogImpl ?? vi.fn().mockResolvedValue(null),
-        }
-        window.location.hash = '#/songs/manage-setlists'
-        sessionStorage.setItem('liveLyricLaunched', '1')
-        render(<App />)
-      }
-
-      it('library song row has a camera button when the song file declares a video', async () => {
-        clearStorage()
-        seedLibraryOnly()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        expect(within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })).toBeTruthy()
-      })
-
-      it('library song row has no camera button when the song file declares no video', async () => {
-        clearStorage()
-        installLibrary([DUELO_NO_MEDIA], [], '')
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        expect(within(libraryPanel).queryByRole('button', { name: /Locate video for Duelo/i })).toBeNull()
-      })
-
-      it('clicking library camera button calls openFileDialog and records the path', async () => {
-        clearStorage()
-        seedLibraryOnly()
-        const chosenPath = '/Users/jorge/videos/duelo.mp4'
-        renderManageSetlists9(() => Promise.resolve(chosenPath))
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        await act(async () => {
-          fireEvent.click(within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i }))
-        })
-        await waitFor(() => {
-          const paths = JSON.parse(localStorage.getItem(MEDIA_PATH_STORE_KEY) ?? '{}')
-          expect(paths['duelo.mp4']).toBe(chosenPath)
-        })
-      })
-
-      it('library camera button has --linked class once the video is located', async () => {
-        clearStorage()
-        seedLibraryOnlyLocated()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(true)
-      })
-
-      it('library camera button does not have --linked class before the video is located', async () => {
-        clearStorage()
-        seedLibraryOnly()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--linked')).toBe(false)
-      })
-
-      it('setlist camera button has --add class before the video is located', async () => {
-        clearStorage()
-        seedSetlistNotLocated()
-        renderManageSetlists9()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
-      })
-
-      it('setlist camera button does not have --add class once the video is located', async () => {
-        clearStorage()
-        seedSetlistLocated()
-        renderManageSetlists9()
-
-        await waitFor(() => {
-          expect(screen.getByTestId('manage-setlist-song-row-duelo')).toBeTruthy()
-        })
-        const row = screen.getByTestId('manage-setlist-song-row-duelo')
-        const cameraBtn = within(row).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
-      })
-
-      it('library camera button has --add class before the video is located', async () => {
-        clearStorage()
-        seedLibraryOnly()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(true)
-      })
-
-      it('library camera button does not have --add class once the video is located', async () => {
-        clearStorage()
-        seedLibraryOnlyLocated()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.classList.contains('manage-setlists-icon-btn--add')).toBe(false)
-      })
-
-      it('camera button located state has a checkmark badge', async () => {
-        clearStorage()
-        seedLibraryOnlyLocated()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.textContent).toContain('✓')
-      })
-
-      it('camera button before locating has "+" badge and no checkmark', async () => {
-        clearStorage()
-        seedLibraryOnly()
-        renderManageSetlists9()
-
-        const libraryPanel = await screen.findByTestId('manage-setlists-library-panel')
-        const cameraBtn = within(libraryPanel).getByRole('button', { name: /Locate video for Duelo/i })
-        expect(cameraBtn.textContent).toContain('+')
-        expect(cameraBtn.textContent).not.toContain('✓')
+        await screen.findByLabelText('Song library')
+        expect(screen.queryByRole('button', { name: /Locate video/i })).toBeNull()
       })
     })
 
