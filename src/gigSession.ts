@@ -17,8 +17,10 @@ import {
   serializeGigFile,
   setlistMatches,
   withSetlist,
+  withSetup,
   type GigFile,
   type SetlistProjection,
+  type SetupFingerprints,
 } from './gigFile'
 import {
   computeGigReadiness,
@@ -43,6 +45,7 @@ import {
 } from './setlistStore'
 import { resolveSongPath } from './contentFolders'
 import { resolveMediaPath } from './mediaPathStore'
+import { digest } from './fingerprint'
 import * as platform from './platform'
 
 // The folder memory itself lives in `gigFolderStore`, so the Projection window can ask whether a
@@ -113,14 +116,45 @@ function publish(next: GigReadiness): GigReadiness {
   return next
 }
 
+/** The setlist as library rows, which is where the digests live. */
+function orderedSetlistEntries(): LibraryEntry[] {
+  try {
+    return getOrderedEntriesForActiveSetlist()
+  } catch {
+    return []
+  }
+}
+
 /** Test seam: forget the folder and the snapshot without touching the listeners' contract. */
 export function resetGigSession(): void {
   current = null
+  lastFingerprints = null
   rememberGigFolder(null)
   broadcastVisuals(null, null)
 }
 
 // ── Gathering ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * **The fingerprints as they are right now** — each setlist song's file, `visuals.json`, and the
+ * display configuration. The setup confirmation records these so it can notice one of them moved;
+ * they are compared and never read back, and nothing renders from them.
+ */
+async function currentFingerprints(
+  setlist: readonly LibraryEntry[],
+  visualsText: string | null
+): Promise<SetupFingerprints> {
+  const songs: Record<string, string> = {}
+  for (const entry of setlist) {
+    if (entry.digest) songs[entry.ref.id] = entry.digest
+  }
+  const displays = await platform.describeDisplays()
+  return {
+    songs,
+    visuals: visualsText === null ? null : digest(visualsText),
+    display: displays.fingerprint,
+  }
+}
 
 function toSetlistInput(entry: LibraryEntry): SetlistSongInput {
   // The resolved path, not the stored reference: `bombista` is handed a real file, and the `file`
@@ -200,6 +234,15 @@ export type SetlistAdoption = {
 }
 
 let lastAdoption: SetlistAdoption | null = null
+
+/**
+ * The fingerprints from the last read of the gig folder.
+ *
+ * Held so that confirming records exactly what the screen was showing when the person said yes,
+ * rather than a second read that could have moved between the two. Session-only: nothing is derived
+ * from it, and the recorded copy in `gig.json` is the one that lasts.
+ */
+let lastFingerprints: SetupFingerprints | null = null
 
 /** The last thing that happened to the running order, or null when nothing has. */
 export function getSetlistAdoption(): SetlistAdoption | null {
@@ -410,10 +453,14 @@ async function publishFromFolder(
   // Projection window's mount-time read is only correct if this key is never behind the folder.
   broadcastVisuals(folderPath, visuals)
 
-  const [mediaResolution, validation] = await Promise.all([
+  const [mediaResolution, validation, fingerprints] = await Promise.all([
     resolveMedia(setlist),
     validateSetlist(setlist),
+    currentFingerprints(orderedSetlistEntries(), read.visualsText),
   ])
+  // Held for the moment the confirmation is made, so confirming records exactly what the screen
+  // was showing rather than a second read that could disagree with it.
+  lastFingerprints = fingerprints
 
   return publish(
     computeGigReadiness({
@@ -427,9 +474,47 @@ async function publishFromFolder(
       library: readLibrary(),
       mediaResolution,
       validation,
+      fingerprints,
       adoption: lastAdoption,
     })
   )
+}
+
+/**
+ * **Confirming setup.** The one thing this app deliberately stores, and it is a **milestone, not a
+ * lock**: it blocks nothing, freezes nothing, and can be made again at any time.
+ *
+ * It records that the checks passed and **what they passed against**, so it can notice it has
+ * stopped being true. It never records a warp matrix, a layout or a pixel size — save the recipe,
+ * not the cake.
+ */
+export async function confirmSetup(): Promise<GigReadiness> {
+  const folderPath = getRememberedGigFolder()
+  if (folderPath === null) return refreshGigReadiness()
+
+  let read = await platform.readGigFolder(folderPath)
+  let gigProblem: string | null = read.gigError
+  let gig: GigFile | null = null
+  if (read.gigText !== null && gigProblem === null) {
+    try {
+      gig = parseGigFile(read.gigText)
+    } catch (e) {
+      gigProblem = e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (gig === null) return publishFromFolder(folderPath, gig, gigProblem, read)
+
+  if (gig.visuals && gig.visuals !== './visuals.json') {
+    read = await platform.readGigFolder(folderPath, gig.visuals)
+  }
+
+  const against =
+    lastFingerprints ?? (await currentFingerprints(orderedSetlistEntries(), read.visualsText))
+  const next = withSetup(gig, { confirmedAt: new Date().toISOString(), against })
+  const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
+  if (!written.ok) return publishFromFolder(folderPath, gig, written.error, read)
+
+  return publishFromFolder(folderPath, next, gigProblem, read)
 }
 
 /** Opens the picker, remembers what was chosen, and reports the delta. */

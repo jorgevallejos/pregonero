@@ -9,7 +9,10 @@ const fileExists = vi.fn()
 const chooseGigFolderPath = vi.fn()
 const readSongFileText = vi.fn()
 
+const describeDisplays = vi.fn()
+
 vi.mock('./platform', () => ({
+  describeDisplays: (...a: unknown[]) => describeDisplays(...a),
   hasGigFolderAccess: () => true,
   readSongFileText: (...a: unknown[]) => readSongFileText(...a),
   chooseGigFolderPath: (...a: unknown[]) => chooseGigFolderPath(...a),
@@ -24,6 +27,7 @@ const {
   closeGig,
   getGigReadiness,
   getRememberedGigFolder,
+  confirmSetup,
   publishSetlistToGig,
   refreshGigReadiness,
   rememberGigFolder,
@@ -97,6 +101,7 @@ beforeEach(() => {
   writeGigFile.mockResolvedValue({ ok: true })
   validateSongForPerformance.mockResolvedValue({ status: 'skipped', reason: 'bombista is not on PATH' })
   fileExists.mockResolvedValue(true)
+  describeDisplays.mockResolvedValue({ count: 1, displays: [], fingerprint: '1728x1117@2*' })
   // Adopting the file's running order re-reads any song it points somewhere new.
   readSongFileText.mockImplementation((path: string) => {
     const id = String(path).split('/').pop()!.replace(/\.json$/, '')
@@ -278,7 +283,10 @@ describe('opening a folder that already holds a gig', () => {
     expect(r.gate).toBe('on')
     expect(r.gigId).toBe(GIG_ID)
     expect(r.playableSongIds).toEqual(['duelo', 'vidas'])
-    expect(r.steps.every((s) => s.status === 'complete')).toBe(true)
+    // Everything up to the confirmation, which is stored rather than derived and is nobody's to
+    // make on the person's behalf.
+    expect(r.steps.filter((s) => s.step < 6).every((s) => s.status === 'complete')).toBe(true)
+    expect(r.confirmation).toBeNull()
   })
 
   it('takes the file’s running order over the one the app held, and writes nothing', async () => {
@@ -466,5 +474,144 @@ describe('before the first read of a gig folder has come back', () => {
     const r = getGigReadiness()
     expect(r.gate).toBe('off')
     expect(r.playableSongIds).toEqual(['duelo', 'vidas'])
+  })
+})
+
+describe('confirming setup, and the reload boundary', () => {
+  const gigText = JSON.stringify({
+    gigVersion: 1,
+    id: GIG_ID,
+    date: '2026-09-12',
+    venue: { name: 'Bar Eduard' },
+    visuals: './visuals.json',
+    songs: [
+      { id: 'duelo', title: 'duelo', file: 'duelo.json' },
+      { id: 'vidas', title: 'vidas', file: 'vidas.json' },
+    ],
+    setlist: ['duelo', 'vidas'],
+  })
+
+  beforeEach(() => rememberGigFolder(FOLDER))
+
+  function openGig() {
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText,
+        visualsPresent: true,
+        visualsText: visualsText({ 'song-lyrics': ['lyr'] }),
+      })
+    )
+  }
+
+  it('writes the confirmation and what it was confirmed against', async () => {
+    openGig()
+    await refreshGigReadiness()
+    const r = await confirmSetup()
+    const calls = writeGigFile.mock.calls as [string, string][]
+    const written = JSON.parse(calls[calls.length - 1]![1]) as {
+      setup: { confirmedAt: string; against: { songs: Record<string, string>; visuals: string; display: string } }
+    }
+    expect(Object.keys(written.setup.against.songs).sort()).toEqual(['duelo', 'vidas'])
+    expect(written.setup.against.display).toBe('1728x1117@2*')
+    expect(r.confirmation).not.toBeNull()
+    expect(r.confirmation!.stale).toBe(false)
+  })
+
+  it('reports a confirmation as still true when nothing has moved', async () => {
+    openGig()
+    await refreshGigReadiness()
+    const confirmed = await confirmSetup()
+    // What the write produced, read back the way the next launch would read it.
+    const calls = writeGigFile.mock.calls as [string, string][]
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText: calls[calls.length - 1]![1],
+        visualsPresent: true,
+        visualsText: visualsText({ 'song-lyrics': ['lyr'] }),
+      })
+    )
+    const reopened = await refreshGigReadiness()
+    expect(reopened.confirmation!.stale).toBe(false)
+    expect(reopened.confirmation!.confirmedAt).toBe(confirmed.confirmation!.confirmedAt)
+  })
+
+  it('lapses when the room is re-mapped between one open and the next, and says so', async () => {
+    openGig()
+    await refreshGigReadiness()
+    await confirmSetup()
+    const calls = writeGigFile.mock.calls as [string, string][]
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText: calls[calls.length - 1]![1],
+        visualsPresent: true,
+        // Same shapes, different bytes: Muralista saved again.
+        visualsText: visualsText({ 'song-lyrics': ['lyr'] }).replace('"shapes"', '"shapes" '),
+      })
+    )
+    const reopened = await refreshGigReadiness()
+    expect(reopened.confirmation!.stale).toBe(true)
+    expect(reopened.confirmation!.moved).toContain(
+      'The room has been re-mapped since setup was confirmed.'
+    )
+  })
+
+  it('lapses when the projector is unplugged', async () => {
+    openGig()
+    await refreshGigReadiness()
+    await confirmSetup()
+    const calls = writeGigFile.mock.calls as [string, string][]
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText: calls[calls.length - 1]![1],
+        visualsPresent: true,
+        visualsText: visualsText({ 'song-lyrics': ['lyr'] }),
+      })
+    )
+    describeDisplays.mockResolvedValue({ count: 1, displays: [], fingerprint: 'laptop only' })
+    const reopened = await refreshGigReadiness()
+    expect(reopened.confirmation!.moved).toContain(
+      'The displays have changed since setup was confirmed.'
+    )
+  })
+
+  it('is a milestone and not a lock: nothing is refused and no song is blocked', async () => {
+    openGig()
+    await refreshGigReadiness()
+    await confirmSetup()
+    const calls = writeGigFile.mock.calls as [string, string][]
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText: calls[calls.length - 1]![1],
+        visualsPresent: true,
+        visualsText: visualsText({ 'song-lyrics': ['lyr'] }),
+      })
+    )
+    describeDisplays.mockResolvedValue({ count: 1, displays: [], fingerprint: 'laptop only' })
+    const reopened = await refreshGigReadiness()
+    expect(reopened.refusals).toEqual([])
+    expect(reopened.playableSongIds).toEqual(['duelo', 'vidas'])
+  })
+
+  it('does nothing with no gig folder open, rather than writing somewhere', async () => {
+    rememberGigFolder(null)
+    const r = await confirmSetup()
+    expect(writeGigFile).not.toHaveBeenCalled()
+    expect(r.confirmation).toBeNull()
+  })
+
+  it('re-reads on open and builds no watcher — every read is a call, never a subscription', async () => {
+    openGig()
+    await refreshGigReadiness()
+    const after = readGigFolder.mock.calls.length
+    // Nothing arrives on its own between two opens.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(readGigFolder.mock.calls.length).toBe(after)
+    await refreshGigReadiness()
+    expect(readGigFolder.mock.calls.length).toBeGreaterThan(after)
   })
 })

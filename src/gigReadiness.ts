@@ -37,7 +37,7 @@
 
 import type { LibrarySong } from './setlistStore'
 import { isLyricLine } from './songState'
-import type { GigFile } from './gigFile'
+import type { GigFile, SetupFingerprints } from './gigFile'
 import { resolveShapesForType, type VisualsFile } from './visualsFile'
 
 /** The song-aware types a song can point content at. `gig-contact` is gig-level and not per song. */
@@ -102,6 +102,11 @@ export type GigReadiness = {
   /** True when `bombista` could not be run at all, so no song carries its verdict. */
   validationSkipped: boolean
   /**
+   * **The setup confirmation, and whether it is still true.** Null when setup has never been
+   * confirmed, which is an ordinary state and not a fault.
+   */
+  confirmation: SetupConfirmation | null
+  /**
    * **What last happened to the running order**, carried so a screen can say it.
    *
    * `gig.json`'s `setlist` is the one the app performs, so opening a gig can replace the order the
@@ -110,6 +115,22 @@ export type GigReadiness = {
    * is computed in `gigSession`, where the two sides are both in hand; nothing is derived from it.
    */
   adoption: SetlistAdoptionNotice | null
+}
+
+/**
+ * **The confirmation, rendered.** It is a milestone rather than a lock: nothing here blocks
+ * anything, and `stale` is a warning with names attached.
+ *
+ * `moved` is the part that earns the whole feature. A confirmation that could not lapse would hand
+ * out peace of mind that is no longer true, so when something has changed since it was made, this
+ * says **which thing**.
+ */
+export type SetupConfirmation = {
+  confirmedAt: string
+  /** True when anything it was confirmed against has changed since. */
+  stale: boolean
+  /** What moved, in the words the screen shows. Empty when nothing did. */
+  moved: string[]
 }
 
 /** The running-order change to report. `gigSession` builds it; this function only carries it. */
@@ -163,6 +184,61 @@ export type GigReadinessInput = {
    * the setlist, so a caller that has no separate view of the library still gets a real verdict.
    */
   library?: readonly SetlistSongInput[]
+  /**
+   * The fingerprints as they are **now** — of each setlist song's file, of `visuals.json`, of the
+   * display configuration. Compared against what `gig.setup` recorded, and nothing else.
+   */
+  fingerprints?: SetupFingerprints
+}
+
+const NO_FINGERPRINTS: SetupFingerprints = { songs: {}, visuals: null, display: '' }
+
+/**
+ * **Has the confirmation stopped being true?**
+ *
+ * Setup finishes at the venue, and then a song gets fixed, or the room is re-mapped, or the
+ * projector is unplugged. Each of those is a legitimate thing to do — fixing a song at the venue is
+ * *fix once, every gig benefits* — and each one means the confirmation no longer describes what is
+ * on this machine. So it lapses, visibly, and names what moved.
+ *
+ * Nothing here blocks. This is a milestone reporting on itself.
+ */
+function compareFingerprints(
+  recorded: SetupFingerprints,
+  now: SetupFingerprints,
+  titleOf: (songId: string) => string
+): string[] {
+  const moved: string[] = []
+
+  for (const [songId, fingerprint] of Object.entries(recorded.songs)) {
+    const current = now.songs[songId]
+    if (current === undefined) {
+      moved.push(`${titleOf(songId)} was in the setlist when setup was confirmed, and is not now.`)
+    } else if (current !== fingerprint) {
+      moved.push(`${titleOf(songId)} has been edited since setup was confirmed.`)
+    }
+  }
+  for (const songId of Object.keys(now.songs)) {
+    if (!(songId in recorded.songs)) {
+      moved.push(`${titleOf(songId)} was added to the setlist after setup was confirmed.`)
+    }
+  }
+
+  if (recorded.visuals !== now.visuals) {
+    moved.push(
+      recorded.visuals === null
+        ? 'The room was mapped after setup was confirmed.'
+        : now.visuals === null
+          ? 'visuals.json is no longer there.'
+          : 'The room has been re-mapped since setup was confirmed.'
+    )
+  }
+
+  if (recorded.display !== now.display) {
+    moved.push('The displays have changed since setup was confirmed.')
+  }
+
+  return moved
 }
 
 function lyricLineCount(song: LibrarySong): number {
@@ -301,6 +377,7 @@ function readinessWithoutGig(
     playableSongIds: songs.filter((s) => s.ready).map((s) => s.songId),
     refusals: [],
     validationSkipped: false,
+    confirmation: null,
     adoption: null,
   }
 }
@@ -413,12 +490,45 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   const step5Missing =
     step5Status === 'complete' ? [] : ['Everything above has to be true before the venue check.']
 
-  // ── Step 6: setup confirmed. **Derived, for now.** The confirmation is the one thing the design
-  // deliberately stores, and storing it — with what it was confirmed against, so it can go stale —
-  // is the next stage's. Until then this is the honest answer: the checks pass, or they do not.
-  const step6Status: StepStatus = step5Status === 'complete' ? 'complete' : step5Status
-  const step6Missing =
-    step6Status === 'complete' ? [] : ['The readiness check at the venue has not passed yet.']
+  // ── Step 6: setup confirmed. **The one thing the design deliberately stores**, and the only
+  // thing on this screen that is not derived from the files. It records that the checks passed and
+  // what they passed against, so it can notice it has stopped being true.
+  const titleOf = (songId: string) =>
+    input.setlist.find((entry) => entry.id === songId)?.title ?? songId
+  const recorded = input.gig?.setup ?? null
+  const moved =
+    recorded === null
+      ? []
+      : compareFingerprints(recorded.against, input.fingerprints ?? NO_FINGERPRINTS, titleOf)
+  const confirmation: SetupConfirmation | null =
+    recorded === null
+      ? null
+      : { confirmedAt: recorded.confirmedAt, stale: moved.length > 0, moved }
+
+  const step6Missing: string[] = []
+  let step6Status: StepStatus = 'complete'
+  if (step5Status === 'broken') {
+    step6Status = 'broken'
+    step6Missing.push('Something above is a refusal, not a gap.')
+  } else if (confirmation === null) {
+    step6Status = 'not-yet'
+    step6Missing.push(
+      step5Status === 'complete'
+        ? 'Everything checks out. Confirm setup when you are standing in the room.'
+        : 'The readiness check at the venue has not passed yet.'
+    )
+  } else if (confirmation.stale) {
+    // **Lapsed, not broken.** Nothing is wrong with the gig; the confirmation is simply out of date,
+    // and re-confirming is one action away.
+    step6Status = 'not-yet'
+    step6Missing.push(
+      `Setup was confirmed on ${confirmation.confirmedAt}, and has lapsed:`,
+      ...confirmation.moved
+    )
+  } else if (step5Status !== 'complete') {
+    step6Status = 'not-yet'
+    step6Missing.push('The readiness check at the venue no longer passes.')
+  }
 
   return {
     folderPath: input.folderPath,
@@ -444,8 +554,22 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     playableSongIds,
     refusals,
     validationSkipped,
+    confirmation,
     adoption: input.adoption ?? null,
   }
+}
+
+/**
+ * **Arming an unconfirmed gig warns; it never refuses.** The hard gate is per-song completeness,
+ * which is a different thing and stays exactly as it is.
+ *
+ * Empty when setup is confirmed and still true, or when there is no gig to confirm.
+ */
+export function armWarnings(readiness: GigReadiness): string[] {
+  if (readiness.gate === 'off') return []
+  if (readiness.confirmation === null) return ['Setup has not been confirmed for this gig.']
+  if (!readiness.confirmation.stale) return []
+  return ['Setup was confirmed and has lapsed:', ...readiness.confirmation.moved]
 }
 
 /**

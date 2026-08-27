@@ -14,6 +14,23 @@ export type GigFolderRead = {
   visualsPresent: boolean
 }
 
+/**
+ * The displays this machine has. **A fingerprint to compare, never a value to render from** — the
+ * output size is a parameter passed on every render, and nothing here weakens that.
+ */
+export type DisplayDescription = {
+  count: number
+  displays: {
+    id: string
+    width: number
+    height: number
+    scaleFactor: number
+    internal: boolean
+    primary: boolean
+  }[]
+  fingerprint: string
+}
+
 export type SongValidationResult =
   | { status: 'ok' }
   | { status: 'failed'; messages: string[] }
@@ -54,6 +71,8 @@ declare global {
         folderPath: string,
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /** What displays this machine has. Read-only — nothing renders from it. */
+      describeDisplays: () => Promise<DisplayDescription>
       /** `bombista validate --for-performance`. A missing binary comes back as `skipped`. */
       validateSongForPerformance: (songPath: string) => Promise<SongValidationResult>
     }

@@ -2581,6 +2581,38 @@ html, body, #root {
   color: var(--text-dim);
 }
 
+.control-arm-warning {
+  margin-top: 0.5em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.control-arm-warning ul {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.setup-lapsed {
+  margin: 0.9em 0 0;
+  padding: 0.6em 0.8em;
+  border-left: 2px solid var(--state-fail);
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.setup-lapsed p {
+  margin: 0;
+}
+
+.setup-lapsed ul {
+  margin: 0.3em 0 0;
+  padding-left: 1.1em;
+  list-style: disc;
+}
+
 .control-rig-list {
   list-style: none;
   margin: 0;

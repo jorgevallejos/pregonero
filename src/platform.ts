@@ -11,7 +11,7 @@
  * Electron here" — the Vite dev server in a plain browser, and jsdom in tests.
  */
 
-import type { GigFolderRead, SongValidationResult } from './electronApi'
+import type { DisplayDescription, GigFolderRead, SongValidationResult } from './electronApi'
 
 function api() {
   return typeof window !== 'undefined' ? window.electronAPI : undefined
@@ -135,6 +135,25 @@ export async function validateSongForPerformance(
     return await a.validateSongForPerformance(songPath)
   } catch (e) {
     return { status: 'skipped', reason: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+const NO_DISPLAYS: DisplayDescription = { count: 0, displays: [], fingerprint: '' }
+
+/**
+ * What displays this machine has. **Read-only, and compared rather than rendered from.**
+ *
+ * Outside Electron there is no answer, and an empty fingerprint is the honest one: a confirmation
+ * recorded without an answer and compared without one does not lapse, because nothing was learned
+ * either time.
+ */
+export async function describeDisplays(): Promise<DisplayDescription> {
+  const a = api()
+  if (!a || typeof a.describeDisplays !== 'function') return NO_DISPLAYS
+  try {
+    return await a.describeDisplays()
+  } catch {
+    return NO_DISPLAYS
   }
 }
 

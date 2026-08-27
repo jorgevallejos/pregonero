@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  armWarnings,
   computeGigReadiness,
   emptyGigReadiness,
   isSongReadyToArm,
@@ -125,16 +126,19 @@ describe('the common case: a song set up by doing nothing at all', () => {
     expect(r.songs[0]!.ready).toBe(true)
   })
 
-  it('is ready with every step complete', () => {
+  it('is ready with every step complete up to the confirmation, which is not derived', () => {
     const r = computeGigReadiness(input())
-    expect(r.steps.map((s) => s.status)).toEqual([
-      'complete',
+    expect(r.steps.filter((s) => s.step < 6).map((s) => s.status)).toEqual([
       'complete',
       'complete',
       'complete',
       'complete',
       'complete',
     ])
+    // Step 6 is the one thing that is stored rather than derived: nothing here can confirm setup
+    // on the person's behalf, and the screen says so instead of pretending.
+    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+    expect(r.steps.find((s) => s.step === 6)!.missing[0]).toMatch(/Confirm setup/)
   })
 })
 
@@ -431,18 +435,119 @@ describe('step 1: the songs, and the library is its subject', () => {
   })
 })
 
-describe('step 6: derived until the confirmation is recorded', () => {
-  it('is complete when every step before it is', () => {
-    expect(computeGigReadiness(input()).steps.find((s) => s.step === 6)!.status).toBe('complete')
+describe('step 6: the setup confirmation, a milestone and not a lock', () => {
+  const FP = { songs: { duelo: 'aaa', vidas: 'bbb' }, visuals: 'ccc', display: 'ddd' }
+  const confirmedGig = { ...gig, setup: { confirmedAt: '2026-09-12T19:04:11.000Z', against: FP } }
+
+  function step6(overrides: Partial<GigReadinessInput> = {}) {
+    return computeGigReadiness(input(overrides)).steps.find((s) => s.step === 6)!
+  }
+
+  it('is not yet until someone confirms it — nothing derives a confirmation', () => {
+    const s = step6({ fingerprints: FP })
+    expect(s.status).toBe('not-yet')
+    expect(s.missing[0]).toMatch(/Confirm setup when you are standing in the room/)
   })
 
-  it('is not yet while anything before it is', () => {
-    const r = computeGigReadiness(input({ visualsPresent: false, visuals: null }))
-    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+  it('is complete once it is recorded and everything it names is unchanged', () => {
+    expect(step6({ gig: confirmedGig, fingerprints: FP }).status).toBe('complete')
   })
 
-  it('is broken when an earlier step is a loud refusal', () => {
-    const r = computeGigReadiness(input({ visualsProblem: 'visuals.json belongs to gig "x".' }))
-    expect(r.steps.find((s) => s.step === 6)!.status).toBe('broken')
+  it('says the checks have not passed yet rather than asking to confirm them', () => {
+    const s = step6({ visualsPresent: false, visuals: null, fingerprints: FP })
+    expect(s.missing[0]).toMatch(/readiness check at the venue has not passed yet/)
+  })
+
+  describe('going stale, which is the part that earns its keep', () => {
+    it('lapses when a song has been edited, and names it', () => {
+      const r = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, songs: { duelo: 'zzz', vidas: 'bbb' } } })
+      )
+      expect(r.confirmation!.stale).toBe(true)
+      expect(r.confirmation!.moved).toEqual(['duelo has been edited since setup was confirmed.'])
+      expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+    })
+
+    it('lapses when the room has been re-mapped', () => {
+      const r = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, visuals: 'zzz' } })
+      )
+      expect(r.confirmation!.moved).toEqual([
+        'The room has been re-mapped since setup was confirmed.',
+      ])
+    })
+
+    it('lapses when the displays have changed — the projector unplugged', () => {
+      const r = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, display: 'laptop only' } })
+      )
+      expect(r.confirmation!.moved).toEqual([
+        'The displays have changed since setup was confirmed.',
+      ])
+    })
+
+    it('lapses when a song leaves the setlist, and when one joins it', () => {
+      const gone = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, songs: { duelo: 'aaa' } } })
+      )
+      expect(gone.confirmation!.moved).toEqual([
+        'vidas was in the setlist when setup was confirmed, and is not now.',
+      ])
+
+      const added = computeGigReadiness(
+        input({
+          gig: confirmedGig,
+          fingerprints: { ...FP, songs: { ...FP.songs, paso: 'eee' } },
+        })
+      )
+      expect(added.confirmation!.moved).toEqual([
+        'paso was added to the setlist after setup was confirmed.',
+      ])
+    })
+
+    it('names every thing that moved, not only the first', () => {
+      const r = computeGigReadiness(
+        input({
+          gig: confirmedGig,
+          fingerprints: { songs: { duelo: 'zzz', vidas: 'bbb' }, visuals: 'yyy', display: 'xxx' },
+        })
+      )
+      expect(r.confirmation!.moved).toHaveLength(3)
+    })
+
+    it('is a lapse, not a refusal: nothing is in refusals and no step is broken', () => {
+      const r = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, visuals: 'zzz' } })
+      )
+      expect(r.refusals).toEqual([])
+      expect(r.steps.some((s) => s.status === 'broken')).toBe(false)
+    })
+  })
+
+  describe('arming', () => {
+    it('warns on a gig that was never confirmed, and does not refuse', () => {
+      const r = computeGigReadiness(input({ fingerprints: FP }))
+      expect(armWarnings(r)).toEqual(['Setup has not been confirmed for this gig.'])
+      expect(isSongReadyToArm(r, 'duelo')).toBe(true)
+    })
+
+    it('warns on a lapsed confirmation, naming what moved', () => {
+      const r = computeGigReadiness(
+        input({ gig: confirmedGig, fingerprints: { ...FP, display: 'zzz' } })
+      )
+      expect(armWarnings(r)).toEqual([
+        'Setup was confirmed and has lapsed:',
+        'The displays have changed since setup was confirmed.',
+      ])
+      expect(isSongReadyToArm(r, 'duelo')).toBe(true)
+    })
+
+    it('is silent when setup is confirmed and still true', () => {
+      expect(armWarnings(computeGigReadiness(input({ gig: confirmedGig, fingerprints: FP })))).toEqual([])
+    })
+
+    it('is silent with no gig at all, because there is nothing to confirm', () => {
+      expect(armWarnings(computeGigReadiness(input({ folderPath: null })))).toEqual([])
+    })
   })
 })

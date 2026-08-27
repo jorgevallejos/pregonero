@@ -10,6 +10,7 @@ import {
   serializeGigFile,
   setlistMatches,
   withSetlist,
+  withSetup,
 } from './gigFile'
 
 describe('gigIdFromFolderPath', () => {
@@ -210,5 +211,55 @@ describe('readGigSetlist — the file is the source', () => {
   it('tells an authored empty setlist from an absent one — the file exists before it is finished', () => {
     const empty = parseGigFile(JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', setlist: [] }))
     expect(hasAuthoredSetlist(empty)).toBe(true)
+  })
+})
+
+describe('the setup confirmation in the file', () => {
+  const SETUP = {
+    confirmedAt: '2026-09-12T19:04:11.000Z',
+    against: { songs: { duelo: 'aabbccdd' }, visuals: '11223344', display: '1920x1080@1*' },
+  }
+
+  it('round-trips through parse and serialize', () => {
+    const gig = parseGigFile(
+      JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', setup: SETUP })
+    )
+    expect(gig.setup).toEqual(SETUP)
+    expect(JSON.parse(serializeGigFile(gig)).setup).toEqual(SETUP)
+  })
+
+  it('is absent on a gig that has never been confirmed, which is the ordinary state', () => {
+    const gig = parseGigFile(JSON.stringify({ gigVersion: GIG_VERSION, id: 'g' }))
+    expect(gig.setup).toBeUndefined()
+    expect(serializeGigFile(gig)).not.toContain('setup')
+  })
+
+  it('reads a damaged block as absent rather than refusing the gig — this is a milestone, not a lock', () => {
+    for (const bad of [null, 42, 'yes', {}, { against: {} }, { confirmedAt: '' }]) {
+      const gig = parseGigFile(JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', setup: bad }))
+      expect(gig.setup).toBeUndefined()
+    }
+  })
+
+  it('keeps a confirmation whose against block is missing pieces, as empty ones', () => {
+    const gig = parseGigFile(
+      JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', setup: { confirmedAt: 'then' } })
+    )
+    expect(gig.setup).toEqual({ confirmedAt: 'then', against: { songs: {}, visuals: null, display: '' } })
+  })
+
+  it('withSetup records the confirmation and moves nothing else', () => {
+    const gig = { gigVersion: GIG_VERSION, id: 'g', venue: { name: 'Bar Eduard' }, setlist: ['a'] }
+    const next = withSetup(gig, SETUP)
+    expect(next.setup).toEqual(SETUP)
+    expect(next.venue).toEqual({ name: 'Bar Eduard' })
+    expect(next.setlist).toEqual(['a'])
+  })
+
+  it('carries no matrix, no layout and no pixel size — the recipe, not the cake', () => {
+    const text = serializeGigFile(withSetup({ gigVersion: GIG_VERSION, id: 'g' }, SETUP))
+    for (const forbidden of ['matrix3d', 'corners', 'outline', 'fontSize']) {
+      expect(text).not.toContain(forbidden)
+    }
   })
 })

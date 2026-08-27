@@ -14,6 +14,7 @@ import {
 } from './songState'
 import { resolveSongPath, songRefPathFor } from './contentFolders'
 import { readSongFileText } from './platform'
+import { digest } from './fingerprint'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
 /**
@@ -90,6 +91,14 @@ export type LibraryEntry = {
   song?: LibrarySong
   /** Why `ref.path` could not be turned into a song. Present iff `song` is absent. */
   error?: string
+  /**
+   * A fingerprint of the file's text as it was read. Present whenever the file read at all, even
+   * if it would not parse — a broken file that changes has still changed.
+   *
+   * It exists for one thing: the setup confirmation notices that a song moved. It is **compared
+   * and never read back**; nothing is recovered from it.
+   */
+  digest?: string
 }
 
 export type Setlist = { id: string; name: string; songIds: string[] }
@@ -295,6 +304,7 @@ export async function resolveSongRef(ref: SongRef, read: ReadSongFile): Promise<
   } catch (e) {
     return { ref, error: e instanceof Error ? e.message : `Could not read ${path}` }
   }
+  const fingerprint = digest(text)
   try {
     const parsed = parseSongFile(text)
     const song: LibrarySong = {
@@ -310,9 +320,13 @@ export async function resolveSongRef(ref: SongRef, read: ReadSongFile): Promise<
     if (parsed.leadIn !== undefined) song.leadIn = parsed.leadIn
     if (parsed.media !== undefined) song.media = parsed.media
     if (parsed.tempo !== undefined) song.tempo = parsed.tempo
-    return { ref, song }
+    return { ref, song, digest: fingerprint }
   } catch (e) {
-    return { ref, error: e instanceof Error ? e.message : `Could not read ${path}` }
+    return {
+      ref,
+      error: e instanceof Error ? e.message : `Could not read ${path}`,
+      digest: fingerprint,
+    }
   }
 }
 

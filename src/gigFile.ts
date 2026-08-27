@@ -40,6 +40,43 @@ export type GigFile = {
   songs?: GigSong[]
   /** The running order. Deliberately a second field: Muralista reads `songs` and ignores this. */
   setlist?: string[]
+  /** The setup confirmation. Absent until setup has been confirmed at least once. */
+  setup?: GigSetup
+}
+
+/**
+ * **The setup confirmation: a milestone, not a lock.**
+ *
+ * It blocks nothing and freezes nothing. Arming an unconfirmed gig warns; it does not refuse, and
+ * the hard gate stays per-song completeness, which is a different thing.
+ *
+ * **What it records is that the checks passed, and against what.** `against` is a set of
+ * fingerprints — of each setlist song's file, of `visuals.json`, of the display configuration —
+ * kept for exactly one purpose: **noticing that one of them moved.** They are compared and never
+ * read back.
+ *
+ * **Save the recipe, not the cake.** No warp matrix, no layout and no pixel size is ever recorded
+ * here. Setting up at the venue with the projector attached does not change that: the window can
+ * still move, the display can still change, and `docs/warp-contract.md` is binding regardless of
+ * when setup happened.
+ *
+ * **It must be able to go stale, and that is the part that earns its keep.** A confirmation that
+ * could not lapse would hand out peace of mind that is no longer true, which is the exact opposite
+ * of what it is for.
+ */
+export type GigSetup = {
+  /** ISO timestamp. When the person stood in the room and said yes. */
+  confirmedAt: string
+  against: SetupFingerprints
+}
+
+export type SetupFingerprints = {
+  /** Song id → a fingerprint of that song's file as it was read. */
+  songs: Record<string, string>
+  /** A fingerprint of `visuals.json` as it was read; null when the gig had none. */
+  visuals: string | null
+  /** A fingerprint of the display configuration; empty string when there was no answer. */
+  display: string
 }
 
 export const DEFAULT_VISUALS_POINTER = './visuals.json'
@@ -112,7 +149,41 @@ export function parseGigFile(text: string): GigFile {
   if (Array.isArray(o.setlist)) {
     gig.setlist = o.setlist.filter(isNonEmptyString)
   }
+  const setup = readSetup(o.setup)
+  if (setup !== null) gig.setup = setup
   return gig
+}
+
+/**
+ * A `setup` block, or null when there is not one this build understands.
+ *
+ * **A malformed one reads as absent rather than as a refusal.** An unconfirmed gig is an ordinary
+ * state — the file exists from step 2 and is unconfirmed for most of its life — so the worst a
+ * damaged block can do is ask for the confirmation again, which is cheap. Refusing to open the gig
+ * over it would be a lock, and this is a milestone.
+ */
+function readSetup(value: unknown): GigSetup | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const o = value as Record<string, unknown>
+  if (!isNonEmptyString(o.confirmedAt)) return null
+  const against =
+    o.against !== null && typeof o.against === 'object' && !Array.isArray(o.against)
+      ? (o.against as Record<string, unknown>)
+      : {}
+  const songs: Record<string, string> = {}
+  if (against.songs !== null && typeof against.songs === 'object' && !Array.isArray(against.songs)) {
+    for (const [id, fingerprint] of Object.entries(against.songs as Record<string, unknown>)) {
+      if (isNonEmptyString(id) && isNonEmptyString(fingerprint)) songs[id] = fingerprint
+    }
+  }
+  return {
+    confirmedAt: o.confirmedAt,
+    against: {
+      songs,
+      visuals: isNonEmptyString(against.visuals) ? against.visuals : null,
+      display: typeof against.display === 'string' ? against.display : '',
+    },
+  }
 }
 
 /** Two-space JSON with a trailing newline — the form every other file in the suite is written in. */
@@ -123,7 +194,13 @@ export function serializeGigFile(gig: GigFile): string {
   if (gig.visuals !== undefined) ordered.visuals = gig.visuals
   if (gig.songs !== undefined) ordered.songs = gig.songs
   if (gig.setlist !== undefined) ordered.setlist = gig.setlist
+  if (gig.setup !== undefined) ordered.setup = gig.setup
   return `${JSON.stringify(ordered, null, 2)}\n`
+}
+
+/** Records a confirmation. Nothing else about the gig moves. */
+export function withSetup(gig: GigFile, setup: GigSetup): GigFile {
+  return { ...gig, setup }
 }
 
 /**
