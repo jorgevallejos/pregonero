@@ -41,6 +41,18 @@ export type BombistaResult = {
   code: number | null
 }
 
+/**
+ * Where the projection window went. **A sentence for a screen** — nothing renders from it, and the
+ * output size stays a parameter passed on every render.
+ */
+export type ProjectorPlacement = {
+  placed: boolean
+  /** Why it was not placed. Null when it was. */
+  reason: string | null
+  /** The display it went to, as `WxH`. Null when it was not placed. */
+  display: string | null
+}
+
 export type SongValidationResult =
   | { status: 'ok' }
   | { status: 'failed'; messages: string[] }
@@ -52,6 +64,8 @@ declare global {
       openProjection: () => Promise<void>
       closeProjection: () => Promise<void>
       isProjectionOpen: () => Promise<boolean>
+      /** Where the projection window went, and why. */
+      projectionPlacement: () => Promise<ProjectorPlacement>
       onProjectionOpened: (cb: () => void) => () => void
       onProjectionClosed: (cb: () => void) => () => void
       openFileDialog: (kind?: 'video' | 'audio' | 'json') => Promise<string | null>

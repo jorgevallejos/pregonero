@@ -5,14 +5,23 @@
  * inside the unit square is Pregonero's — live lyrics on a clock — and the warp neither knows nor
  * cares. The numbers below are not taken from `mapper.js` and nothing here is imported from it.
  *
- * **It is nonetheless a second implementation of rules Muralista also implements, and that is
- * worth saying out loud rather than discovering later.** A `song-lyrics` shape carries full text
- * formatting *because* legibility is tuned at the wall, against Muralista's dummy line; that
- * tuning only reaches the audience if Pregonero lays the real line out the same way. So the two
- * agree by both following the written rule, which is exactly the situation `warp-contract.md`
- * describes as one understanding too many. The clean answer is the one round B2 already took for
- * the warp — a small pure module exported from Muralista and vendored — and it is not this round's
- * to take.
+ * ## Muralista sets the boundary; this renders inside it (Jorge, 2026-08-27)
+ *
+ * **The relationship with Muralista's text layout is not replication, and this is therefore not
+ * debt.** Muralista never reads song content: it tunes against a deliberately nasty dummy line and
+ * writes down a `maxSize` that is safe. Pregonero renders the real lyrics **within that boundary**.
+ * Two different jobs, sharing a boundary rather than duplicating a computation.
+ *
+ * **What has to agree is narrow: the meaning of a size fraction, and the quad-stretch correction.**
+ * Those two are asserted against Muralista's own numbers, over a set of known quads, in
+ * `muralistaTextContract.test.ts` — **a test, deliberately, and not an extracted module.**
+ *
+ * **When a real line beats the boundary anyway, it shrinks — it never spills.** Muralista's v1
+ * scope is that text cannot overflow, so the only answer available is a smaller line. `fitInBox`
+ * hands back the maximum untouched for every line that fits, so **the size is uniform across
+ * lines** and only the offending one moves: text jumping size line to line on a wall is worse than
+ * text being smaller. Whether the stand-in really is the worst case is `worstCase.ts`'s question,
+ * and a real line that beats it is a **Muralista finding** rather than something to fix here.
  *
  * ## The two rules
  *

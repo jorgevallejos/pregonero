@@ -12,6 +12,7 @@ const readSongFileText = vi.fn()
 const describeDisplays = vi.fn()
 
 vi.mock('./platform', () => ({
+  projectionPlacement: () => Promise.resolve({ placed: false, reason: null, display: null }),
   canRunBombista: () => false,
   canHostTools: () => false,
   runBombista: vi.fn(),

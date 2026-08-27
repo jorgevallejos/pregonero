@@ -15,6 +15,7 @@ import type {
   BombistaResult,
   DisplayDescription,
   GigFolderRead,
+  ProjectorPlacement,
   SongValidationResult,
 } from './electronApi'
 
@@ -144,6 +145,24 @@ export async function validateSongForPerformance(
 }
 
 const NO_DISPLAYS: DisplayDescription = { count: 0, displays: [], fingerprint: '' }
+
+/**
+ * Where the projection window went, and why.
+ *
+ * Outside Electron nothing was placed and there is nothing to say, which reads as *not placed, no
+ * reason* — the screen shows the fallback line only when there is a reason for one.
+ */
+export async function projectionPlacement(): Promise<ProjectorPlacement> {
+  const a = api()
+  if (!a || typeof a.projectionPlacement !== 'function') {
+    return { placed: false, reason: null, display: null }
+  }
+  try {
+    return await a.projectionPlacement()
+  } catch {
+    return { placed: false, reason: null, display: null }
+  }
+}
 
 /**
  * What displays this machine has. **Read-only, and compared rather than rendered from.**
