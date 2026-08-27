@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { UNIT_SIZE } from './vendor/warp.js'
 import { fitInBox } from './shapeTextLayout'
 import { INTRO_INSET } from './ShapeIntro'
-import { getMediaPath, absolutePathToMediaUrl } from './mediaPathStore'
+import { resolveMediaPath, absolutePathToMediaUrl } from './mediaPathStore'
 
 /**
  * The contact panel: **one line of text, plus a QR code when a file was named for one.**
@@ -56,7 +56,7 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
   const maxPx = CONTACT_MAX_SIZE * UNIT_SIZE
   const [t, setT] = useState(maxPx)
 
-  const qrPath = fields.qrSrc ? getMediaPath(fields.qrSrc) : null
+  const qrPath = fields.qrSrc ? resolveMediaPath(fields.qrSrc) : null
   const qrUrl = qrPath ? absolutePathToMediaUrl(qrPath) : null
 
   useLayoutEffect(() => {

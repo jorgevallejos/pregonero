@@ -12,6 +12,8 @@ import {
   type TimelineLeadIn,
   type MediaFile,
 } from './songState'
+import { resolveSongPath, songRefPathFor } from './contentFolders'
+import { readSongFileText } from './platform'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
 /**
@@ -43,7 +45,12 @@ export type SongTempo = {
 export type SongRef = {
   /** Stable and derived from the file name, so deleting and re-adding a file restores the same song. */
   id: string
-  /** Path to the song's JSON file in `songs/`. */
+  /**
+   * Where the song's JSON file is. **Absolute, or a name relative to the configured songs
+   * folder** — the second form only exists for references added while a songs folder was set,
+   * and nothing rewrites the first into it. `resolveSongPath` is what turns either into a path
+   * on this machine.
+   */
   path: string
 }
 
@@ -281,11 +288,12 @@ export function isLibraryHydrated(): boolean {
 
 /** Reads one reference's file and parses it. Never throws: a failure becomes `entry.error`. */
 export async function resolveSongRef(ref: SongRef, read: ReadSongFile): Promise<LibraryEntry> {
+  const path = resolveSongPath(ref.path)
   let text: string
   try {
-    text = await read(ref.path)
+    text = await read(path)
   } catch (e) {
-    return { ref, error: e instanceof Error ? e.message : `Could not read ${ref.path}` }
+    return { ref, error: e instanceof Error ? e.message : `Could not read ${path}` }
   }
   try {
     const parsed = parseSongFile(text)
@@ -304,17 +312,21 @@ export async function resolveSongRef(ref: SongRef, read: ReadSongFile): Promise<
     if (parsed.tempo !== undefined) song.tempo = parsed.tempo
     return { ref, song }
   } catch (e) {
-    return { ref, error: e instanceof Error ? e.message : `Could not read ${ref.path}` }
+    return { ref, error: e instanceof Error ? e.message : `Could not read ${path}` }
   }
+}
+
+/**
+ * The reference for a song file just chosen from the picker: relative to the songs folder when it
+ * sits inside it, absolute otherwise. The id still comes from the file name either way.
+ */
+export function songRefForChosenFile(absolutePath: string): SongRef {
+  return { id: songIdFromPath(absolutePath), path: songRefPathFor(absolutePath) }
 }
 
 /** Reads song files through the Electron main process. Injected in tests. */
 export const defaultReadSongFile: ReadSongFile = async (path: string) => {
-  const api = typeof window !== 'undefined' ? window.electronAPI : undefined
-  if (!api || typeof api.readSongFile !== 'function') {
-    throw new Error('Song files can only be read from the desktop app.')
-  }
-  const result = await api.readSongFile(path)
+  const result = await readSongFileText(path)
   if (!result.ok) throw new Error(result.error)
   return result.text
 }
@@ -489,6 +501,59 @@ export function deleteSetlistInSnapshot(
   const nextSetlists = snap.setlists.filter((s) => s.id !== id)
   const activeSetlistId = snap.activeSetlistId === id ? '' : snap.activeSetlistId
   return repairSnapshot({ ...snap, setlists: nextSetlists, activeSetlistId })
+}
+
+/**
+ * Pure snapshot update: **the gig's setlist, taken from `gig.json` and made the active one.**
+ *
+ * The gig owns a setlist of its own so that adopting the file's running order never touches a
+ * setlist the performer built by hand for something else. Its id is the gig's, so re-opening the
+ * same gig reuses the same list rather than accumulating one per open.
+ *
+ * References named by the file are added or repointed here: the file is the source, so a `file`
+ * that has moved wins over the path the library remembered. Ids the file names with no `file` and
+ * no reference already in the library cannot be honoured — they come back in `unresolved` rather
+ * than being dropped where nothing would say so.
+ */
+export function adoptSetlistInSnapshot(
+  snap: SetlistStoreSnapshot,
+  setlistId: string,
+  name: string,
+  entries: readonly { id: string; path: string | null }[]
+): { snapshot: SetlistStoreSnapshot; adopted: string[]; unresolved: string[] } {
+  const library = [...snap.library]
+  const unresolved: string[] = []
+  const adopted: string[] = []
+
+  for (const entry of entries) {
+    const at = library.findIndex((r) => r.id === entry.id)
+    if (entry.path !== null) {
+      // Compared **resolved**, not as stored: a reference held relative to the songs folder and a
+      // `file` written relative to the gig folder are different strings for the same file, and
+      // repointing on that difference would rewrite the library on every open for nothing.
+      if (at === -1) library.push({ id: entry.id, path: entry.path })
+      else if (resolveSongPath(library[at]!.path) !== entry.path) {
+        library[at] = { id: entry.id, path: entry.path }
+      }
+      adopted.push(entry.id)
+    } else if (at !== -1) {
+      adopted.push(entry.id)
+    } else {
+      unresolved.push(entry.id)
+    }
+  }
+
+  const existing = snap.setlists.find((sl) => sl.id === setlistId)
+  const setlist = { id: setlistId, name, songIds: adopted }
+  const setlists = existing
+    ? snap.setlists.map((sl) => (sl.id === setlistId ? setlist : sl))
+    : [...snap.setlists, setlist]
+
+  return {
+    snapshot: repairSnapshot({ ...snap, library, setlists, activeSetlistId: setlistId }),
+    adopted,
+    unresolved,
+  }
 }
 
 /** Pure snapshot update: append an empty setlist and set it active. */

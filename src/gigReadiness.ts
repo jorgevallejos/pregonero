@@ -94,6 +94,23 @@ export type GigReadiness = {
   refusals: string[]
   /** True when `bombista` could not be run at all, so no song carries its verdict. */
   validationSkipped: boolean
+  /**
+   * **What last happened to the running order**, carried so a screen can say it.
+   *
+   * `gig.json`'s `setlist` is the one the app performs, so opening a gig can replace the order the
+   * app was holding, and changing the order in the app can replace one edited in the file. Either
+   * way something is displaced, and the rule is that it is announced rather than done quietly. It
+   * is computed in `gigSession`, where the two sides are both in hand; nothing is derived from it.
+   */
+  adoption: SetlistAdoptionNotice | null
+}
+
+/** The running-order change to report. `gigSession` builds it; this function only carries it. */
+export type SetlistAdoptionNotice = {
+  direction: 'adopted' | 'wrote'
+  now: string[]
+  displaced: string[]
+  unresolved: string[]
 }
 
 /** One setlist row: the reference, and the song if its file read and parsed. */
@@ -132,6 +149,8 @@ export type GigReadinessInput = {
   mediaResolution: Readonly<Record<string, MediaResolution>>
   /** Keyed by song id. */
   validation: Readonly<Record<string, SongValidation>>
+  /** What last happened to the running order, when anything did. Carried through, never computed. */
+  adoption?: SetlistAdoptionNotice | null
 }
 
 function lyricLineCount(song: LibrarySong): number {
@@ -218,6 +237,7 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     playableSongIds: songs.filter((s) => s.ready).map((s) => s.songId),
     refusals: [],
     validationSkipped: false,
+    adoption: null,
   }
 }
 
@@ -276,6 +296,11 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     if (!input.gig.date) step2Missing.push('The gig has no date.')
     if (!input.gig.venue?.name) step2Missing.push('The gig has no venue.')
     if (input.setlist.length === 0) step2Missing.push('The gig has no setlist.')
+    // Ids `gig.json` names that this machine cannot turn into a song. They are a gap in the gig,
+    // not in a song — nothing downstream can even name them, so they are named here.
+    for (const id of input.adoption?.unresolved ?? []) {
+      step2Missing.push(`${id}: named in the gig’s setlist, but no file for it is known here.`)
+    }
     for (const song of songs) {
       if (song.missing.some((m) => m.includes('could not be read'))) {
         step2Missing.push(`${song.title}: ${song.missing[0]}`)
@@ -335,6 +360,7 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     playableSongIds,
     refusals,
     validationSkipped,
+    adoption: input.adoption ?? null,
   }
 }
 

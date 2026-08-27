@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { setMediaFolder } from './contentFolders'
 import {
   getMediaPath,
+  resolveMediaPath,
   setMediaPath,
   removeMediaPath,
   validateVideoForImport,
@@ -153,5 +155,32 @@ describe('validateVideoForImport', () => {
     const warnings = validateVideoForImport('/path/huge.mov', 700_000_000)
     expect(warnings).toContain('mov-or-prores')
     expect(warnings).toContain('large-file')
+  })
+})
+
+describe('resolving a name to bytes on this machine', () => {
+  it('has no answer with no link and no media folder', () => {
+    expect(resolveMediaPath('chango-pepper-logo.png')).toBeNull()
+  })
+
+  it('finds a name in the media folder — which is what puts the logo back on the wall', () => {
+    setMediaFolder('/vault/assets')
+    expect(resolveMediaPath('chango-pepper-logo.png')).toBe('/vault/assets/chango-pepper-logo.png')
+  })
+
+  it('keeps a name that carries a subpath, as Muralista writes it', () => {
+    setMediaFolder('/vault/assets')
+    expect(resolveMediaPath('clips/pig.mp4')).toBe('/vault/assets/clips/pig.mp4')
+  })
+
+  it('lets an explicit link win over the folder — the override for the file that moved', () => {
+    setMediaFolder('/vault/assets')
+    setMediaPath('logo.png', '/elsewhere/logo-v2.png')
+    expect(resolveMediaPath('logo.png')).toBe('/elsewhere/logo-v2.png')
+  })
+
+  it('has no answer for an empty name', () => {
+    setMediaFolder('/vault/assets')
+    expect(resolveMediaPath('')).toBeNull()
   })
 })

@@ -8,7 +8,7 @@ import { ShapeContact, readContactFields, CONTACT_MAX_SIZE } from './ShapeContac
 import { UNIT_SIZE } from './vendor/warp.js'
 
 vi.mock('./mediaPathStore', () => ({
-  getMediaPath: (src: string) => (src === 'qr.png' ? '/media/qr.png' : null),
+  resolveMediaPath: (src: string) => (src === 'qr.png' ? '/media/qr.png' : null),
   absolutePathToMediaUrl: (path: string) => `media://local${path}`,
 }))
 
@@ -55,7 +55,7 @@ describe('ShapeContact', () => {
     expect(qr.style.padding).toBe(`${t * 0.18}px`)
   })
 
-  it('shows no QR when the file is not linked on this machine', () => {
+  it('shows no QR when the file does not resolve on this machine', () => {
     render(<ShapeContact fields={{ text: 'scan me', qrSrc: 'missing.png' }} boxWidth={UNIT_SIZE} />)
     expect(screen.queryByTestId('gig-contact-qr')).toBeNull()
     expect(screen.getByText('scan me')).toBeTruthy()

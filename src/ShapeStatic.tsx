@@ -1,4 +1,5 @@
-import { getMediaPath, absolutePathToMediaUrl } from './mediaPathStore'
+import { useEffect, useState } from 'react'
+import { resolveMediaPath, absolutePathToMediaUrl } from './mediaPathStore'
 import { ShapeText } from './ShapeText'
 import { readTextFields, textLayoutBoxWidth } from './shapeTextLayout'
 import { shapeFrame, type VisualShape } from './visualsFile'
@@ -16,6 +17,10 @@ import { shapeFrame, type VisualShape } from './visualsFile'
  * nothing for them nothing would — and the practical consequence the design names, that the wall is
  * never fully black between songs without anything arranging it, would not hold. Painting them
  * unconditionally is the absence of a rule rather than a rule.
+ *
+ * **A source that does not arrive paints nothing**, whether this machine has no answer for the
+ * name at all or the answer turns out to be a file that is not there. A broken image on a wall
+ * says less than an empty shape does, and the fix is in the media folder, not on the wall.
  *
  * **`pattern` is deliberately not painted.** It is Muralista's test pattern — the default type for
  * a new shape and the fallback for a layer this build does not recognise — so it is an authoring
@@ -41,12 +46,19 @@ type Props = {
 function mediaUrlFor(layer: Record<string, unknown> | undefined): string | null {
   const src = typeof layer?.src === 'string' ? layer.src : ''
   if (!src) return null
-  const absolute = getMediaPath(src)
+  const absolute = resolveMediaPath(src)
   return absolute ? absolutePathToMediaUrl(absolute) : null
 }
 
 export function ShapeStatic({ shape, type, width, height }: Props) {
   const layer = shape.layer
+  const url = mediaUrlFor(layer)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  // A new source is a new question: a name that failed last time may resolve now that the folder
+  // has been chosen, and the shape must not stay dark because of an answer it has stopped giving.
+  useEffect(() => {
+    setFailedUrl(null)
+  }, [url])
 
   if (type === 'text') {
     const fields = readTextFields(layer)
@@ -63,10 +75,7 @@ export function ShapeStatic({ shape, type, width, height }: Props) {
     )
   }
 
-  const url = mediaUrlFor(layer)
-  // A source this machine has no link for paints nothing. A broken image on a wall says less than
-  // an empty shape does, and the fix is a link, not a placeholder.
-  if (!url) return null
+  if (!url || url === failedUrl) return null
 
   const fill = {
     position: 'absolute' as const,
@@ -87,10 +96,20 @@ export function ShapeStatic({ shape, type, width, height }: Props) {
         loop
         autoPlay
         playsInline
+        onError={() => setFailedUrl(url)}
         style={fill}
       />
     )
   }
 
-  return <img data-testid={`shape-static-${shape.id}`} src={url} alt="" aria-hidden="true" style={fill} />
+  return (
+    <img
+      data-testid={`shape-static-${shape.id}`}
+      src={url}
+      alt=""
+      aria-hidden="true"
+      onError={() => setFailedUrl(url)}
+      style={fill}
+    />
+  )
 }

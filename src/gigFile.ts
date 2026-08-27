@@ -12,6 +12,8 @@
  * `gigReadiness.ts`'s question, and only its question.
  */
 
+import { isAbsolutePath, relativePath, resolveFrom } from './paths'
+
 export const GIG_VERSION = 1
 
 /** One repertoire entry. `title` is what Muralista names the song by; `file` is Pregonero's. */
@@ -141,25 +143,71 @@ export function createGigFile(folderPath: string, today: string): GigFile {
   return gig
 }
 
-/** One repertoire entry per setlist song, in setlist order. */
+/** One repertoire entry per setlist song, in setlist order. `path` is absolute on this machine. */
 export type SetlistProjection = { id: string; title: string; path: string }
 
 /**
- * Projects Pregonero's setlist onto the gig file's `songs` and `setlist`.
+ * Writes Pregonero's setlist into the gig file's `songs` and `setlist`.
  *
- * One direction only. Pregonero authors the running order and `gig.json` is where it is written
- * down for Muralista to read; nothing reads the order back out of the file into the app, so the
- * two cannot drift the way `concerts/<gig>/setlist.md` and the app did.
+ * **`file` is written relative to the gig folder** — `../../songs/libertad.json`, the form
+ * `docs/gig-file.md` shows. That is what lets the folder be handed over on a stick: an absolute
+ * path is a fact about one machine, and the two-file split exists precisely so the pair can travel.
+ * An absolute path is still *read* without complaint; this is only the form written out.
+ *
+ * A song path that is not absolute is already a reference to somewhere and is written through
+ * untouched — there is nothing to make relative, and rewriting one would invent a location.
  */
-export function withSetlist(gig: GigFile, songs: readonly SetlistProjection[]): GigFile {
+export function withSetlist(
+  gig: GigFile,
+  songs: readonly SetlistProjection[],
+  gigFolderPath: string
+): GigFile {
   return {
     ...gig,
-    songs: songs.map((s) => ({ id: s.id, title: s.title, file: s.path })),
+    songs: songs.map((s) => ({
+      id: s.id,
+      title: s.title,
+      file: isAbsolutePath(s.path) ? relativePath(gigFolderPath, s.path) : s.path,
+    })),
     setlist: songs.map((s) => s.id),
   }
 }
 
 /** Whether `withSetlist` would change anything — the test that keeps writes off the hot path. */
-export function setlistMatches(gig: GigFile, songs: readonly SetlistProjection[]): boolean {
-  return serializeGigFile(withSetlist(gig, songs)) === serializeGigFile(gig)
+export function setlistMatches(
+  gig: GigFile,
+  songs: readonly SetlistProjection[],
+  gigFolderPath: string
+): boolean {
+  return serializeGigFile(withSetlist(gig, songs, gigFolderPath)) === serializeGigFile(gig)
+}
+
+/**
+ * **The setlist the file states**, in order, with each `file` resolved against the gig folder.
+ *
+ * This is the direction that changed in round G. `setlist` used to be a dump of whatever the app
+ * held, written one way, so a running order edited by hand in the file was overwritten on the next
+ * read with nothing said. It is the source now: what is in the file is what the app performs.
+ *
+ * A `setlist` id with no matching `songs` entry — or one whose entry names no `file` — comes back
+ * with a null `path`. That is a real state (a half-built gig, or a hand edit that named an id and
+ * not a file), and it is reported rather than dropped.
+ */
+export type GigSetlistEntry = { id: string; title: string | null; path: string | null }
+
+export function readGigSetlist(gig: GigFile, gigFolderPath: string): GigSetlistEntry[] {
+  const byId = new Map((gig.songs ?? []).map((song) => [song.id, song]))
+  return (gig.setlist ?? []).map((id) => {
+    const song = byId.get(id)
+    return {
+      id,
+      title: song?.title ?? null,
+      path: song?.file ? resolveFrom(gigFolderPath, song.file) : null,
+    }
+  })
+}
+
+/** Whether the file has reached the step where it carries a running order at all. */
+export function hasAuthoredSetlist(gig: GigFile): boolean {
+  return gig.setlist !== undefined
 }

@@ -2509,6 +2509,24 @@ html, body, #root {
   margin-top: 0.9em;
 }
 
+.gig-adoption {
+  border: 1px solid var(--rule, #423e37);
+  padding: 0.9em 1.1em;
+}
+
+.gig-adoption p {
+  margin: 0.35em 0 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.gig-now {
+  font-family: var(--font-control);
+  color: var(--text-primary) !important;
+  overflow-wrap: anywhere;
+}
+
 .gig-refusals {
   border: 1px solid var(--state-record-border);
   padding: 0.9em 1.1em;
@@ -2576,6 +2594,106 @@ html, body, #root {
 
 .gig-song-notes {
   color: var(--text-dim);
+}
+
+/* ---- Folders: where this machine keeps the songs and the media ----
+   Its own screen because linking a file used to be possible in exactly one place, the song
+   library, which only ever offered a song's own declared media. A static shape's image and a
+   contact QR had no way in at all. */
+.folders-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6em;
+}
+
+.folders-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.folders-row {
+  padding: 0.75em 0;
+  border-bottom: 1px solid var(--rule-faint);
+}
+
+.folders-row-label {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: block;
+}
+
+.folders-row-value {
+  display: block;
+  margin-top: 0.15em;
+  font-family: var(--font-control);
+  font-size: 0.9375em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.folders-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.folders-source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15em 1em;
+  padding: 0.6em 0;
+  border-bottom: 1px solid var(--rule-faint);
+}
+
+.folders-source-name {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.folders-source-status {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: center;
+}
+
+.folders-source-found .folders-source-status {
+  color: var(--state-ok);
+}
+
+.folders-source-missing .folders-source-status,
+.folders-source-unresolved .folders-source-status {
+  color: var(--state-fail);
+}
+
+.folders-source-uses {
+  grid-column: 1 / -1;
+  margin: 0.25em 0 0;
+  padding-left: 1.1em;
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  list-style: disc;
+}
+
+.folders-source-path {
+  grid-column: 1 / -1;
+  margin: 0.2em 0 0;
+  font-family: var(--font-control);
+  font-size: 0.75em;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.folders-source button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 0.5em;
 }
 
 /* ---- Debrief (control window only; never on the projection) ----

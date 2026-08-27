@@ -7,9 +7,11 @@ const writeGigFile = vi.fn()
 const validateSongForPerformance = vi.fn()
 const fileExists = vi.fn()
 const chooseGigFolderPath = vi.fn()
+const readSongFileText = vi.fn()
 
 vi.mock('./platform', () => ({
   hasGigFolderAccess: () => true,
+  readSongFileText: (...a: unknown[]) => readSongFileText(...a),
   chooseGigFolderPath: (...a: unknown[]) => chooseGigFolderPath(...a),
   readGigFolder: (...a: unknown[]) => readGigFolder(...a),
   writeGigFile: (...a: unknown[]) => writeGigFile(...a),
@@ -22,6 +24,7 @@ const {
   closeGig,
   getGigReadiness,
   getRememberedGigFolder,
+  publishSetlistToGig,
   refreshGigReadiness,
   rememberGigFolder,
   resetGigSession,
@@ -94,6 +97,14 @@ beforeEach(() => {
   writeGigFile.mockResolvedValue({ ok: true })
   validateSongForPerformance.mockResolvedValue({ status: 'skipped', reason: 'bombista is not on PATH' })
   fileExists.mockResolvedValue(true)
+  // Adopting the file's running order re-reads any song it points somewhere new.
+  readSongFileText.mockImplementation((path: string) => {
+    const id = String(path).split('/').pop()!.replace(/\.json$/, '')
+    return Promise.resolve({
+      ok: true,
+      text: JSON.stringify({ title: id, lyrics: [{ es: 'línea' }] }),
+    })
+  })
   installLibrary([song('duelo'), song('vidas')])
 })
 
@@ -156,6 +167,75 @@ describe('opening a folder with no gig.json', () => {
   })
 })
 
+describe('publishing a setlist Pregonero just changed', () => {
+  const gigText = JSON.stringify({
+    gigVersion: 1,
+    id: GIG_ID,
+    date: '2026-09-12',
+    venue: { name: 'Bar Eduard' },
+    songs: [
+      { id: 'duelo', title: 'duelo', file: 'duelo.json' },
+      { id: 'vidas', title: 'vidas', file: 'vidas.json' },
+    ],
+    setlist: ['duelo', 'vidas'],
+  })
+
+  beforeEach(() => rememberGigFolder(FOLDER))
+
+  it('writes the app’s order into the file', async () => {
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    await refreshGigReadiness()
+    installLibrary([song('vidas'), song('duelo')])
+    await publishSetlistToGig()
+    const calls = writeGigFile.mock.calls as [string, string][]
+    expect((JSON.parse(calls[calls.length - 1]![1]) as { setlist: string[] }).setlist).toEqual([
+      'vidas',
+      'duelo',
+    ])
+  })
+
+  it('writes nothing when the file already says what the app says', async () => {
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    await refreshGigReadiness()
+    await publishSetlistToGig()
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('says so when it replaces an order edited in the file since this session read it', async () => {
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    await refreshGigReadiness()
+
+    const editedOutside = JSON.stringify({
+      gigVersion: 1,
+      id: GIG_ID,
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard' },
+      songs: [
+        { id: 'duelo', title: 'duelo', file: 'duelo.json' },
+        { id: 'vidas', title: 'vidas', file: 'vidas.json' },
+      ],
+      setlist: ['vidas'],
+    })
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText: editedOutside }))
+
+    const r = await publishSetlistToGig()
+    expect(r.adoption).toEqual({
+      direction: 'wrote',
+      now: ['duelo', 'vidas'],
+      displaced: ['vidas'],
+      unresolved: [],
+    })
+  })
+
+  it('says nothing when the file is where this session left it', async () => {
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    await refreshGigReadiness()
+    installLibrary([song('duelo')])
+    const r = await publishSetlistToGig()
+    expect(r.adoption).toBeNull()
+  })
+})
+
 describe('opening a folder that already holds a gig', () => {
   const gigText = JSON.stringify({
     gigVersion: 1,
@@ -201,13 +281,80 @@ describe('opening a folder that already holds a gig', () => {
     expect(r.steps.every((s) => s.status === 'complete')).toBe(true)
   })
 
-  it('rewrites the running order when the setlist has been reordered since', async () => {
+  it('takes the file’s running order over the one the app held, and writes nothing', async () => {
     installLibrary([song('vidas'), song('duelo')])
     readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
-    await refreshGigReadiness()
+    const r = await refreshGigReadiness()
+    expect(writeGigFile).not.toHaveBeenCalled()
+    expect(r.songs.map((entry) => entry.songId)).toEqual(['duelo', 'vidas'])
+  })
+
+  it('says on screen that the file’s order replaced the one held here', async () => {
+    installLibrary([song('vidas'), song('duelo')])
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    const r = await refreshGigReadiness()
+    expect(r.adoption).toEqual({
+      direction: 'adopted',
+      now: ['duelo', 'vidas'],
+      displaced: ['vidas', 'duelo'],
+      unresolved: [],
+    })
+  })
+
+  it('says nothing when the file’s order is the one already in force', async () => {
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText }))
+    const r = await refreshGigReadiness()
+    expect(r.adoption).toBeNull()
+  })
+
+  it('honours a hand edit in the file rather than overwriting it', async () => {
+    const handEdited = JSON.stringify({
+      gigVersion: 1,
+      id: GIG_ID,
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard' },
+      songs: [
+        { id: 'duelo', title: 'duelo', file: 'duelo.json' },
+        { id: 'vidas', title: 'vidas', file: 'vidas.json' },
+      ],
+      setlist: ['vidas'],
+    })
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText: handEdited }))
+    const r = await refreshGigReadiness()
+    expect(writeGigFile).not.toHaveBeenCalled()
+    expect(r.songs.map((entry) => entry.songId)).toEqual(['vidas'])
+  })
+
+  it('names a setlist id it cannot turn into a song, rather than dropping it', async () => {
+    const withGhost = JSON.stringify({
+      gigVersion: 1,
+      id: GIG_ID,
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard' },
+      songs: [{ id: 'duelo', title: 'duelo', file: 'duelo.json' }],
+      setlist: ['duelo', 'ghost'],
+    })
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText: withGhost }))
+    const r = await refreshGigReadiness()
+    expect(r.adoption?.unresolved).toEqual(['ghost'])
+    expect(r.steps.find((step) => step.step === 2)!.missing).toContain(
+      'ghost: named in the gig’s setlist, but no file for it is known here.'
+    )
+  })
+
+  it('accretes the running order into a file that has none — that is not an overwrite', async () => {
+    const noSetlist = JSON.stringify({
+      gigVersion: 1,
+      id: GIG_ID,
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard' },
+    })
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText: noSetlist }))
+    const r = await refreshGigReadiness()
     const calls = writeGigFile.mock.calls as [string, string][]
-    const last = calls[calls.length - 1]!
-    expect((JSON.parse(last[1]) as { setlist: string[] }).setlist).toEqual(['vidas', 'duelo'])
+    expect(calls).toHaveLength(1)
+    expect((JSON.parse(calls[0]![1]) as { setlist: string[] }).setlist).toEqual(['duelo', 'vidas'])
+    expect(r.adoption).toBeNull()
   })
 
   it('refuses a mapping of a different room, and blocks every song', async () => {

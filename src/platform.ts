@@ -17,6 +17,12 @@ function api() {
   return typeof window !== 'undefined' ? window.electronAPI : undefined
 }
 
+/** Whether a native folder picker can be reached at all. False in a browser and in tests. */
+export function hasFolderPicker(): boolean {
+  const a = api()
+  return !!a && typeof a.openFolderDialog === 'function'
+}
+
 /** Whether the gig folder can be reached at all. False in a browser and in tests. */
 export function hasGigFolderAccess(): boolean {
   const a = api()
@@ -28,6 +34,16 @@ export async function chooseGigFolderPath(): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openGigFolderDialog !== 'function') return null
   return a.openGigFolderDialog()
+}
+
+/**
+ * Opens the native directory picker for a folder this machine remembers — the songs root, the
+ * media folder. Null when cancelled, or when there is no Electron.
+ */
+export async function chooseFolderPath(title: string): Promise<string | null> {
+  const a = api()
+  if (!a || typeof a.openFolderDialog !== 'function') return null
+  return a.openFolderDialog(title)
 }
 
 const ABSENT: Omit<GigFolderRead, 'folderPath'> = {
@@ -83,6 +99,25 @@ export async function writeDebriefFile(
   }
   try {
     return await a.writeDebriefFile(folderPath, text)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Reads a song file's text. The library's own reader goes through here rather than reaching for
+ * `window.electronAPI` itself — this is the one module that knows Electron exists, and a song file
+ * is as much a file on this machine as `gig.json` is.
+ */
+export async function readSongFileText(
+  filePath: string
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.readSongFile !== 'function') {
+    return { ok: false, error: 'Song files can only be read from the desktop app.' }
+  }
+  try {
+    return await a.readSongFile(filePath)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

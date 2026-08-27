@@ -11,7 +11,8 @@ import { ShapeStatic, isStaticType } from './ShapeStatic'
 import type { VisualShape } from './visualsFile'
 
 vi.mock('./mediaPathStore', () => ({
-  getMediaPath: (src: string) => (src === 'logo.png' || src === 'loop.mp4' ? `/media/${src}` : null),
+  resolveMediaPath: (src: string) =>
+    src === 'logo.png' || src === 'loop.mp4' ? `/media/${src}` : null,
   absolutePathToMediaUrl: (path: string) => `media://local${path}`,
 }))
 
@@ -70,7 +71,7 @@ describe('ShapeStatic', () => {
     expect(video.hasAttribute('autoplay')).toBe(true)
   })
 
-  it('paints nothing for a source this machine has no link for', () => {
+  it('paints nothing for a source this machine cannot resolve', () => {
     // A broken image on a wall says less than an empty shape does, and the fix is a link.
     render(
       <ShapeStatic shape={shapeWith({ type: 'image', src: 'unlinked.png' })} type="image" width={1920} height={1080} />

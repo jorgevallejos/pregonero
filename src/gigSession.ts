@@ -11,7 +11,9 @@
 
 import {
   createGigFile,
+  hasAuthoredSetlist,
   parseGigFile,
+  readGigSetlist,
   serializeGigFile,
   setlistMatches,
   withSetlist,
@@ -28,8 +30,19 @@ import {
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
 import { broadcastVisuals } from './visualsBroadcast'
 import { getRememberedGigFolder, rememberGigFolder } from './gigFolderStore'
-import { getOrderedEntriesForActiveSetlist, type LibraryEntry } from './setlistStore'
-import { getMediaPath } from './mediaPathStore'
+import {
+  adoptSetlistInSnapshot,
+  getOrderedEntriesForActiveSetlist,
+  loadSetlistStore,
+  resolveSongRef,
+  saveSetlistStore,
+  setLibraryEntries,
+  getLibraryEntries,
+  defaultReadSongFile,
+  type LibraryEntry,
+} from './setlistStore'
+import { resolveSongPath } from './contentFolders'
+import { resolveMediaPath } from './mediaPathStore'
 import * as platform from './platform'
 
 // The folder memory itself lives in `gigFolderStore`, so the Projection window can ask whether a
@@ -97,12 +110,15 @@ export function resetGigSession(): void {
 // ── Gathering ────────────────────────────────────────────────────────────────────────────────
 
 function toSetlistInput(entry: LibraryEntry): SetlistSongInput {
+  // The resolved path, not the stored reference: `bombista` is handed a real file, and the `file`
+  // written into `gig.json` is computed from one.
+  const path = resolveSongPath(entry.ref.path)
   return {
     id: entry.ref.id,
     title: entry.song?.title ?? entry.ref.id,
-    path: entry.ref.path,
+    path,
     song: entry.song ?? null,
-    ...(entry.song ? {} : { error: entry.error ?? `${entry.ref.path} could not be read.` }),
+    ...(entry.song ? {} : { error: entry.error ?? `${path} could not be read.` }),
   }
 }
 
@@ -117,7 +133,7 @@ async function resolveMedia(
   for (const entry of setlist) {
     const src = entry.song?.media?.src
     if (!src || out[src]) continue
-    const linkedPath = getMediaPath(src)
+    const linkedPath = resolveMediaPath(src)
     if (!linkedPath) {
       out[src] = { linked: false, exists: false }
       continue
@@ -149,16 +165,89 @@ async function validateSetlist(
 }
 
 /**
+ * **The setlist as `gig.json` last stated it**, for this session only.
+ *
+ * It exists to answer one question at the moment Pregonero writes: *has the file changed since we
+ * read it?* A difference means a running order edited outside the app is about to be replaced, and
+ * that has to be said on screen rather than done quietly. It is not stored progress — nothing is
+ * derived from it, and a fresh launch simply has no comparison to make until it has read the file.
+ */
+let lastAdoptedSetlist: string[] | null = null
+
+/** What changed about the running order on the last read or write. Rendered; never inferred from. */
+export type SetlistAdoption = {
+  /** `adopted` when the file's order replaced the app's; `wrote` when the app's replaced the file's. */
+  direction: 'adopted' | 'wrote'
+  /** The order that is now in force. */
+  now: string[]
+  /** The order that was displaced. Empty when nothing was. */
+  displaced: string[]
+  /** Ids the file names that this machine cannot turn into a song. */
+  unresolved: string[]
+}
+
+let lastAdoption: SetlistAdoption | null = null
+
+/** The last thing that happened to the running order, or null when nothing has. */
+export function getSetlistAdoption(): SetlistAdoption | null {
+  return lastAdoption
+}
+
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i])
+}
+
+/**
+ * **The file is the source.** Takes `gig.json`'s running order into the app: references for the
+ * songs it names, a setlist of the gig's own, made active.
+ *
+ * Round E1 wrote this the other way — the app's setlist was dumped into the file on every read, so
+ * a running order edited by hand in `gig.json` was silently overwritten. Pregonero is still the
+ * file's only writer; what changed is which side of the read is authoritative.
+ */
+async function adoptSetlistFromGig(gig: GigFile, folderPath: string): Promise<void> {
+  const before = readSetlist().map((entry) => entry.id)
+  const entries = readGigSetlist(gig, folderPath)
+
+  const snapshot = loadSetlistStore()
+  if (snapshot === null) return
+
+  const { snapshot: next, adopted, unresolved } = adoptSetlistInSnapshot(
+    snapshot,
+    `gig-${gig.id}`,
+    gig.id,
+    entries
+  )
+  saveSetlistStore(next)
+
+  // Anything the file just pointed somewhere new has to be read before it can be performed.
+  const known = new Map(getLibraryEntries().map((entry) => [entry.ref.id, entry]))
+  const resolvedEntries: LibraryEntry[] = []
+  for (const ref of next.library) {
+    const cached = known.get(ref.id)
+    if (cached && cached.ref.path === ref.path) resolvedEntries.push(cached)
+    else resolvedEntries.push(await resolveSongRef(ref, defaultReadSongFile))
+  }
+  setLibraryEntries(resolvedEntries)
+
+  lastAdoptedSetlist = [...adopted]
+  lastAdoption =
+    sameOrder(before, adopted) && unresolved.length === 0
+      ? null
+      : { direction: 'adopted', now: adopted, displaced: before, unresolved }
+}
+
+/**
  * Reads the gig folder and recomputes the delta.
  *
- * Two writes can happen here, and both are Pregonero writing the file it owns: a folder with no
- * `gig.json` gets one carrying identity and nothing else, and a `gig.json` whose repertoire no
- * longer matches the setlist gets the setlist written into it. **One direction only** — the app
- * authors the running order and the file is where it is written down for Muralista to read, so
- * the two cannot drift the way the app and `concerts/<gig>/setlist.md` did.
+ * **Re-read on open.** Two writes can still happen here, and both are Pregonero writing the file it
+ * owns: a folder with no `gig.json` gets one carrying identity and nothing else, and a `gig.json`
+ * that has not reached the step where it carries a running order gets the app's written in. That
+ * second one is accretion, not an overwrite — `docs/gig-file.md`, "The file exists before it is
+ * finished". **A file that already states a setlist is read, never rewritten here**; changing the
+ * running order is `publishSetlistToGig`, which is an explicit act with a screen behind it.
  */
 export async function refreshGigReadiness(): Promise<GigReadiness> {
-  const setlist = readSetlist()
   const folderPath = getRememberedGigFolder()
 
   if (folderPath === null) {
@@ -166,6 +255,8 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
     // that is the answer rather than a fallback — the same empty-state model as a shape whose song
     // is not playing.
     broadcastVisuals(null, null)
+    lastAdoptedSetlist = null
+    lastAdoption = null
     return publish(
       computeGigReadiness({
         folderPath: null,
@@ -174,7 +265,7 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
         visualsPresent: false,
         visuals: null,
         visualsProblem: null,
-        setlist,
+        setlist: readSetlist(),
         mediaResolution: {},
         validation: {},
       })
@@ -201,18 +292,95 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
   }
 
   if (gig !== null) {
-    const projection = setlist.map(toProjection)
-    if (!setlistMatches(gig, projection)) {
-      const next = withSetlist(gig, projection)
+    if (hasAuthoredSetlist(gig)) {
+      await adoptSetlistFromGig(gig, folderPath)
+    } else {
+      // The file has not reached step 2's running order yet. Writing the app's in is the field
+      // accreting for the first time, which is the normal way this file grows.
+      const projection = readSetlist().map(toProjection)
+      const next = withSetlist(gig, projection, folderPath)
       const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
-      if (written.ok) gig = next
-      else gigProblem = written.error
+      if (written.ok) {
+        gig = next
+        lastAdoptedSetlist = projection.map((song) => song.id)
+        lastAdoption = null
+      } else {
+        gigProblem = written.error
+      }
     }
     // The gig may point somewhere other than ./visuals.json; the first read used the default.
     if (gig.visuals && gig.visuals !== './visuals.json') {
       read = await platform.readGigFolder(folderPath, gig.visuals)
     }
   }
+
+  return publishFromFolder(folderPath, gig, gigProblem, read)
+}
+
+/**
+ * **Pregonero writing the running order it just changed.** The only path that replaces a setlist
+ * already in the file, and the reason it is a function of its own rather than a side effect of
+ * reading: reading is what the app does constantly, and a write folded into it is a write nobody
+ * asked for.
+ *
+ * If the file's order is not the one this session last read, a hand edit is being replaced. That is
+ * allowed — Pregonero is the only writer and the person doing both is the same person — but it is
+ * **recorded and shown**, never done quietly.
+ */
+export async function publishSetlistToGig(): Promise<GigReadiness> {
+  const folderPath = getRememberedGigFolder()
+  if (folderPath === null) return refreshGigReadiness()
+
+  let read = await platform.readGigFolder(folderPath)
+  let gigProblem: string | null = read.gigError
+  let gig: GigFile | null = null
+  if (read.gigText !== null && gigProblem === null) {
+    try {
+      gig = parseGigFile(read.gigText)
+    } catch (e) {
+      gigProblem = e instanceof Error ? e.message : String(e)
+    }
+  }
+  if (gig === null) return publishFromFolder(folderPath, gig, gigProblem, read)
+
+  const projection = readSetlist().map(toProjection)
+  const onDisk = readGigSetlist(gig, folderPath).map((entry) => entry.id)
+  const now = projection.map((song) => song.id)
+
+  if (setlistMatches(gig, projection, folderPath)) {
+    lastAdoptedSetlist = now
+    lastAdoption = null
+    return publishFromFolder(folderPath, gig, gigProblem, read)
+  }
+
+  const next = withSetlist(gig, projection, folderPath)
+  const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
+  if (!written.ok) {
+    return publishFromFolder(folderPath, gig, written.error, read)
+  }
+  gig = next
+
+  const editedOutside =
+    lastAdoptedSetlist !== null && !sameOrder(onDisk, lastAdoptedSetlist)
+  lastAdoption = editedOutside
+    ? { direction: 'wrote', now, displaced: onDisk, unresolved: [] }
+    : null
+  lastAdoptedSetlist = now
+
+  if (gig.visuals && gig.visuals !== './visuals.json') {
+    read = await platform.readGigFolder(folderPath, gig.visuals)
+  }
+  return publishFromFolder(folderPath, gig, gigProblem, read)
+}
+
+/** The tail every path above shares: parse the room, broadcast it, and compute the delta. */
+async function publishFromFolder(
+  folderPath: string,
+  gig: GigFile | null,
+  gigProblem: string | null,
+  read: Awaited<ReturnType<typeof platform.readGigFolder>>
+): Promise<GigReadiness> {
+  const setlist = readSetlist()
 
   let visuals: VisualsFile | null = null
   let visualsProblem: string | null = read.visualsError
@@ -244,6 +412,7 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
       setlist,
       mediaResolution,
       validation,
+      adoption: lastAdoption,
     })
   )
 }

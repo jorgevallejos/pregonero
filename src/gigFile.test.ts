@@ -4,7 +4,9 @@ import {
   createGigFile,
   gigDateFromFolderPath,
   gigIdFromFolderPath,
+  hasAuthoredSetlist,
   parseGigFile,
+  readGigSetlist,
   serializeGigFile,
   setlistMatches,
   withSetlist,
@@ -119,36 +121,94 @@ describe('createGigFile', () => {
 
 describe('withSetlist', () => {
   const gig = { gigVersion: GIG_VERSION, id: 'g' }
+  const folder = '/vault/concerts/g'
   const songs = [
-    { id: 'a', title: 'A', path: '/songs/a.json' },
-    { id: 'b', title: 'B', path: '/songs/b.json' },
+    { id: 'a', title: 'A', path: '/vault/songs/a.json' },
+    { id: 'b', title: 'B', path: '/vault/songs/b.json' },
   ]
 
   it('writes the repertoire and the order as two fields', () => {
-    const next = withSetlist(gig, songs)
+    const next = withSetlist(gig, songs, folder)
     expect(next.songs).toEqual([
-      { id: 'a', title: 'A', file: '/songs/a.json' },
-      { id: 'b', title: 'B', file: '/songs/b.json' },
+      { id: 'a', title: 'A', file: '../../songs/a.json' },
+      { id: 'b', title: 'B', file: '../../songs/b.json' },
     ])
     expect(next.setlist).toEqual(['a', 'b'])
   })
 
+  it('writes `file` relative to the gig folder, so the folder can travel', () => {
+    const inside = [{ id: 'c', title: 'C', path: '/vault/concerts/g/songs/c.json' }]
+    expect(withSetlist(gig, inside, folder).songs?.[0]?.file).toBe('songs/c.json')
+  })
+
   it('carries the title Muralista names the song by', () => {
-    expect(withSetlist(gig, songs).songs?.[0]?.title).toBe('A')
+    expect(withSetlist(gig, songs, folder).songs?.[0]?.title).toBe('A')
   })
 
   it('leaves everything else alone', () => {
     const withVenue = { ...gig, venue: { name: 'Bar Eduard' } }
-    expect(withSetlist(withVenue, songs).venue).toEqual({ name: 'Bar Eduard' })
+    expect(withSetlist(withVenue, songs, folder).venue).toEqual({ name: 'Bar Eduard' })
   })
 
   it('setlistMatches says when a write would change nothing', () => {
-    expect(setlistMatches(gig, songs)).toBe(false)
-    expect(setlistMatches(withSetlist(gig, songs), songs)).toBe(true)
+    expect(setlistMatches(gig, songs, folder)).toBe(false)
+    expect(setlistMatches(withSetlist(gig, songs, folder), songs, folder)).toBe(true)
   })
 
   it('notices a reorder', () => {
     const reordered = [songs[1]!, songs[0]!]
-    expect(setlistMatches(withSetlist(gig, songs), reordered)).toBe(false)
+    expect(setlistMatches(withSetlist(gig, songs, folder), reordered, folder)).toBe(false)
+  })
+})
+
+describe('readGigSetlist — the file is the source', () => {
+  const folder = '/vault/concerts/g'
+
+  it('reads the order the file states, resolving each file against the gig folder', () => {
+    const gig = parseGigFile(
+      JSON.stringify({
+        gigVersion: GIG_VERSION,
+        id: 'g',
+        songs: [
+          { id: 'a', title: 'A', file: '../../songs/a.json' },
+          { id: 'b', title: 'B', file: '../../songs/b.json' },
+        ],
+        setlist: ['b', 'a'],
+      })
+    )
+    expect(readGigSetlist(gig, folder)).toEqual([
+      { id: 'b', title: 'B', path: '/vault/songs/b.json' },
+      { id: 'a', title: 'A', path: '/vault/songs/a.json' },
+    ])
+  })
+
+  it('accepts an absolute file untouched — both forms are read, one is written', () => {
+    const gig = parseGigFile(
+      JSON.stringify({
+        gigVersion: GIG_VERSION,
+        id: 'g',
+        songs: [{ id: 'a', file: '/elsewhere/a.json' }],
+        setlist: ['a'],
+      })
+    )
+    expect(readGigSetlist(gig, folder)[0]?.path).toBe('/elsewhere/a.json')
+  })
+
+  it('reports an id the repertoire does not carry rather than dropping it', () => {
+    const gig = parseGigFile(
+      JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', songs: [], setlist: ['ghost'] })
+    )
+    expect(readGigSetlist(gig, folder)).toEqual([{ id: 'ghost', title: null, path: null }])
+  })
+
+  it('is empty for a gig that has not reached a running order', () => {
+    const gig = parseGigFile(JSON.stringify({ gigVersion: GIG_VERSION, id: 'g' }))
+    expect(readGigSetlist(gig, folder)).toEqual([])
+    expect(hasAuthoredSetlist(gig)).toBe(false)
+  })
+
+  it('tells an authored empty setlist from an absent one — the file exists before it is finished', () => {
+    const empty = parseGigFile(JSON.stringify({ gigVersion: GIG_VERSION, id: 'g', setlist: [] }))
+    expect(hasAuthoredSetlist(empty)).toBe(true)
   })
 })

@@ -1,3 +1,6 @@
+import { getMediaFolder } from './contentFolders'
+import { joinPath } from './paths'
+
 export const MEDIA_PATH_STORE_KEY = 'mediaPathStore'
 
 type MediaPathMap = Record<string, string>
@@ -32,6 +35,24 @@ function writeMap(map: MediaPathMap): void {
 export function getMediaPath(src: string): string | null {
   if (!src) return null
   return readMap()[src] ?? null
+}
+
+/**
+ * **Where this machine keeps the file called `src`** — the answer every renderer wants.
+ *
+ * Two sources, in order: the per-source link, then the configured media folder. The link is the
+ * override for a file that is somewhere else; the folder is the answer for everything that is
+ * where it says it is, which is what makes a logo, a QR code and a video resolve without anybody
+ * clicking *Locate…* fourteen times.
+ *
+ * Null means this machine has no answer, and the callers paint nothing rather than a placeholder.
+ */
+export function resolveMediaPath(src: string): string | null {
+  if (!src) return null
+  const linked = getMediaPath(src)
+  if (linked) return linked
+  const folder = getMediaFolder()
+  return folder === null ? null : joinPath(folder, src)
 }
 
 /** Persists an absolute path for the given logical `src` filename. */

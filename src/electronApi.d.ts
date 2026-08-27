@@ -37,6 +37,8 @@ declare global {
       ) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
       /** Native directory picker for the gig folder. Resolves to an absolute path, or null if cancelled. */
       openGigFolderDialog: () => Promise<string | null>
+      /** Native directory picker for the songs root and the media folder. Absolute path, or null. */
+      openFolderDialog: (title?: string) => Promise<string | null>
       /** One read of the gig folder: `gig.json` plus the file its `visuals` pointer names. */
       readGigFolder: (
         folderPath: string,
