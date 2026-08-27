@@ -2784,6 +2784,56 @@ html, body, #root {
   gap: 0.5em;
 }
 
+.subflow-question {
+  margin: 0.9em 0 0;
+  font-size: 1em;
+  color: var(--text-primary);
+}
+
+.subflow-gap {
+  margin: 0.9em 0 0;
+  padding: 0.6em 0.8em;
+  border-left: 2px solid var(--text-dim);
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.bombista-result {
+  margin-top: 0.8em;
+  padding-left: 0.8em;
+  border-left: 2px solid var(--rule-faint);
+}
+
+.bombista-result-failed {
+  border-left-color: var(--state-fail);
+}
+
+.bombista-result-ok {
+  border-left-color: var(--state-ok);
+}
+
+.bombista-result-head {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.bombista-output {
+  margin: 0.3em 0 0;
+  font-family: var(--font-control);
+  font-size: 0.75em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 20em;
+  overflow-y: auto;
+}
+
 /* ---- Folders: where this machine keeps the songs and the media ----
    Its own screen because linking a file used to be possible in exactly one place, the song
    library, which only ever offered a song's own declared media. A static shape's image and a

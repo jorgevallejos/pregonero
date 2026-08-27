@@ -12,6 +12,15 @@ const readSongFileText = vi.fn()
 const describeDisplays = vi.fn()
 
 vi.mock('./platform', () => ({
+  canRunBombista: () => false,
+  canHostTools: () => false,
+  runBombista: vi.fn(),
+  bombistaVersion: vi.fn(),
+  bombistaStagingDir: vi.fn(),
+  openTool: vi.fn(),
+  openBombistaReview: vi.fn(),
+  closeTool: vi.fn(),
+  chooseFilePath: vi.fn(),
   describeDisplays: (...a: unknown[]) => describeDisplays(...a),
   hasGigFolderAccess: () => true,
   readSongFileText: (...a: unknown[]) => readSongFileText(...a),

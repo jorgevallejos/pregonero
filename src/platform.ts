@@ -11,7 +11,12 @@
  * Electron here" — the Vite dev server in a plain browser, and jsdom in tests.
  */
 
-import type { DisplayDescription, GigFolderRead, SongValidationResult } from './electronApi'
+import type {
+  BombistaResult,
+  DisplayDescription,
+  GigFolderRead,
+  SongValidationResult,
+} from './electronApi'
 
 function api() {
   return typeof window !== 'undefined' ? window.electronAPI : undefined
@@ -155,6 +160,140 @@ export async function describeDisplays(): Promise<DisplayDescription> {
   } catch {
     return NO_DISPLAYS
   }
+}
+
+// ── Hosting the other two tools. Packaging, not architecture ─────────────────────────────────
+//
+// **Nothing here passes data between running processes.** Bombista is handed a song file path and
+// an exit code comes back; Muralista is a page in a window that reads and writes files. The file
+// is the only channel, and hosting a tool's UI changes where the window is, not who writes what.
+//
+// **Every one of these is absent outside Electron**, and that is the designed degraded mode: each
+// tool is fully usable on its own, so a missing bridge means the button is not there and the
+// escape hatch is.
+
+const NOT_HOSTED: BombistaResult = {
+  status: 'skipped',
+  output: 'bombista can only be run from the desktop app',
+  code: null,
+}
+
+/** Whether Bombista can be run at all from here. */
+export function canRunBombista(): boolean {
+  const a = api()
+  return !!a && typeof a.runBombista === 'function'
+}
+
+/**
+ * Runs one Bombista subcommand. **A song file path, never a gig.**
+ *
+ * If anything ever wants to hand Bombista gig context, that is the boundary breaking: Bombista does
+ * not know Pregonero exists and does not know gigs exist.
+ */
+export async function runBombista(subcommand: string, args: string[]): Promise<BombistaResult> {
+  const a = api()
+  if (!a || typeof a.runBombista !== 'function') return NOT_HOSTED
+  try {
+    return await a.runBombista(subcommand, args)
+  } catch (e) {
+    return { status: 'skipped', output: e instanceof Error ? e.message : String(e), code: null }
+  }
+}
+
+export async function bombistaVersion(): Promise<{ present: boolean; version: string | null }> {
+  const a = api()
+  if (!a || typeof a.bombistaVersion !== 'function') return { present: false, version: null }
+  try {
+    return await a.bombistaVersion()
+  } catch {
+    return { present: false, version: null }
+  }
+}
+
+/** The directory `align` writes into for a song. Pregonero names it and never reaches into it. */
+export async function bombistaStagingDir(songId: string): Promise<string | null> {
+  const a = api()
+  if (!a || typeof a.bombistaStagingDir !== 'function') return null
+  try {
+    const result = await a.bombistaStagingDir(songId)
+    return result.ok ? result.path : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * **Bombista's review page, which Bombista serves itself.**
+ *
+ * Not hosted from Pregonero's own server, and the reason is concrete rather than stylistic: the
+ * static `--emit html` review page names its audio with a path relative to the staging directory,
+ * so serving it from a mount rooted there produces a review page **with no audio** — and hearing
+ * the doubtful lines is the whole of what that page is for. `bombista serve` has `/api/audio`
+ * precisely so the page needs no relative src, and it is where tempo editing lives.
+ */
+export async function openBombistaReview(
+  args: string[]
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.openBombistaReview !== 'function') {
+    return { ok: false, error: 'Bombista can only be opened from the desktop app.' }
+  }
+  try {
+    return await a.openBombistaReview(args)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Whether a tool's page can be hosted from here. False in a browser and in tests. */
+export function canHostTools(): boolean {
+  const a = api()
+  return !!a && typeof a.openTool === 'function'
+}
+
+/**
+ * Opens a tool's page in a window of its own, **over `http://127.0.0.1`, never `file://`** —
+ * Muralista's File System Access API needs a secure context, and `file://` also hits the
+ * `webSecurity` block on media this repo already solved once with `media://`.
+ */
+export async function openTool(
+  key: string,
+  folder: string,
+  page: string,
+  title: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.openTool !== 'function') {
+    return { ok: false, error: 'Tools can only be hosted from the desktop app.' }
+  }
+  try {
+    return await a.openTool(key, folder, page, title)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Closes a hosted tool window and brings Pregonero forward.
+ *
+ * **Courtesy, not architecture.** The reload already happened because the file changed; this only
+ * saves a click. If the bridge is absent the button is absent, and you close the window yourself.
+ */
+export async function closeTool(key: string): Promise<void> {
+  const a = api()
+  if (!a || typeof a.closeTool !== 'function') return
+  try {
+    await a.closeTool(key)
+  } catch {
+    /* the window is already gone, which is the outcome asked for */
+  }
+}
+
+/** The native file picker, filtered. Null when cancelled, or when there is no Electron. */
+export async function chooseFilePath(kind: 'video' | 'audio' | 'json'): Promise<string | null> {
+  const a = api()
+  if (!a || typeof a.openFileDialog !== 'function') return null
+  return a.openFileDialog(kind)
 }
 
 /** Whether the file at an absolute path is there. Unknown outside Electron, which reads as absent. */

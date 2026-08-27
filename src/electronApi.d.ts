@@ -31,6 +31,16 @@ export type DisplayDescription = {
   fingerprint: string
 }
 
+/**
+ * What one Bombista run came back with. `skipped` means the binary was not there or did not
+ * answer — **never a reason to stop being able to perform.**
+ */
+export type BombistaResult = {
+  status: 'ok' | 'failed' | 'skipped'
+  output: string
+  code: number | null
+}
+
 export type SongValidationResult =
   | { status: 'ok' }
   | { status: 'failed'; messages: string[] }
@@ -44,7 +54,7 @@ declare global {
       isProjectionOpen: () => Promise<boolean>
       onProjectionOpened: (cb: () => void) => () => void
       onProjectionClosed: (cb: () => void) => () => void
-      openFileDialog: () => Promise<string | null>
+      openFileDialog: (kind?: 'video' | 'audio' | 'json') => Promise<string | null>
       getFileStats: (filePath: string) => Promise<{ exists: boolean; size: number }>
       /** Native picker for song files in `songs/`. Resolves to absolute paths, or [] if cancelled. */
       openSongFileDialog: () => Promise<string[]>
@@ -71,6 +81,25 @@ declare global {
         folderPath: string,
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /** Runs one Bombista subcommand. A song file path, never a gig. */
+      runBombista: (subcommand: string, args: string[]) => Promise<BombistaResult>
+      bombistaVersion: () => Promise<{ present: boolean; version: string | null }>
+      bombistaStagingDir: (
+        songId: string
+      ) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+      /** Starts `bombista serve` and opens a window on the address it prints. */
+      openBombistaReview: (
+        args: string[]
+      ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
+      /** Opens a tool's page in a window of its own, over localhost. */
+      openTool: (
+        key: string,
+        folder: string,
+        page: string,
+        title: string
+      ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
+      closeTool: (key: string) => Promise<void>
+      isToolOpen: (key: string) => Promise<boolean>
       /** What displays this machine has. Read-only — nothing renders from it. */
       describeDisplays: () => Promise<DisplayDescription>
       /** `bombista validate --for-performance`. A missing binary comes back as `skipped`. */

@@ -28,6 +28,7 @@ import { isAbsolutePath, joinPath } from './paths'
 
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
 export const MEDIA_FOLDER_KEY = 'pregoneroMediaFolder'
+export const MURALISTA_FOLDER_KEY = 'pregoneroMuralistaFolder'
 
 function read(key: string): string | null {
   try {
@@ -65,6 +66,22 @@ export function getMediaFolder(): string | null {
 
 export function setMediaFolder(folderPath: string | null): void {
   write(MEDIA_FOLDER_KEY, folderPath)
+}
+
+/**
+ * **Where Muralista's page lives on this machine** — the folder holding `mapper.html`.
+ *
+ * Pregonero cannot guess it, and it must not vendor a copy: a copy is a fork, and the ownership
+ * rule says the room is Muralista's. So it is a per-machine setting like the others, and **when it
+ * is not set the button is simply absent** — which is the designed degraded mode, not a failure.
+ * Muralista is fully usable on its own by requirement, and the escape hatch says so.
+ */
+export function getMuralistaFolder(): string | null {
+  return read(MURALISTA_FOLDER_KEY)
+}
+
+export function setMuralistaFolder(folderPath: string | null): void {
+  write(MURALISTA_FOLDER_KEY, folderPath)
 }
 
 /**
