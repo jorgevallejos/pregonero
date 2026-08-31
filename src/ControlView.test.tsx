@@ -7713,6 +7713,75 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
   })
 
   /**
+   * Setup panel — every section gets a column, and they all sit in ONE row-block.
+   *
+   * The grid named four columns (`grid-template-columns: 1fr 1fr 1fr 1fr`) long after App grew
+   * to six sections, so auto-placement wrapped the surplus — Rig and Arm — into a second
+   * row-block that rendered on top of Gig and Song. Nothing errored; the columns just collided.
+   *
+   * jsdom does no layout, so the invariant is checked where it is authored: the grid must not
+   * declare a fixed number of columns, and the number of sections App can render must fit
+   * whatever it does declare. A seventh section fails here rather than wrapping in silence.
+   */
+  describe('Setup panel column count', () => {
+    /** The declaration block of the setup grid, with CSS comments stripped. */
+    const setupGridDeclarations = () => {
+      const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+      const block = css.match(/\.control-center-setup \.control-performance-state \{([^}]*)\}/)
+      expect(block).toBeTruthy()
+      return block![1].replace(/\/\*[\s\S]*?\*\//g, '')
+    }
+
+    /**
+     * How many sections the grid can place before auto-placement folds one into a second
+     * row-block. `Infinity` when it generates a column per item instead of naming a fixed set.
+     */
+    const declaredColumnCapacity = (declarations: string): number => {
+      const template = declarations.match(/grid-template-columns:\s*([^;}]*)/)
+      if (template) {
+        const value = template[1].trim()
+        const repeat = value.match(/^repeat\(\s*(\d+)\s*,/)
+        return repeat ? Number(repeat[1]) : value.split(/\s+/).length
+      }
+      if (/grid-auto-flow:\s*column/.test(declarations) && /grid-auto-columns:/.test(declarations)) {
+        return Infinity
+      }
+      return 1 // row flow with no column template: one implicit column, everything stacks
+    }
+
+    /** Every `.control-setup-section` App can render, conditional ones included. */
+    const sectionsAppCanRender = () =>
+      (readFileSync(resolve(__dirname, 'App.tsx'), 'utf8').match(
+        /className="control-setup-section"/g
+      ) ?? []).length
+
+    it('generates a column per section instead of naming a fixed number of them', () => {
+      expect(declaredColumnCapacity(setupGridDeclarations())).toBe(Infinity)
+    })
+
+    it('has room for every section App can render, so none wraps into a second row-block', () => {
+      const capacity = declaredColumnCapacity(setupGridDeclarations())
+      const sections = sectionsAppCanRender()
+      // Sanity on the fixture itself: this only guards anything while App has more sections
+      // than the four the old fixed track list held.
+      expect(sections).toBeGreaterThan(4)
+      expect(sections).toBeLessThanOrEqual(capacity)
+    })
+
+    it('puts the sections it actually renders in that one row-block, as direct children', async () => {
+      setupControlViewWithReadinessPassing()
+      await armAndReachSetup()
+      const grid = document.querySelector('.control-performance-state')
+      expect(grid).toBeTruthy()
+      const sections = grid!.querySelectorAll('.control-setup-section')
+      expect(sections.length).toBeGreaterThan(1)
+      expect(sections.length).toBeLessThanOrEqual(sectionsAppCanRender())
+      expect(sections.length).toBeLessThanOrEqual(declaredColumnCapacity(setupGridDeclarations()))
+      sections.forEach((section) => expect(section.parentElement).toBe(grid))
+    })
+  })
+
+  /**
    * The setup screen carries the masthead — the only place in the app that says what this is.
    * Modelled on `bombista serve`'s, because the two are one suite and should look it.
    */

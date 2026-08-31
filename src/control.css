@@ -210,6 +210,12 @@
 html, body, #root {
   margin: 0;
   height: 100%;
+  /* The app's ground. .control-screen is a fixed 100vh box, so anything that overflows it lands
+     on the page behind, which was the UA's white — the wrapped Arm button was sitting on it. Set
+     here rather than relied on from .control-screen so any future overflow is a dark seam instead
+     of a white flash. The projection window is untouched: it paints its own #000 inline across
+     the full viewport. */
+  background-color: var(--app-bg);
 }
 
 /* ---- Masthead — setup screen only ----
@@ -438,15 +444,22 @@ html, body, #root {
   margin-bottom: 0.25em;
 }
 
-/* Setup: 4 columns, full-height; each column = label (top) + value (middle 1fr) + buttons (bottom) */
+/* Setup: one full-height column per rendered section = label (top) + value (middle 1fr) + extras + buttons (bottom) */
 .control-center-setup .control-performance-state {
   flex: 1;
   width: 100%;
   max-width: none;
   display: grid;
-  /* Song / Language / Projection / Arm — four EQUAL columns (T1: reverted from the
-     1fr 1fr 1.15fr 0.85fr weighting now the Projection toggle cluster is compact). */
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  /* One EQUAL column per section actually rendered — Gig / Song / Lyrics display /
+     Projection / Rig / Arm today, and two of those are conditional (Projection needs
+     Electron, Rig shows only in SETUP). A fixed `grid-template-columns: 1fr 1fr 1fr 1fr`
+     named four columns while six sections rendered, so auto-placement wrapped Rig and Arm
+     into a second row-block that landed on top of Gig and Song. Column auto-flow cannot run
+     out of columns: a seventh section widens the row instead of folding it under the first.
+     (T1: the 1fr 1fr 1.15fr 0.85fr weighting stays reverted — the Projection toggle cluster
+     is compact and the columns are equal.) */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   /* The CONTAINER owns the rows — label / value / extras / buttons — and each column is a
      subgrid of them. Before this, every column was its own independent grid, so the value row
      was only as tall as whatever that column's own buttons left over: Lyrics display carries
@@ -457,29 +470,43 @@ html, body, #root {
      column's overflow:hidden clips the song title. Overflowing the panel is the existing
      fallback and is the better failure. */
   grid-template-rows: auto minmax(min-content, 1fr) auto auto;
-  gap: 1.5em 2em;
+  /* No column gap: the 2em that used to separate the columns is now 1em of inline padding
+     inside each section (below), which is what lets the separator be a plain border. */
+  gap: 1.5em 0;
   align-items: stretch;
   padding: 1.5em 1.5em 2em;
   min-height: 0;
-  /* 3 vertical separator lines centered in the gaps between the 4 equal columns. */
-  --_gap: 2em;
-  --_col: calc((100% - 3 * var(--_gap)) / 4);
-  background-image:
-    linear-gradient(var(--rule-faint), var(--rule-faint)),
-    linear-gradient(var(--rule-faint), var(--rule-faint)),
-    linear-gradient(var(--rule-faint), var(--rule-faint));
-  background-size: 1px 100%;
-  background-repeat: no-repeat;
-  background-position:
-    calc(1 * var(--_col) + 0.5 * var(--_gap) - 0.5px) 0,
-    calc(2 * var(--_col) + 1.5 * var(--_gap) - 0.5px) 0,
-    calc(3 * var(--_col) + 2.5 * var(--_gap) - 0.5px) 0;
 }
 
 .control-center-setup .control-setup-section {
   grid-row: span 4;
   grid-template-rows: subgrid;
+  /* The vertical separator, one per gap, drawn by the columns themselves. It used to be three
+     hardcoded background gradients on the container, positioned from a hardcoded four-column
+     pitch — a second thing to keep in step with the section count, and wrong the moment the
+     count changed. A border on every column but the first is right for any number of them.
+     1em of inline padding on both sides keeps the line centred between two columns' content
+     and reproduces the old 2em column gap. */
+  box-sizing: border-box;
+  padding-inline: 1em;
+  border-left: 1px solid var(--rule-faint);
 }
+
+.control-center-setup .control-setup-section:first-child {
+  border-left: none;
+}
+
+/* ---- Narrow control surfaces have no behaviour here yet, and that is deliberate -----------
+   A fold was written and dropped before merge. Its breakpoint was swept for the width where
+   buttons begin to CLIP, and on a real iPad on 2026-08-31 the panel is illegible well before it
+   clips: values break mid-word ("Trage / dia de cerdo asado", "Unarm / ed"). A fold that fires
+   at the clipping width arrives long after the panel stopped being readable, so it was the
+   wrong criterion rather than the wrong number.
+
+   THE TEST FOR ANY FUTURE FOLD IS LEGIBILITY ON THE DEVICE, NOT CLIPPING IN A BROWSER. jsdom
+   does no layout and Chromium is not the surface, so the number has to come from reading the
+   panel on the iPad over Sidecar. Until that is done, this file has no media query at all —
+   the same state it was in before the column collision was fixed. */
 
 /* Allow grid columns to shrink below content size; prevent overlap into adjacent columns */
 .control-center-setup .control-performance-state > * {
@@ -650,6 +677,12 @@ html, body, #root {
   justify-content: center;
   align-items: center;
   gap: 0.75em;
+  /* Wrap, because the buttons no longer shrink (see the min-width on .ctrl-btn below). Gig is
+     the only column with two of them, and two full-width labels do not fit one 6-column row on
+     a 1440 or 1920 screen. Wrapping stacks Setup above Folders at their real widths; the
+     alternative is a row that overflows the column and gets clipped by its overflow:hidden.
+     Row 4 is shared by every column, so the extra line keeps all the button blocks aligned. */
+  flex-wrap: wrap;
 }
 
 /* Toggle-control cluster used in the Lyrics display (Languages + Transitions) and
@@ -722,19 +755,27 @@ html, body, #root {
   color: var(--text-muted);
 }
 
-/* Single sizing for all setup/ready-to-arm bottom buttons (Song, Languages, Projection, Arm) */
+/* Single sizing for all setup/ready-to-arm bottom buttons (Setup/Folders, Setlist, Languages,
+   Projection, Arm) */
 .control-center-setup .control-setup-section .ctrl-btn {
   font-size: 1.0625em;
   padding: 0.6em 1em;
   min-height: 2.75em;
-  min-width: 0;
+  /* min-content, not 0. These are flex items inside .control-setup-button-row, where the
+     automatic minimum size is what keeps a button at least as wide as its own label; `min-width: 0`
+     removed that floor. Gig is the only column with two buttons in one row, so Setup and Folders
+     were the only pair with a sibling to shrink against, and the only ones that broke mid-word. */
+  min-width: min-content;
   width: auto;
   max-width: 100%;
   box-sizing: border-box;
   text-align: center;
+  /* overflow-wrap only. `word-break: break-word` is the legacy spelling of
+     `overflow-wrap: anywhere`, which drops the min-content width to a single character and would
+     silently cancel the floor above. A label longer than its column still breaks rather than
+     overflowing — it just breaks at a word, not inside one. */
   overflow-wrap: break-word;
   word-wrap: break-word;
-  word-break: break-word;
   grid-row: 3;
 }
 
