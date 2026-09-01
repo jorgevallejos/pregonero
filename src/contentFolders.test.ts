@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { joinPath } from './paths'
 import {
+  defaultMediaFolder,
+  getChosenMediaFolder,
   getMediaFolder,
   getSongsFolder,
   resolveSongPath,
@@ -97,5 +99,38 @@ describe('the configured folders', () => {
       setSongsFolder('/songs')
       expect(songRefPathFor('/songs-old/libertad.json')).toBe('/songs-old/libertad.json')
     })
+  })
+})
+
+describe('the media folder defaults to <songs>/audio', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('is the audio folder inside the songs folder when nothing is chosen', () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
+    expect(getMediaFolder()).toBe('/Users/j/songs/audio')
+  })
+
+  it('is null when there is no songs folder to hang it off', () => {
+    expect(getMediaFolder()).toBeNull()
+  })
+
+  it('an explicit choice beats the default', () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
+    setMediaFolder('/Volumes/Passport/media')
+    expect(getMediaFolder()).toBe('/Volumes/Passport/media')
+  })
+
+  it('clearing a choice returns to the default, not to nothing', () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
+    setMediaFolder('/elsewhere')
+    setMediaFolder(null)
+    expect(getMediaFolder()).toBe('/Users/j/songs/audio')
+  })
+
+  it('says what was actually chosen, separately from what is in force', () => {
+    // Preferences shows the default in the field without pretending it was typed.
+    localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
+    expect(getChosenMediaFolder()).toBeNull()
+    expect(defaultMediaFolder()).toBe('/Users/j/songs/audio')
   })
 })

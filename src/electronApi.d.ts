@@ -42,6 +42,23 @@ export type BombistaResult = {
 }
 
 /**
+ * **Where `bombista` was found, and everywhere that was looked.**
+ *
+ * `source` says which answer won: `configured` is the path preferences holds, taken verbatim;
+ * `path` is the inherited `PATH`, which is the right answer when the app was launched from a
+ * shell; `known-location` is where a Python CLI actually installs, which is the answer a
+ * Finder-launched app needs because its `PATH` is `/usr/bin:/bin:/usr/sbin:/sbin`; `unresolved`
+ * means nothing was found and the bare name is being used, so the failure downstream stays
+ * `skipped` exactly as it was.
+ */
+export type BombistaLocation = {
+  command: string
+  source: 'configured' | 'path' | 'known-location' | 'unresolved'
+  /** Every candidate looked at, so preferences can say where it looked. */
+  searched: string[]
+}
+
+/**
  * Where the projection window went. **A sentence for a screen** — nothing renders from it, and the
  * output size stays a parameter passed on every render.
  */
@@ -96,15 +113,28 @@ declare global {
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
       /** Runs one Bombista subcommand. A song file path, never a gig. */
-      runBombista: (subcommand: string, args: string[]) => Promise<BombistaResult>
-      bombistaVersion: () => Promise<{ present: boolean; version: string | null }>
+      runBombista: (
+        subcommand: string,
+        args: string[],
+        bombistaPath: string | null
+      ) => Promise<BombistaResult>
+      bombistaVersion: (
+        bombistaPath: string | null
+      ) => Promise<{ present: boolean; version: string | null }>
+      /** Where `bombista` was found, and everywhere that was looked. */
+      locateBombista: (bombistaPath: string | null) => Promise<BombistaLocation>
       bombistaStagingDir: (
         songId: string
       ) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
       /** Starts `bombista serve` and opens a window on the address it prints. */
       openBombistaReview: (
-        args: string[]
+        args: string[],
+        bombistaPath: string | null
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
+      /** The song files in the songs folder, sorted. `songs/` is the source of truth. */
+      listSongsFolder: (
+        folderPath: string
+      ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>
       /** Opens a tool's page in a window of its own, over localhost. */
       openTool: (
         key: string,
@@ -117,7 +147,10 @@ declare global {
       /** What displays this machine has. Read-only — nothing renders from it. */
       describeDisplays: () => Promise<DisplayDescription>
       /** `bombista validate --for-performance`. A missing binary comes back as `skipped`. */
-      validateSongForPerformance: (songPath: string) => Promise<SongValidationResult>
+      validateSongForPerformance: (
+        songPath: string,
+        bombistaPath: string | null
+      ) => Promise<SongValidationResult>
     }
   }
 }

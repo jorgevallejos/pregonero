@@ -2875,14 +2875,195 @@ html, body, #root {
   overflow-y: auto;
 }
 
+/* ---- Setup home: gigs and songs, side by side, both in full ----
+   Two columns because songs and gigs are PEERS, one level below the stage. A screen whose only
+   content is two buttons is a signpost rather than a place, and putting songs behind a "manage
+   songs" button hangs the long-lived thing off the ephemeral one — gigs come and go, songs last
+   for years.
+
+   NEITHER LIST TRUNCATES, AND THE NARROW-WIDTH CONSTRAINT DOES NOT APPLY HERE. Setup is desk work
+   done hours ahead on a real screen; only the control view has to survive an iPad on a stage. The
+   columns hold their width and the page scrolls, which is why there is no fold, no max-height and
+   no "show more" anywhere below. If this screen ever needs one, the requirement changed and the
+   change should be argued rather than absorbed. */
+.songs-screen.setup-home-screen .songs-body.setup-home-body {
+  /* The two-class-per-element selector is not decoration: `.songs-screen:not(.languages-screen)
+     .songs-body` above declares a `repeat(auto-fit, minmax(220px, 1fr))` song-button grid with
+     `justify-items: center`, and it outranks a single class. Manage-setlists escapes it the same
+     way, and this follows that precedent rather than inventing a second one. Everything it sets
+     that would leak into a two-column reading list is reset here explicitly. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2em;
+  align-items: start;
+  justify-items: stretch;
+  max-width: none;
+  margin: 0;
+  padding: 2em;
+  row-gap: 2em;
+  column-gap: 2em;
+}
+
+.setup-home-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.setup-home-column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+
+.setup-home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-home-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.75em 0;
+  border-bottom: 1px solid var(--rule-faint);
+  min-width: 0;
+}
+
+.setup-home-row-open {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.setup-home-row-name {
+  font-size: 1.0625em;
+}
+
+.setup-home-row-badge {
+  font-family: var(--font-label);
+  font-size: 0.7em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A path is long and is the thing that identifies a row when two gigs share a name, so it wraps
+   rather than being clipped or truncated with an ellipsis. */
+.setup-home-row-path {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.setup-home-row-actions {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+/* `.ctrl-setup-link` is `width: 100%`, which is right in a control-view column one button wide and
+   wrong here: three full-width buttons turn one gig into 200px of screen, and four gigs into the
+   wall this list exists to avoid. They size to their own labels and sit on one line. */
+.setup-home-row-actions .ctrl-btn.ctrl-setup-link,
+.setup-home-column-head .ctrl-btn.ctrl-setup-link {
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.setup-home-row-body {
+  padding-top: 0.5em;
+}
+
+/* An action held by a precondition: the control stays, the reason sits under it. See
+   `GatedAction.tsx` — a vanished control reads as a wall, a disabled one with a sentence reads as
+   a next step. */
+.gated-action {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.gated-action-reason {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  max-width: 30em;
+}
+
+.setup-home-new {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  width: 100%;
+}
+
+.setup-home-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.setup-home-field span {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.setup-home-field input {
+  font: inherit;
+  padding: 0.5em 0.6em;
+  color: inherit;
+  background: var(--app-bg);
+  border: 1px solid var(--rule-faint);
+}
+
+/* **A placeholder must not read as a value.** Nothing in this app styled one, so on a dark ground
+   Chromium's default sits close enough to the text colour that a filled-looking field with a
+   plausible id in it was read as a name already typed — while the disabled Create beside it
+   correctly said there was no name. Half the fix; the other half is that the placeholder now
+   describes a shape rather than naming a real song. */
+.setup-home-field input::placeholder,
+.control-screen input::placeholder,
+.songs-screen input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+  font-style: italic;
+}
+
 /* ---- Folders: where this machine keeps the songs and the media ----
    Its own screen because linking a file used to be possible in exactly one place, the song
    library, which only ever offered a song's own declared media. A static shape's image and a
    contact QR had no way in at all. */
-.folders-body {
+.songs-screen .songs-body.folders-body {
+  /* Two classes, for the same reason Setup home needs them: `.songs-screen:not(.languages-screen)
+     .songs-body` declares the song-button grid and outranks a single class, so this screen was
+     being laid out in three centred auto-fit columns — a settings list reading as a card wall.
+     It has been that way since the screen was added and was easy to miss while it was somewhere
+     you rarely went; it is a destination now, reached from Setup home. */
   display: flex;
   flex-direction: column;
   gap: 1.6em;
+  align-items: stretch;
+  justify-items: stretch;
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 2em;
 }
 
 .folders-section {

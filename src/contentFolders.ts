@@ -29,6 +29,7 @@ import { isAbsolutePath, joinPath } from './paths'
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
 export const MEDIA_FOLDER_KEY = 'pregoneroMediaFolder'
 export const MURALISTA_FOLDER_KEY = 'pregoneroMuralistaFolder'
+export const BOMBISTA_PATH_KEY = 'pregoneroBombistaPath'
 
 function read(key: string): string | null {
   try {
@@ -59,8 +60,31 @@ export function setSongsFolder(folderPath: string | null): void {
   write(SONGS_FOLDER_KEY, folderPath)
 }
 
-/** The media folder — where a `src` name is looked for. Null when none has been chosen. */
+/**
+ * **Where a `src` name is looked for**, and it is normally not a setting at all.
+ *
+ * It **defaults to `<songs>/audio`**, which is where the audio already lives — one fewer thing to
+ * configure before anything works, and one fewer place to discover a precondition at the moment it
+ * blocks you. **A per-source link still wins** for a song naming a file somewhere else, so nothing
+ * is lost by the default being right most of the time.
+ *
+ * An explicit choice always beats the default, and clearing one returns to the default rather than
+ * to nothing.
+ */
 export function getMediaFolder(): string | null {
+  const chosen = read(MEDIA_FOLDER_KEY)
+  if (chosen !== null) return chosen
+  return defaultMediaFolder()
+}
+
+/** `<songs>/audio`, or null when there is no songs folder to hang it off yet. */
+export function defaultMediaFolder(): string | null {
+  const songs = getSongsFolder()
+  return songs === null ? null : joinPath(songs, 'audio')
+}
+
+/** What is explicitly stored, ignoring the default. For a screen that shows both. */
+export function getChosenMediaFolder(): string | null {
   return read(MEDIA_FOLDER_KEY)
 }
 
@@ -69,19 +93,37 @@ export function setMediaFolder(folderPath: string | null): void {
 }
 
 /**
- * **Where Muralista's page lives on this machine** — the folder holding `mapper.html`.
+ * **There is no Muralista folder setting, and that is deliberate** (2026-08-31).
  *
- * Pregonero cannot guess it, and it must not vendor a copy: a copy is a fork, and the ownership
- * rule says the room is Muralista's. So it is a per-machine setting like the others, and **when it
- * is not set the button is simply absent** — which is the designed degraded mode, not a failure.
- * Muralista is fully usable on its own by requirement, and the escape hatch says so.
+ * Its page is vendored — `src/vendor/mapper.html` and the three files beside it, byte for byte at
+ * the tag in `muralista-page.source.json`, with a hash test. **A copy is not a fork when a test
+ * proves it current**, which is how `warp.js` and the stand-ins were already carried. What it
+ * removes is a setting that had to be discovered before the visuals door did anything, which is
+ * the dead-end shape the setup redesign exists to remove.
+ *
+ * The key `pregoneroMuralistaFolder` is left unread rather than migrated: a stale value in browser
+ * storage costs nothing and nothing looks at it.
  */
-export function getMuralistaFolder(): string | null {
-  return read(MURALISTA_FOLDER_KEY)
+
+/**
+ * **Where `bombista` is on this machine, when the answer is not obvious.**
+ *
+ * Normally there is nothing to set: `electron/bombistaBinary.cjs` looks on `PATH` and then in the
+ * places a Python CLI actually installs. This is the override for a machine where neither answer
+ * is the right one — a virtualenv, a checkout, a second install.
+ *
+ * **It is used verbatim and never checked**, so a path typed here that is wrong fails naming
+ * itself. Falling back to a working binary would leave a dead setting looking alive.
+ *
+ * It is a per-machine fact, like the folders either side of it, and it travels to the main process
+ * on every call rather than being read there — the main process stays stateless about settings.
+ */
+export function getBombistaPath(): string | null {
+  return read(BOMBISTA_PATH_KEY)
 }
 
-export function setMuralistaFolder(folderPath: string | null): void {
-  write(MURALISTA_FOLDER_KEY, folderPath)
+export function setBombistaPath(binaryPath: string | null): void {
+  write(BOMBISTA_PATH_KEY, binaryPath)
 }
 
 /**

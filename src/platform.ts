@@ -12,12 +12,14 @@
  */
 
 import type {
+  BombistaLocation,
   BombistaResult,
   DisplayDescription,
   GigFolderRead,
   ProjectorPlacement,
   SongValidationResult,
 } from './electronApi'
+import { getBombistaPath } from './contentFolders'
 
 function api() {
   return typeof window !== 'undefined' ? window.electronAPI : undefined
@@ -138,7 +140,7 @@ export async function validateSongForPerformance(
     return { status: 'skipped', reason: 'bombista can only be run from the desktop app' }
   }
   try {
-    return await a.validateSongForPerformance(songPath)
+    return await a.validateSongForPerformance(songPath, getBombistaPath())
   } catch (e) {
     return { status: 'skipped', reason: e instanceof Error ? e.message : String(e) }
   }
@@ -213,9 +215,28 @@ export async function runBombista(subcommand: string, args: string[]): Promise<B
   const a = api()
   if (!a || typeof a.runBombista !== 'function') return NOT_HOSTED
   try {
-    return await a.runBombista(subcommand, args)
+    return await a.runBombista(subcommand, args, getBombistaPath())
   } catch (e) {
     return { status: 'skipped', output: e instanceof Error ? e.message : String(e), code: null }
+  }
+}
+
+/**
+ * **Where Pregonero found `bombista`, and everywhere it looked.**
+ *
+ * Preferences says this out loud, because the failure it replaces was silent: the binary was
+ * installed, the app could not see it, and the only symptom was `skipped` — the same word a
+ * machine with no Python gets.
+ */
+export async function locateBombista(): Promise<BombistaLocation> {
+  const a = api()
+  if (!a || typeof a.locateBombista !== 'function') {
+    return { command: 'bombista', source: 'unresolved', searched: [] }
+  }
+  try {
+    return await a.locateBombista(getBombistaPath())
+  } catch {
+    return { command: 'bombista', source: 'unresolved', searched: [] }
   }
 }
 
@@ -223,7 +244,7 @@ export async function bombistaVersion(): Promise<{ present: boolean; version: st
   const a = api()
   if (!a || typeof a.bombistaVersion !== 'function') return { present: false, version: null }
   try {
-    return await a.bombistaVersion()
+    return await a.bombistaVersion(getBombistaPath())
   } catch {
     return { present: false, version: null }
   }
@@ -258,7 +279,7 @@ export async function openBombistaReview(
     return { ok: false, error: 'Bombista can only be opened from the desktop app.' }
   }
   try {
-    return await a.openBombistaReview(args)
+    return await a.openBombistaReview(args, getBombistaPath())
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
@@ -313,6 +334,21 @@ export async function chooseFilePath(kind: 'video' | 'audio' | 'json'): Promise<
   const a = api()
   if (!a || typeof a.openFileDialog !== 'function') return null
   return a.openFileDialog(kind)
+}
+
+/**
+ * **The song files in the songs folder.** Outside Electron there is no folder to read, which reads
+ * as an empty list — the same shape as a folder with nothing in it, and not an error.
+ */
+export async function listSongsFolder(folderPath: string): Promise<string[]> {
+  const a = api()
+  if (!a || typeof a.listSongsFolder !== 'function') return []
+  try {
+    const result = await a.listSongsFolder(folderPath)
+    return result.ok ? result.files : []
+  } catch {
+    return []
+  }
 }
 
 /** Whether the file at an absolute path is there. Unknown outside Electron, which reads as absent. */

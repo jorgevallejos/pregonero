@@ -32,6 +32,7 @@ import {
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
 import { broadcastVisuals } from './visualsBroadcast'
 import { getRememberedGigFolder, rememberGigFolder } from './gigFolderStore'
+import { rememberGigInList } from './gigListStore'
 import {
   adoptSetlistInSnapshot,
   getOrderedEntriesForActiveSetlist,
@@ -521,7 +522,19 @@ export async function confirmSetup(): Promise<GigReadiness> {
 export async function chooseGigFolder(): Promise<GigReadiness> {
   const chosen = await platform.chooseGigFolderPath()
   if (chosen === null) return getGigReadiness()
-  rememberGigFolder(chosen)
+  return openGigFolder(chosen)
+}
+
+/**
+ * Opens a gig folder this app already has a path for — a row on Setup home.
+ *
+ * **Two different memories, and they mean different things.** `rememberGigFolder` is *which gig is
+ * open*, one path, read by the Projection window; the list is *which gigs this machine knows
+ * about*, a bookmark list. Opening touches both; listing touches only the second.
+ */
+export async function openGigFolder(folderPath: string): Promise<GigReadiness> {
+  rememberGigFolder(folderPath)
+  rememberGigInList(folderPath)
   return refreshGigReadiness()
 }
 

@@ -38,7 +38,6 @@ import {
   getActiveSetlistId,
   loadSetlistStore,
   reorderSongsInSetlistInSnapshot,
-  addSongToSetlistInSnapshot,
   saveSetlistStore,
   setActiveSetlistId,
   getLibrarySongById,
@@ -3701,8 +3700,12 @@ describe('ControlView performer state flow', () => {
       expect(screen.getByRole('heading', { name: 'SETLIST SONGS' })).toBeTruthy()
       expect(screen.getByRole('heading', { name: 'SONG LIBRARY' })).toBeTruthy()
       expect(screen.getByRole('button', { name: /Add Vidas to setlist Tonight/ })).toBeTruthy()
-      expect(screen.getByRole('button', { name: /Delete Vidas from library/ })).toBeTruthy()
       expect(screen.getByRole('button', { name: /Remove Duelo from setlist Tonight/ })).toBeTruthy()
+      // **A library row has one action, and it is add-to-setlist** (2026-09-01). The trash can
+      // that removed a song from the library is gone: `songs/` is the source of truth, hydration
+      // seeds a reference for every file in the folder, and the deletion came back on the next
+      // hydration. Removing from a SETLIST is a different act and it is still here, one line up.
+      expect(screen.queryByRole('button', { name: /Delete Vidas from library/ })).toBeNull()
     })
 
     it('renders setlists unframed while songs and library stay panel-framed with aligned headers', async () => {
@@ -4099,142 +4102,6 @@ describe('ControlView performer state flow', () => {
       expect(getSongLines().length).toBeGreaterThan(0)
     })
 
-    it('deleting a library song from Songs in app does not prompt confirm and removes it from the draft UI immediately', async () => {
-      clearStorage()
-      seedTwoSetlistsTonightActive()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const confirmSpy = vi.spyOn(window, 'confirm')
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Edit songs in setlist Default/ })).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Remove Vidas from setlist Default/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
-      })
-      expect(confirmSpy).not.toHaveBeenCalled()
-      expect(alertSpy).not.toHaveBeenCalled()
-      expect(screen.queryByRole('button', { name: /Delete Vidas from library/ })).toBeNull()
-      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-      })
-      await waitFor(() => {
-        expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(false)
-      })
-      const defaultSl = loadSetlistStore()!.setlists.find((s) => s.id === DEFAULT_SETLIST_ID)!
-      expect(defaultSl.songIds).not.toContain('vidas')
-      confirmSpy.mockRestore()
-      alertSpy.mockRestore()
-    })
-
-    it('delete from app does not show an alert when delete succeeds', async () => {
-      clearStorage()
-      seedTwoSetlistsTonightActive()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const confirmSpy = vi.spyOn(window, 'confirm')
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Edit songs in setlist Default/ })).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Select setlist Default' }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Default/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Remove Vidas from setlist Default/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
-      })
-      expect(confirmSpy).not.toHaveBeenCalled()
-      expect(alertSpy).not.toHaveBeenCalled()
-      confirmSpy.mockRestore()
-      alertSpy.mockRestore()
-    })
-
-    it('blocks delete from app when the song is still in a setlist and lists setlist names', async () => {
-      clearStorage()
-      seedTwoSetlistsTonightActive()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const confirmSpy = vi.spyOn(window, 'confirm')
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ })).toBeTruthy()
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist Tonight/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
-      })
-      expect(confirmSpy).not.toHaveBeenCalled()
-      expect(alertSpy).toHaveBeenCalled()
-      const msg = alertSpy.mock.calls[0]![0] as string
-      expect(msg).toContain('Default')
-      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
-      confirmSpy.mockRestore()
-      alertSpy.mockRestore()
-    })
-
-    it('blocked delete message lists every setlist that still contains the song in the draft', async () => {
-      clearStorage()
-      seedTwoSetlistsTonightActive()
-      sessionStorage.setItem('liveLyricLaunched', '1')
-      window.location.hash = '#/songs/manage-setlists'
-      stubFetchForSongsScreens()
-      const confirmSpy = vi.spyOn(window, 'confirm')
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-      render(<App />)
-
-      await waitFor(() => {
-        expect(window.__patchManageSetlistsDraft).toBeDefined()
-      })
-      await act(async () => {
-        window.__patchManageSetlistsDraft!((d: SetlistStoreSnapshot) =>
-          addSongToSetlistInSnapshot(d, TONIGHT_ID, 'vidas') ?? d
-        )
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'New setlist' }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Edit songs in setlist New setlist/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
-      })
-      expect(confirmSpy).not.toHaveBeenCalled()
-      const msg = alertSpy.mock.calls[0]![0] as string
-      expect(msg).toContain('Default')
-      expect(msg).toContain('Tonight')
-      expect(loadSetlistStore()!.library.some((r) => r.id === 'vidas')).toBe(true)
-      confirmSpy.mockRestore()
-      alertSpy.mockRestore()
-    })
-
     it('Back without draft changes does not prompt and leaves the store unchanged', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
@@ -4319,7 +4186,10 @@ describe('ControlView performer state flow', () => {
       confirmSpy.mockRestore()
     })
 
-    it('deleting the currently loaded song after switching setlists loads the new first song safely', async () => {
+    it('removing the currently loaded song from a setlist loads the new first song safely', async () => {
+      // **Renamed and trimmed 2026-09-01.** Its subject was always the loaded song surviving a
+      // setlist edit; the library delete it also clicked was incidental, and that action is gone.
+      // Removing from a SETLIST is the durable, gig-scoped act and it is what this exercises.
       clearStorage()
       seedTwoSetlistsTonightActive()
       setCurrentSongId('vidas')
@@ -4343,9 +4213,6 @@ describe('ControlView performer state flow', () => {
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Remove Vidas from setlist Default/ }))
-      })
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Delete Vidas from library/ }))
       })
       expect(getCurrentSongId()).toBe('vidas')
       await act(async () => {

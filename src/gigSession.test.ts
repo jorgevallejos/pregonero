@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import type { LibrarySong } from './setlistStore'
 import { installLibrary } from './testSupport/library'
+import { ensureStorage } from './testSupport/storage'
 
 const readGigFolder = vi.fn()
 const writeGigFile = vi.fn()
@@ -45,34 +46,7 @@ const {
   subscribeGigReadiness,
 } = await import('./gigSession')
 
-function createStorage(): Storage {
-  const store = new Map<string, string>()
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value)
-    },
-    removeItem: (key: string) => {
-      store.delete(key)
-    },
-    clear: () => {
-      store.clear()
-    },
-    key: (i: number) => [...store.keys()][i] ?? null,
-    get length() {
-      return store.size
-    },
-  }
-}
-
-beforeAll(() => {
-  if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage.clear !== 'function') {
-    vi.stubGlobal('localStorage', createStorage())
-  }
-  if (typeof globalThis.sessionStorage === 'undefined' || typeof globalThis.sessionStorage.clear !== 'function') {
-    vi.stubGlobal('sessionStorage', createStorage())
-  }
-})
+beforeAll(ensureStorage)
 
 const FOLDER = '/gigs/2026-09-12-bar-eduard'
 const GIG_ID = '2026-09-12-bar-eduard'

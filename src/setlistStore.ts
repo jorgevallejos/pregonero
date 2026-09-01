@@ -12,8 +12,8 @@ import {
   type TimelineLeadIn,
   type MediaFile,
 } from './songState'
-import { resolveSongPath, songRefPathFor } from './contentFolders'
-import { readSongFileText } from './platform'
+import { getSongsFolder, resolveSongPath, songRefPathFor } from './contentFolders'
+import { listSongsFolder, readSongFileText } from './platform'
 import { digest } from './fingerprint'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
@@ -241,15 +241,6 @@ export function areSetlistStoreSnapshotsEqual(
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** Setlist display names that include `songId` in the snapshot's draft order. */
-export function getSetlistNamesContainingSongInSnapshot(
-  snap: SetlistStoreSnapshot,
-  songId: string
-): string[] {
-  if (!songId) return []
-  return snap.setlists.filter((sl) => sl.songIds.includes(songId)).map((sl) => sl.name)
-}
-
 // ── The resolved library: a cache, never a source of truth ──────────────────────────────────
 // Held in memory only. Dropping it loses nothing: every field came from a file in `songs/` and
 // is read again on the next hydration.
@@ -348,6 +339,53 @@ export const defaultReadSongFile: ReadSongFile = async (path: string) => {
 export type EnsureSongLibraryOptions = {
   /** Overrides how a reference's file is read. Defaults to the Electron file reader. */
   readSongFile?: ReadSongFile
+  /** Overrides how the songs folder is listed. Defaults to the Electron directory read. */
+  listFolder?: (folderPath: string) => Promise<string[]>
+}
+
+/**
+ * **Every song file in the songs folder gets a reference.**
+ *
+ * Without this the library is only what somebody picked from a file dialog one at a time, so a
+ * machine whose songs folder held the whole catalogue reported **"No songs yet"** — the app had
+ * been pointed at the songs and said there were none. Found walking R1 on 2026-08-31, and it is
+ * the same dead-end shape the whole setup redesign exists to remove.
+ *
+ * **This makes a written rule true rather than aspirational.** `songs/` is the source of truth and
+ * the library is a cache of it; the library predates there being a songs root to read, which is
+ * why it was ever a hand-assembled list.
+ *
+ * **Additive, and it never removes.** A reference to a song outside the folder — an absolute path
+ * from before the setting existed — is left exactly as it is. **A song is stored by name** when it
+ * sits inside the folder, which is what `songRefPathFor` already does, so the library survives the
+ * folder moving.
+ *
+ * **The consequence worth knowing:** removing a song from the library on the manage-setlists
+ * screen no longer sticks if its file is still in the songs folder — the next hydration finds it
+ * again. That is the right way round. The library is a view of the folder, and a row that vanished
+ * while the file was still there would be hiding a song rather than removing one.
+ */
+async function seedLibraryFromSongsFolder(
+  snap: SetlistStoreSnapshot,
+  listFolder: (folderPath: string) => Promise<string[]>
+): Promise<SetlistStoreSnapshot> {
+  const folder = getSongsFolder()
+  if (folder === null) return snap
+  const files = await listFolder(folder)
+  if (files.length === 0) return snap
+
+  const known = new Set(snap.library.map((ref) => ref.id))
+  let next = snap
+  for (const file of files) {
+    const id = songIdFromPath(file)
+    if (id === '' || known.has(id)) continue
+    known.add(id)
+    // `path` is the bare name: inside the songs folder a reference is stored by name so the
+    // library survives the folder moving. `resolveSongPath` turns it back into a path to read.
+    const grown = addSongRefToSnapshot(next, { id, path: file })
+    if (grown !== null) next = grown
+  }
+  return next
 }
 
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
@@ -362,10 +400,19 @@ export function ensureSongLibraryHydrated(
 ): Promise<SetlistStoreSnapshot> {
   if (!hydrationInFlight) {
     const read = options.readSongFile ?? defaultReadSongFile
+    const listFolder = options.listFolder ?? listSongsFolder
     hydrationInFlight = (async () => {
       let snap = loadSetlistStore()
       if (!snap) {
         snap = repairSnapshot(createEmptySnapshot())
+        writeRaw(snap)
+      }
+      // **The folder comes first, and the references are what is read.** Everything downstream —
+      // Setup home, the setlist picker, readiness — sees one library, so there is no second list
+      // of songs anywhere and no way for two lists to disagree.
+      const seeded = await seedLibraryFromSongsFolder(snap, listFolder)
+      if (seeded !== snap) {
+        snap = seeded
         writeRaw(snap)
       }
       const next = new Map<string, LibraryEntry>()
@@ -620,22 +667,30 @@ export function removeSongFromSetlistInSnapshot(
   })
 }
 
-/** Pure snapshot update: remove a library reference and drop its id from every setlist. */
-export function deleteSongFromLibraryInSnapshot(
-  snap: SetlistStoreSnapshot,
-  songId: string
-): SetlistStoreSnapshot | null {
-  if (!songId) return null
-  if (!snap.library.some((r) => r.id === songId)) return null
-  return repairSnapshot({
-    ...snap,
-    library: snap.library.filter((r) => r.id !== songId),
-    setlists: snap.setlists.map((sl) => ({
-      ...sl,
-      songIds: sl.songIds.filter((id) => id !== songId),
-    })),
-  })
-}
+/**
+ * **There is deliberately no way to remove a song from the library, and this note is the guard.**
+ *
+ * `deleteSongFromLibraryInSnapshot`, `deleteSongFromLibrary` and the "is it still in a setlist?"
+ * check that gated them were removed on 2026-09-01, along with the trash can on the manage-setlists
+ * screen. **`songs/` is the source of truth, the library is a cache of it, and hydration seeds a
+ * reference for every song file in the songs folder** — so a reference deleted here reappears on the
+ * next hydration. A control that silently undoes itself must not remain, looking functional.
+ *
+ * The deeper reason, which outlives the mechanics: **a row vanishing while the file is still in the
+ * folder is the app disagreeing with the disk.** This repo already refuses that for a song whose
+ * file will not read — it stays listed and visibly broken, because hiding it would hide the problem
+ * — and it is the same rule. **Retiring a song means moving the file out of `songs/`**, a decision
+ * about the catalogue made in Finder, not something to hide inside one app.
+ *
+ * **Removing a song from a SETLIST is a different act and it stays** (`removeSongFromSetlist`).
+ * That is gig-scoped and durable: a setlist is an authored running order, the removal lives in the
+ * snapshot, and nothing on disk contradicts it. The two sat one trash can apart on the same screen,
+ * which is why the distinction is written down rather than assumed.
+ *
+ * **If a "hide this song" feature is ever wanted, it is not this.** It would be stored state about
+ * a file that still exists, and it would need to answer what an arm gate does with a hidden song.
+ * Say so rather than reinstating a delete.
+ */
 
 /**
  * Pure snapshot update: reorder within one setlist (`fromIndex` → `toIndex`, @dnd-kit arrayMove semantics).
@@ -747,17 +802,6 @@ export function removeSongFromSetlist(setlistId: string, songId: string): boolea
   return true
 }
 
-/**
- * Removes a library reference by id and drops that id from every setlist.
- * Returns false when the id is missing or empty.
- */
-export function deleteSongFromLibrary(songId: string): boolean {
-  const next = deleteSongFromLibraryInSnapshot(getSnapshot(), songId)
-  if (!next) return false
-  writeRaw(next)
-  return true
-}
-
 export type MoveSongDirection = 'up' | 'down'
 
 /**
@@ -812,4 +856,35 @@ export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
   const snap = getSnapshot()
   if (!snap.activeSetlistId) return []
   return orderedSongsForSetlistId(snap, snap.activeSetlistId)
+}
+
+/**
+ * **Takes a song file this machine already has into the library**, and reports what it found.
+ *
+ * The one path by which a song that did not exist a moment ago becomes a row on a screen. It
+ * writes the *reference* — `{ id, path }` — which Pregonero owns; it never writes the song file,
+ * which is Bombista's, and it never rewrites one it reads.
+ *
+ * **This is what "the song flow ends with the song appearing in the list" is made of**, and it is
+ * deliberately all of it: no status is recorded, no badge, no completion label. Whether the song
+ * can go into tonight's setlist is a question asked at the moment a surface draws it, and a stored
+ * answer could only ever describe a file that has since been edited.
+ *
+ * A file already in the library is not an error and not a duplicate: the reference stays as it is
+ * and the file is re-read, because the reason to call this twice is that the file changed.
+ */
+export async function adoptSongFile(
+  absolutePath: string,
+  read: ReadSongFile = defaultReadSongFile
+): Promise<LibraryEntry> {
+  const ref = songRefForChosenFile(absolutePath)
+  const snap = loadSetlistStore()
+  if (snap !== null) {
+    const next = addSongRefToSnapshot(snap, ref)
+    if (next !== null) saveSetlistStore(next)
+  }
+  const entry = await resolveSongRef(ref, read)
+  const others = getLibraryEntries().filter((e) => e.ref.id !== ref.id)
+  setLibraryEntries([...others, entry])
+  return entry
 }

@@ -62,6 +62,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "src/vendor/**/*",
       "package.json"
     ],
     "mac": {
