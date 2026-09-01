@@ -511,6 +511,44 @@ export function setCurrentSongTitle(title: string): void {
   }
 }
 
+// ── The loaded song changes behind the view's back ─────────────────────────────────────────────
+// The session lives in `localStorage`; the control and projection views mirror it in React state.
+// `storage` events only reach *other* windows, so a write made in this one — the app choosing the
+// active setlist's first song, a snapshot dropping the song that was loaded — used to leave the
+// view holding the state it read on mount. That is what left the control view's Song column blank
+// with a song loaded underneath it. These two functions are the same-window channel that was
+// missing, and they carry no data: a listener re-reads storage, which stays the only source.
+
+const loadedSongListeners = new Set<() => void>()
+
+/** Subscribes to wholesale changes of the loaded song session. Returns the unsubscribe. */
+export function subscribeLoadedSong(listener: () => void): () => void {
+  loadedSongListeners.add(listener)
+  return () => {
+    loadedSongListeners.delete(listener)
+  }
+}
+
+function notifyLoadedSong(): void {
+  for (const listener of [...loadedSongListeners]) listener()
+}
+
+/**
+ * Loads a song into the session: the song, its lines, and a rewound position, in one act.
+ *
+ * **One write and one notification, so nothing observes it half-applied.** Setting the id, the
+ * lines and the position through their own setters and announcing each would let a listener read
+ * a new song against the old song's index.
+ */
+export function setLoadedSong(song: { id: string; title: string; items: SongItem[] }): void {
+  setCurrentSongId(song.id)
+  setCurrentSongTitle(song.title)
+  setSongLines(song.items)
+  setSongIndex(-1)
+  setBlank(true)
+  notifyLoadedSong()
+}
+
 /** Clears loaded song and lyric position; leaves language and projection preferences unchanged. */
 export function resetLoadedSongState(): void {
   setCurrentSongId('')
@@ -518,6 +556,7 @@ export function resetLoadedSongState(): void {
   setSongLines([])
   setSongIndex(-1)
   setBlank(true)
+  notifyLoadedSong()
 }
 
 export function getProjectionLanguage(): string {

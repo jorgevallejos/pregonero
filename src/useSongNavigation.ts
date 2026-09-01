@@ -10,6 +10,7 @@ import {
   getCurrentSongTitle,
   getCurrentItem,
   getNextLyricIndex,
+  subscribeLoadedSong,
   type SongItem,
   type LyricLine,
   isLyricLine,
@@ -71,6 +72,21 @@ export function useSongNavigation(): {
     setIndexState(storedIndex)
     setBlankState(storedBlank)
   }, [])
+
+  // **The same-window channel.** `storage` below only fires for writes made in *other* windows,
+  // so the app loading a song here — the active setlist's first song, on arriving at the control
+  // view — reached storage and never reached this state. The Song column read `lines` and stayed
+  // blank over a song that was loaded and performable.
+  useEffect(
+    () =>
+      subscribeLoadedSong(() => {
+        const { lines: storedLines, index: storedIndex, blank: storedBlank } = getSyncedLyricState()
+        setLines(storedLines)
+        setIndexState(storedIndex)
+        setBlankState(storedBlank)
+      }),
+    []
+  )
 
   useEffect(() => {
     const onStorage = () => {

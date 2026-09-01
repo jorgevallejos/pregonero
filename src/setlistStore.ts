@@ -1,11 +1,7 @@
 import {
   getCurrentSongId,
   parseSongFile,
-  setBlank,
-  setCurrentSongId,
-  setCurrentSongTitle,
-  setSongIndex,
-  setSongLines,
+  setLoadedSong,
   resetLoadedSongState,
   type SongItem,
   type TimelineEntry,
@@ -757,11 +753,7 @@ export function autoSelectFirstSongForActiveSetlist(snap: SetlistStoreSnapshot):
     resetLoadedSongState()
     return
   }
-  setCurrentSongId(firstSong.id)
-  setCurrentSongTitle(firstSong.title)
-  setSongLines(firstSong.items)
-  setSongIndex(-1)
-  setBlank(true)
+  setLoadedSong(firstSong)
 }
 
 /** Appends an empty setlist, sets it active, and persists. */

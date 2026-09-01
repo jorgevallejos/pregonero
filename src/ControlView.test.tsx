@@ -2624,6 +2624,62 @@ describe('ControlView performer state flow', () => {
       expect(getBlank()).toBe(true)
     })
 
+    it('auto-selecting the first song fills the control view Song column', async () => {
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('')
+      setCurrentSongTitle('')
+      setSongLines([])
+      setSongIndex(-1)
+      setBlank(true)
+      sessionStorage.removeItem('liveLyricLaunched')
+      window.location.hash = '#/'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(getCurrentSongId()).toBe('duelo')
+      })
+      await waitFor(() => {
+        const main = screen.getByRole('main')
+        const sections = main.querySelectorAll('.control-setup-section')
+        const songSection = Array.from(sections).find(
+          (s) => s.querySelector('.control-setup-label')?.textContent === 'Song'
+        )
+        expect(songSection?.querySelector('.control-setup-value')?.textContent).toBe('Duelo')
+      })
+    })
+
+    it('arriving at the control view from setup fills the Song column, not just storage', async () => {
+      // Journey step 11's own sequence: the setlist becomes active while the performer is off the
+      // control view (a gig is opened on Setup home, and adopting it makes the gig's setlist the
+      // active one), and the control view is then mounted by the navigation back to the stage.
+      clearStorage()
+      seedTwoSetlistsTonightActive()
+      setCurrentSongId('')
+      setCurrentSongTitle('')
+      setSongLines([])
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs'
+      renderSetlistScreen()
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('performance-state-label')).toBeNull()
+      })
+
+      await act(async () => {
+        window.location.hash = '#/'
+        window.dispatchEvent(new HashChangeEvent('hashchange'))
+      })
+
+      await waitFor(() => {
+        const main = screen.getByRole('main')
+        const songSection = Array.from(main.querySelectorAll('.control-setup-section')).find(
+          (s) => s.querySelector('.control-setup-label')?.textContent === 'Song'
+        )
+        expect(songSection?.querySelector('.control-setup-value')?.textContent).toBe('Duelo')
+      })
+    })
+
     it('restored persisted state with active setlist auto-selects first song when current song is invalid', async () => {
       clearStorage()
       seedTwoSetlistsTonightActive()
