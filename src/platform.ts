@@ -20,6 +20,8 @@ import type {
   SongValidationResult,
 } from './electronApi'
 import { getBombistaPath } from './contentFolders'
+import { gigSetupFolder, songFilesFolder } from './fileLayout'
+import { lastPickerFolder, rememberPickerFolder, type PickerName } from './pickerMemory'
 
 function api() {
   return typeof window !== 'undefined' ? window.electronAPI : undefined
@@ -37,21 +39,35 @@ export function hasGigFolderAccess(): boolean {
   return !!a && typeof a.readGigFolder === 'function'
 }
 
-/** Opens the native directory picker. Null when cancelled, or when there is no Electron. */
+/**
+ * Opens the native directory picker for a gig folder somewhere else — the import path. Null when
+ * cancelled, or when there is no Electron.
+ */
 export async function chooseGigFolderPath(): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openGigFolderDialog !== 'function') return null
-  return a.openGigFolderDialog()
+  const chosen = await a.openGigFolderDialog(lastPickerFolder('gig-folder') ?? undefined)
+  rememberPickerFolder('gig-folder', chosen)
+  return chosen
 }
 
 /**
- * Opens the native directory picker for a folder this machine remembers — the songs root, the
- * media folder. Null when cancelled, or when there is no Electron.
+ * Opens the native directory picker for a folder this machine remembers — the songs root, the gigs
+ * root, the media folder. Null when cancelled, or when there is no Electron.
+ *
+ * `picker` is which memory it reopens from. **Per picker, and never shared**: the songs root and the
+ * media folder are questions about different parts of the disk, and one memory between them would
+ * send each to the other's answer.
  */
-export async function chooseFolderPath(title: string): Promise<string | null> {
+export async function chooseFolderPath(
+  title: string,
+  picker: PickerName
+): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openFolderDialog !== 'function') return null
-  return a.openFolderDialog(title)
+  const chosen = await a.openFolderDialog(title, lastPickerFolder(picker) ?? undefined)
+  rememberPickerFolder(picker, chosen)
+  return chosen
 }
 
 const ABSENT: Omit<GigFolderRead, 'folderPath'> = {
@@ -63,7 +79,18 @@ const ABSENT: Omit<GigFolderRead, 'folderPath'> = {
   visualsPresent: false,
 }
 
-/** One read of the gig folder. Outside Electron it reports an empty folder, not a failure. */
+/**
+ * **One read of the machine's two files in a gig.** Takes the **gig folder** and looks in
+ * `<gig>/setup`, which is where they live: the gig folder is the author's, and `gig.json` and
+ * `visuals.json` are guests in it.
+ *
+ * **The gig folder is what goes in and what comes back.** Joining `setup/` here, at the one boundary
+ * that talks to the main process, is what keeps every other module holding the gig folder itself —
+ * including `gigIdFromFolderPath`, which takes a gig's id from its folder's name and would name
+ * every gig `setup` if it were ever handed the other one.
+ *
+ * Outside Electron it reports an empty folder, not a failure.
+ */
 export async function readGigFolder(
   folderPath: string,
   visualsPointer?: string
@@ -71,7 +98,8 @@ export async function readGigFolder(
   const a = api()
   if (!a || typeof a.readGigFolder !== 'function') return { folderPath, ...ABSENT }
   try {
-    return await a.readGigFolder(folderPath, visualsPointer)
+    const read = await a.readGigFolder(gigSetupFolder(folderPath), visualsPointer)
+    return { ...read, folderPath }
   } catch (e) {
     return {
       folderPath,
@@ -102,6 +130,7 @@ export async function createGigFolder(
   }
 }
 
+/** Writes `gig.json` into `<gig>/setup`. Takes the **gig folder**, like every other call here. */
 export async function writeGigFile(
   folderPath: string,
   text: string
@@ -111,13 +140,13 @@ export async function writeGigFile(
     return { ok: false, error: 'The gig folder can only be written from the desktop app.' }
   }
   try {
-    return await a.writeGigFile(folderPath, text)
+    return await a.writeGigFile(gigSetupFolder(folderPath), text)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
-/** Writes `debrief.md` into the gig folder. */
+/** Writes `debrief.md` at the gig folder's root, beside the poster and the contract. */
 export async function writeDebriefFile(
   folderPath: string,
   text: string
@@ -356,21 +385,54 @@ export async function chooseFilePath(
 ): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openFileDialog !== 'function') return null
-  return a.openFileDialog(kind)
+  const chosen = await a.openFileDialog(kind, lastPickerFolder(kind) ?? undefined)
+  rememberPickerFolder(kind, chosen)
+  return chosen
 }
 
 /**
- * **The song files in the songs folder.** Outside Electron there is no folder to read, which reads
- * as an empty list — the same shape as a folder with nothing in it, and not an error.
+ * The multi-select picker for song files. Its own memory, like every other picker.
+ *
+ * Outside Electron there is no dialog to open, which is an empty selection rather than a failure.
  */
-export async function listSongsFolder(folderPath: string): Promise<string[]> {
+export async function chooseSongFilePaths(): Promise<string[]> {
   const a = api()
-  if (!a || typeof a.listSongsFolder !== 'function') return []
+  if (!a || typeof a.openSongFileDialog !== 'function') return []
+  const chosen = await a.openSongFileDialog(lastPickerFolder('json') ?? undefined)
+  rememberPickerFolder('json', chosen[0] ?? null)
+  return chosen
+}
+
+/** What one look at `<songs>/song-performance` found, and what it could not read. */
+export type SongsFolderListing = {
+  /** The song files, by name. Empty when the catalogue has none, and when it will not read. */
+  files: string[]
+  /**
+   * Why the folder could not be read, or null. **A folder that is not there yet is not a problem**
+   * — nothing creates `song-performance/`, Bombista makes it the first time it writes a song into
+   * it — so this is null for an empty catalogue and a sentence for one that refuses.
+   */
+  problem: string | null
+}
+
+/**
+ * **The song files in `<songs>/song-performance`.** Takes the **songs root** and joins the rest, so
+ * every caller holds the catalogue and this is the one place that knows which folder inside it the
+ * suite reads.
+ *
+ * Outside Electron there is no folder to read, which reads as an empty list — the same shape as a
+ * catalogue with nothing in it, and not an error.
+ */
+export async function listSongsFolder(songsRoot: string): Promise<SongsFolderListing> {
+  const a = api()
+  if (!a || typeof a.listSongsFolder !== 'function') return { files: [], problem: null }
   try {
-    const result = await a.listSongsFolder(folderPath)
-    return result.ok ? result.files : []
-  } catch {
-    return []
+    const result = await a.listSongsFolder(songFilesFolder(songsRoot))
+    return result.ok
+      ? { files: result.files, problem: null }
+      : { files: [], problem: result.error }
+  } catch (e) {
+    return { files: [], problem: e instanceof Error ? e.message : String(e) }
   }
 }
 

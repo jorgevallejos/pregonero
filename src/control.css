@@ -2762,6 +2762,15 @@ html, body, #root {
   color: var(--state-fail);
 }
 
+/* What the catalogue would not read, above the list and never in front of it. A report, not a
+   modal: nothing here has to be cleared before you can go on. */
+.setup-home-report {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-bottom: 0.8em;
+}
+
 .song-doors-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -2902,6 +2911,35 @@ html, body, #root {
   max-width: none;
   align-self: flex-start;
   margin-top: 0.5em;
+}
+
+/* What the question finds. It sits under the question because it IS the question restated in one
+   noun — a catalogue, a body of work — which is what stops the second one reading as the first
+   asked twice. */
+.first-run-finds {
+  font-size: 0.8125em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* The shape, drawn as the answers arrive. A monospace block because it is a folder tree: the screen
+   shows what it is about to work with rather than describing it. */
+.first-run-shape {
+  margin: 0;
+  padding: 1em 1.2em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125em;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+  border: 1px solid var(--rule-faint);
+  border-radius: 0.4em;
+  color: var(--text-primary);
+}
+
+.first-run-shape-note {
+  color: var(--text-secondary);
 }
 
 /* ---- Setup home: gigs and songs, side by side, both in full ----

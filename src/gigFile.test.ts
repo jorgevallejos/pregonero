@@ -54,13 +54,13 @@ describe('parseGigFile', () => {
         date: '2026-09-12',
         venue: { name: 'Bar Eduard', city: 'Ghent' },
         visuals: './visuals.json',
-        songs: [{ id: 'luz-y-sal', title: 'Luz y sal', file: '../../songs/luz-y-sal.json' }],
+        songs: [{ id: 'luz-y-sal', title: 'Luz y sal', file: '../../../songs/song-performance/luz-y-sal.json' }],
         setlist: ['luz-y-sal'],
       })
     )
     expect(gig.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
     expect(gig.songs).toEqual([
-      { id: 'luz-y-sal', title: 'Luz y sal', file: '../../songs/luz-y-sal.json' },
+      { id: 'luz-y-sal', title: 'Luz y sal', file: '../../../songs/song-performance/luz-y-sal.json' },
     ])
     expect(gig.setlist).toEqual(['luz-y-sal'])
   })
@@ -185,22 +185,34 @@ describe('withSetlist', () => {
   const gig = { gigVersion: GIG_VERSION, id: 'g' }
   const folder = '/vault/concerts/g'
   const songs = [
-    { id: 'a', title: 'A', path: '/vault/songs/a.json' },
-    { id: 'b', title: 'B', path: '/vault/songs/b.json' },
+    { id: 'a', title: 'A', path: '/vault/songs/song-performance/a.json' },
+    { id: 'b', title: 'B', path: '/vault/songs/song-performance/b.json' },
   ]
 
   it('writes the repertoire and the order as two fields', () => {
     const next = withSetlist(gig, songs, folder)
     expect(next.songs).toEqual([
-      { id: 'a', title: 'A', file: '../../songs/a.json' },
-      { id: 'b', title: 'B', file: '../../songs/b.json' },
+      { id: 'a', title: 'A', file: '../../../songs/song-performance/a.json' },
+      { id: 'b', title: 'B', file: '../../../songs/song-performance/b.json' },
     ])
     expect(next.setlist).toEqual(['a', 'b'])
   })
 
-  it('writes `file` relative to the gig folder, so the folder can travel', () => {
+  // **The reference shifted one level with `gig.json`** (2026-09-01). It is written relative to the
+  // file itself, and the file is in `<gig>/setup/` now — so `../../songs/a.json` became
+  // `../../../songs/song-performance/a.json`. Nothing on disk carries the old form: this is about
+  // writing the new one, not about reading both.
+  it('writes `file` from where gig.json sits, not from the gig folder', () => {
     const inside = [{ id: 'c', title: 'C', path: '/vault/concerts/g/songs/c.json' }]
-    expect(withSetlist(gig, inside, folder).songs?.[0]?.file).toBe('songs/c.json')
+    expect(withSetlist(gig, inside, folder).songs?.[0]?.file).toBe('../songs/c.json')
+  })
+
+  it('takes the gig folder and never the setup folder — the caller holds the gig', () => {
+    // Handed `<gig>/setup` this would write one `..` too few and the paths would resolve into the
+    // author's half of the folder. Every caller holds the gig folder; the join lives in one place.
+    expect(withSetlist(gig, songs, folder).songs?.[0]?.file).toBe(
+      '../../../songs/song-performance/a.json'
+    )
   })
 
   it('carries the title Muralista names the song by', () => {
@@ -226,22 +238,32 @@ describe('withSetlist', () => {
 describe('readGigSetlist — the file is the source', () => {
   const folder = '/vault/concerts/g'
 
-  it('reads the order the file states, resolving each file against the gig folder', () => {
+  it('reads the order the file states, resolving each file against <gig>/setup', () => {
+    // `gig.json`'s relative paths are relative to `gig.json`, which is one level in.
     const gig = parseGigFile(
       JSON.stringify({
         gigVersion: GIG_VERSION,
         id: 'g',
         songs: [
-          { id: 'a', title: 'A', file: '../../songs/a.json' },
-          { id: 'b', title: 'B', file: '../../songs/b.json' },
+          { id: 'a', title: 'A', file: '../../../songs/song-performance/a.json' },
+          { id: 'b', title: 'B', file: '../../../songs/song-performance/b.json' },
         ],
         setlist: ['b', 'a'],
       })
     )
     expect(readGigSetlist(gig, folder)).toEqual([
-      { id: 'b', title: 'B', path: '/vault/songs/b.json' },
-      { id: 'a', title: 'A', path: '/vault/songs/a.json' },
+      { id: 'b', title: 'B', path: '/vault/songs/song-performance/b.json' },
+      { id: 'a', title: 'A', path: '/vault/songs/song-performance/a.json' },
     ])
+  })
+
+  it('round-trips what withSetlist writes', () => {
+    const written = withSetlist({ gigVersion: GIG_VERSION, id: 'g' }, [
+      { id: 'a', title: 'A', path: '/vault/songs/song-performance/a.json' },
+    ], folder)
+    expect(readGigSetlist(written, folder)[0]?.path).toBe(
+      '/vault/songs/song-performance/a.json'
+    )
   })
 
   it('accepts an absolute file untouched — both forms are read, one is written', () => {

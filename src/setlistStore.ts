@@ -335,12 +335,12 @@ export const defaultReadSongFile: ReadSongFile = async (path: string) => {
 export type EnsureSongLibraryOptions = {
   /** Overrides how a reference's file is read. Defaults to the Electron file reader. */
   readSongFile?: ReadSongFile
-  /** Overrides how the songs folder is listed. Defaults to the Electron directory read. */
-  listFolder?: (folderPath: string) => Promise<string[]>
+  /** Overrides how the catalogue is listed. Defaults to the Electron directory read. */
+  listFolder?: (songsRoot: string) => Promise<string[]>
 }
 
 /**
- * **Every song file in the songs folder gets a reference.**
+ * **Every song file in `<songs>/song-performance` gets a reference.**
  *
  * Without this the library is only what somebody picked from a file dialog one at a time, so a
  * machine whose songs folder held the whole catalogue reported **"No songs yet"** — the app had
@@ -363,7 +363,7 @@ export type EnsureSongLibraryOptions = {
  */
 async function seedLibraryFromSongsFolder(
   snap: SetlistStoreSnapshot,
-  listFolder: (folderPath: string) => Promise<string[]>
+  listFolder: (songsRoot: string) => Promise<string[]>
 ): Promise<SetlistStoreSnapshot> {
   const folder = getSongsFolder()
   if (folder === null) return snap
@@ -376,8 +376,8 @@ async function seedLibraryFromSongsFolder(
     const id = songIdFromPath(file)
     if (id === '' || known.has(id)) continue
     known.add(id)
-    // `path` is the bare name: inside the songs folder a reference is stored by name so the
-    // library survives the folder moving. `resolveSongPath` turns it back into a path to read.
+    // `path` is the bare name: inside `<songs>/song-performance` a reference is stored by name so
+    // the library survives the catalogue moving. `resolveSongPath` turns it back into a path.
     const grown = addSongRefToSnapshot(next, { id, path: file })
     if (grown !== null) next = grown
   }
@@ -396,7 +396,10 @@ export function ensureSongLibraryHydrated(
 ): Promise<SetlistStoreSnapshot> {
   if (!hydrationInFlight) {
     const read = options.readSongFile ?? defaultReadSongFile
-    const listFolder = options.listFolder ?? listSongsFolder
+    // Hydration wants the names; **what could not be read is reported by the screen that lists
+    // the songs**, not folded into the library, which is a cache of what parsed.
+    const listFolder =
+      options.listFolder ?? (async (root: string) => (await listSongsFolder(root)).files)
     hydrationInFlight = (async () => {
       let snap = loadSetlistStore()
       if (!snap) {

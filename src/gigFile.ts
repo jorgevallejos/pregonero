@@ -12,6 +12,7 @@
  * `gigReadiness.ts`'s question, and only its question.
  */
 
+import { gigSetupFolder } from './fileLayout'
 import { isAbsolutePath, relativePath, resolveFrom } from './paths'
 
 export const GIG_VERSION = 1
@@ -21,7 +22,10 @@ export type GigSong = {
   id: string
   /** The song's display title. Muralista falls back to the id when it is absent. */
   title?: string
-  /** Path to the song's JSON file in `songs/`. Muralista must not read it. */
+  /**
+   * Path to the song's file in `<songs>/song-performance`, **relative to `gig.json` itself** — so
+   * from `<gig>/setup/`, not from the gig folder. Muralista must not read it.
+   */
   file?: string
 }
 
@@ -85,7 +89,15 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
 }
 
-/** The gig's id is its folder's name — the convention `concerts/2026-05-16-bom-festival` already uses. */
+/**
+ * The gig's id is its folder's name — the convention `concerts/2026-05-16-bom-festival` already
+ * uses.
+ *
+ * **`folderPath` is the gig folder, and never `<gig>/setup`.** Handed the setup folder this names
+ * every gig `setup`, which passes every test and only shows up the day two gigs collide. It cannot
+ * be handed one: the join happens at the `platform.ts` boundary and nothing above it holds a path
+ * ending in `setup/`.
+ */
 export function gigIdFromFolderPath(folderPath: string): string {
   const parts = folderPath.split('/').filter((p) => p.length > 0)
   return parts[parts.length - 1] ?? ''
@@ -258,10 +270,16 @@ export type SetlistProjection = { id: string; title: string; path: string }
 /**
  * Writes Pregonero's setlist into the gig file's `songs` and `setlist`.
  *
- * **`file` is written relative to the gig folder** — `../../songs/libertad.json`, the form
- * `docs/gig-file.md` shows. That is what lets the folder be handed over on a stick: an absolute
- * path is a fact about one machine, and the two-file split exists precisely so the pair can travel.
- * An absolute path is still *read* without complaint; this is only the form written out.
+ * **`file` is written relative to `gig.json` itself, which is one level further down than it used
+ * to be** — `../../../songs/song-performance/libertad.json` from `<gig>/setup/`, where it was
+ * `../../songs/libertad.json` from `<gig>/`. That is what lets the folder be handed over on a
+ * stick: an absolute path is a fact about one machine, and the two-file split exists precisely so
+ * the pair can travel. An absolute path is still *read* without complaint; this is only the form
+ * written out. **Nothing on disk carries the old form**, so this is about writing the new one and
+ * not about reading both.
+ *
+ * `gigFolderPath` is the **gig folder** — every caller holds that and never `setup/`, and the join
+ * is here so there is one place it happens.
  *
  * A song path that is not absolute is already a reference to somewhere and is written through
  * untouched — there is nothing to make relative, and rewriting one would invent a location.
@@ -271,12 +289,13 @@ export function withSetlist(
   songs: readonly SetlistProjection[],
   gigFolderPath: string
 ): GigFile {
+  const from = gigSetupFolder(gigFolderPath)
   return {
     ...gig,
     songs: songs.map((s) => ({
       id: s.id,
       title: s.title,
-      file: isAbsolutePath(s.path) ? relativePath(gigFolderPath, s.path) : s.path,
+      file: isAbsolutePath(s.path) ? relativePath(from, s.path) : s.path,
     })),
     setlist: songs.map((s) => s.id),
   }
@@ -292,7 +311,8 @@ export function setlistMatches(
 }
 
 /**
- * **The setlist the file states**, in order, with each `file` resolved against the gig folder.
+ * **The setlist the file states**, in order, with each `file` resolved against `<gig>/setup`, which
+ * is where `gig.json` sits and therefore what its relative paths are relative to.
  *
  * This is the direction that changed in round G. `setlist` used to be a dump of whatever the app
  * held, written one way, so a running order edited by hand in the file was overwritten on the next
@@ -305,13 +325,14 @@ export function setlistMatches(
 export type GigSetlistEntry = { id: string; title: string | null; path: string | null }
 
 export function readGigSetlist(gig: GigFile, gigFolderPath: string): GigSetlistEntry[] {
+  const from = gigSetupFolder(gigFolderPath)
   const byId = new Map((gig.songs ?? []).map((song) => [song.id, song]))
   return (gig.setlist ?? []).map((id) => {
     const song = byId.get(id)
     return {
       id,
       title: song?.title ?? null,
-      path: song?.file ? resolveFrom(gigFolderPath, song.file) : null,
+      path: song?.file ? resolveFrom(from, song.file) : null,
     }
   })
 }

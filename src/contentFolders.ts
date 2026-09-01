@@ -17,13 +17,14 @@
  *   `visuals.json` naming `chango-pepper-logo.png` resolved to nothing and the wall lost its logo,
  *   silently, with nothing anywhere saying why.
  * - **Absolute song paths.** The library stores a path per song because there was no songs root to
- *   store one relative to. There is one now: a song file chosen from inside the configured folder
- *   is remembered by its name, so the library survives the folder moving.
+ *   store one relative to. There is one now: a song file chosen from inside `<songs>/song-performance`
+ *   is remembered by its name, so the library survives the catalogue moving.
  *
  * **A per-source link still wins.** The folder is the answer for everything that is where it says
  * it is; the link table stays the override for the one file that is somewhere else.
  */
 
+import { songFilesFolder } from './fileLayout'
 import { isAbsolutePath, joinPath } from './paths'
 
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
@@ -52,9 +53,20 @@ function write(key: string, value: string | null): void {
   }
 }
 
-/** The songs root, or null when none has been chosen. */
+/** The songs root — the author's catalogue — or null when none has been chosen. */
 export function getSongsFolder(): string | null {
   return read(SONGS_FOLDER_KEY)
+}
+
+/**
+ * **`<songs>/song-performance`, the folder the song files are in**, or null when there is no
+ * catalogue yet. Everything that reads, lists or writes a song file goes through here rather than
+ * through the songs root: the root is the author's, and this is the one folder inside it the suite
+ * has anything to do with.
+ */
+export function getSongFilesFolder(): string | null {
+  const songs = getSongsFolder()
+  return songs === null ? null : songFilesFolder(songs)
 }
 
 export function setSongsFolder(folderPath: string | null): void {
@@ -84,30 +96,19 @@ export function hasRequiredFolders(): boolean {
 }
 
 /**
- * **Where a `src` name is looked for**, and it is normally not a setting at all.
+ * **Where a `src` name is looked for**, and null until somebody says.
  *
- * It **defaults to `<songs>/audio`**, which is where the audio already lives — one fewer thing to
- * configure before anything works, and one fewer place to discover a precondition at the moment it
- * blocks you. **A per-source link still wins** for a song naming a file somewhere else, so nothing
- * is lost by the default being right most of the time.
+ * **It used to default to `<songs>/audio`, and that default is gone** (2026-09-01). Audio and video
+ * are not one thing called media: the alignment audio is consumed once, at setup, to derive a
+ * timeline, and is never needed again — a transient input picked at the door, needing no configured
+ * home — while the performance media is played on the wall and must resolve at arming. Defaulting to
+ * the audio folder quietly made the catalogue load-bearing for media, so a user keeping video
+ * elsewhere got a resolution failure they never agreed to.
  *
- * An explicit choice always beats the default, and clearing one returns to the default rather than
- * to nothing.
+ * **A per-source link still wins**, and absence is reported at setup validation and again at arming,
+ * which is where it was already reported and is where it stays.
  */
 export function getMediaFolder(): string | null {
-  const chosen = read(MEDIA_FOLDER_KEY)
-  if (chosen !== null) return chosen
-  return defaultMediaFolder()
-}
-
-/** `<songs>/audio`, or null when there is no songs folder to hang it off yet. */
-export function defaultMediaFolder(): string | null {
-  const songs = getSongsFolder()
-  return songs === null ? null : joinPath(songs, 'audio')
-}
-
-/** What is explicitly stored, ignoring the default. For a screen that shows both. */
-export function getChosenMediaFolder(): string | null {
   return read(MEDIA_FOLDER_KEY)
 }
 
@@ -153,23 +154,24 @@ export function setBombistaPath(binaryPath: string | null): void {
  * A library reference to a path on this machine.
  *
  * An absolute reference is already the answer and is returned untouched — the library is full of
- * them and **nothing migrates**. A bare name is resolved against the songs folder when there is
- * one, and handed back unchanged when there is not: that is what the app did before a songs folder
- * existed, and a reference that used to work must not stop working because a setting is unset.
+ * them and **nothing migrates**. A bare name is resolved against **`<songs>/song-performance`** when
+ * there is a catalogue, and handed back unchanged when there is not: that is what the app did before
+ * a songs folder existed, and a reference that used to work must not stop working because a setting
+ * is unset.
  */
 export function resolveSongPath(refPath: string): string {
   if (isAbsolutePath(refPath)) return refPath
-  const folder = getSongsFolder()
+  const folder = getSongFilesFolder()
   return folder === null ? refPath : joinPath(folder, refPath)
 }
 
 /**
- * How a chosen song file is remembered: by name when it sits inside the songs folder, by path
- * otherwise. **Only new references take the relative form** — nothing rewrites what is already
+ * How a chosen song file is remembered: by name when it sits inside `<songs>/song-performance`, by
+ * path otherwise. **Only new references take the relative form** — nothing rewrites what is already
  * stored, because a stored absolute path is not wrong, only unportable.
  */
 export function songRefPathFor(absolutePath: string): string {
-  const folder = getSongsFolder()
+  const folder = getSongFilesFolder()
   if (folder === null) return absolutePath
   const prefix = folder.endsWith('/') ? folder : `${folder}/`
   return absolutePath.startsWith(prefix) ? absolutePath.slice(prefix.length) : absolutePath

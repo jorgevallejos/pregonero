@@ -2,9 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { joinPath } from './paths'
 import {
-  defaultMediaFolder,
-  getChosenMediaFolder,
   getMediaFolder,
+  getSongFilesFolder,
   getSongsFolder,
   resolveSongPath,
   setMediaFolder,
@@ -71,9 +70,9 @@ describe('the configured folders', () => {
       expect(resolveSongPath('/elsewhere/libertad.json')).toBe('/elsewhere/libertad.json')
     })
 
-    it('resolves a bare name against the songs folder', () => {
+    it('resolves a bare name against <songs>/song-performance, not the songs root', () => {
       setSongsFolder('/songs')
-      expect(resolveSongPath('libertad.json')).toBe('/songs/libertad.json')
+      expect(resolveSongPath('libertad.json')).toBe('/songs/song-performance/libertad.json')
     })
 
     it('hands a bare name back unchanged with no songs folder — nothing that worked stops working', () => {
@@ -82,55 +81,71 @@ describe('the configured folders', () => {
   })
 
   describe('remembering a chosen song file', () => {
-    it('keeps only the name when the file sits inside the songs folder', () => {
+    it('keeps only the name when the file sits inside <songs>/song-performance', () => {
       setSongsFolder('/songs')
-      expect(songRefPathFor('/songs/libertad.json')).toBe('libertad.json')
-      expect(songRefPathFor('/songs/spanish/libertad.json')).toBe('spanish/libertad.json')
+      expect(songRefPathFor('/songs/song-performance/libertad.json')).toBe('libertad.json')
+      expect(songRefPathFor('/songs/song-performance/old/libertad.json')).toBe(
+        'old/libertad.json'
+      )
     })
 
     it('keeps the whole path when it does not, and when no folder is chosen', () => {
       setSongsFolder('/songs')
       expect(songRefPathFor('/elsewhere/libertad.json')).toBe('/elsewhere/libertad.json')
-      setSongsFolder(null)
+      // The songs root itself is not where song files live any more: a file sitting there is
+      // outside the folder the suite reads, and is remembered by its whole path.
       expect(songRefPathFor('/songs/libertad.json')).toBe('/songs/libertad.json')
+      setSongsFolder(null)
+      expect(songRefPathFor('/songs/song-performance/libertad.json')).toBe(
+        '/songs/song-performance/libertad.json'
+      )
     })
 
-    it('does not mistake a sibling folder with the same prefix for the songs folder', () => {
+    it('does not mistake a sibling folder with the same prefix for the song files folder', () => {
       setSongsFolder('/songs')
-      expect(songRefPathFor('/songs-old/libertad.json')).toBe('/songs-old/libertad.json')
+      expect(songRefPathFor('/songs/song-performance-old/libertad.json')).toBe(
+        '/songs/song-performance-old/libertad.json'
+      )
+    })
+  })
+
+  describe('the song files folder', () => {
+    it('is song-performance inside the catalogue', () => {
+      setSongsFolder('/Users/j/Chango Pepper/songs')
+      expect(getSongFilesFolder()).toBe('/Users/j/Chango Pepper/songs/song-performance')
+    })
+
+    it('is null when there is no catalogue yet', () => {
+      expect(getSongFilesFolder()).toBeNull()
     })
   })
 })
 
-describe('the media folder defaults to <songs>/audio', () => {
+describe('the media folder has no default', () => {
   beforeEach(() => localStorage.clear())
 
-  it('is the audio folder inside the songs folder when nothing is chosen', () => {
+  // **The `<songs>/audio` default is gone** (2026-09-01). Audio and video are not one thing called
+  // media: alignment audio is consumed once at setup and never needed again, while performance
+  // media must resolve at arming. Defaulting to the audio folder quietly made the catalogue
+  // load-bearing for media, so a machine keeping video elsewhere got a resolution failure it never
+  // agreed to.
+  it('is null when nothing has been chosen, songs folder or not', () => {
+    expect(getMediaFolder()).toBeNull()
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
-    expect(getMediaFolder()).toBe('/Users/j/songs/audio')
-  })
-
-  it('is null when there is no songs folder to hang it off', () => {
     expect(getMediaFolder()).toBeNull()
   })
 
-  it('an explicit choice beats the default', () => {
+  it('is exactly what was chosen', () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
     setMediaFolder('/Volumes/Passport/media')
     expect(getMediaFolder()).toBe('/Volumes/Passport/media')
   })
 
-  it('clearing a choice returns to the default, not to nothing', () => {
+  it('clearing a choice returns to nothing, and absence is reported rather than guessed at', () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
     setMediaFolder('/elsewhere')
     setMediaFolder(null)
-    expect(getMediaFolder()).toBe('/Users/j/songs/audio')
-  })
-
-  it('says what was actually chosen, separately from what is in force', () => {
-    // Preferences shows the default in the field without pretending it was typed.
-    localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
-    expect(getChosenMediaFolder()).toBeNull()
-    expect(defaultMediaFolder()).toBe('/Users/j/songs/audio')
+    expect(getMediaFolder()).toBeNull()
+    expect(localStorage.getItem(MEDIA_FOLDER_KEY)).toBeNull()
   })
 })

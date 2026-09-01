@@ -46,8 +46,9 @@ export function resolveFrom(base: string, to: string): string {
 /**
  * The path of `to` written from `from`, `../` and all.
  *
- * This is what keeps a gig folder portable: `gig.json` naming `../../songs/libertad.json` travels
- * with the folder, while an absolute path is a fact about one machine. Both are accepted on the
+ * This is what keeps a gig folder portable: `gig.json` naming
+ * `../../../songs/song-performance/libertad.json` travels with the folder, while an absolute path is
+ * a fact about one machine. Both are accepted on the
  * way in; this is the form written on the way out.
  */
 export function relativePath(from: string, to: string): string {

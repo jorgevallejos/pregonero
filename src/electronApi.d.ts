@@ -85,19 +85,26 @@ declare global {
       projectionPlacement: () => Promise<ProjectorPlacement>
       onProjectionOpened: (cb: () => void) => () => void
       onProjectionClosed: (cb: () => void) => () => void
-      openFileDialog: (kind?: 'video' | 'audio' | 'json' | 'lyrics') => Promise<string | null>
+      openFileDialog: (
+        kind?: 'video' | 'audio' | 'json' | 'lyrics',
+        /** Where the dialog opens. Remembered per picker in the renderer. */
+        defaultPath?: string
+      ) => Promise<string | null>
       getFileStats: (filePath: string) => Promise<{ exists: boolean; size: number }>
-      /** Native picker for song files in `songs/`. Resolves to absolute paths, or [] if cancelled. */
-      openSongFileDialog: () => Promise<string[]>
+      /** Native picker for song files. Resolves to absolute paths, or [] if cancelled. */
+      openSongFileDialog: (defaultPath?: string) => Promise<string[]>
       /** Reads a song file's text. Never throws across the bridge — failures come back as `ok: false`. */
       readSongFile: (
         filePath: string
       ) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
       /** Native directory picker for the gig folder. Resolves to an absolute path, or null if cancelled. */
-      openGigFolderDialog: () => Promise<string | null>
-      /** Native directory picker for the songs root and the media folder. Absolute path, or null. */
-      openFolderDialog: (title?: string) => Promise<string | null>
-      /** One read of the gig folder: `gig.json` plus the file its `visuals` pointer names. */
+      openGigFolderDialog: (defaultPath?: string) => Promise<string | null>
+      /** Native directory picker for the songs root, the gigs root and the media folder. */
+      openFolderDialog: (title?: string, defaultPath?: string) => Promise<string | null>
+      /**
+       * One read of the folder the machine's two files are in — `<gig>/setup`, joined by the
+       * renderer: `gig.json` plus the file its `visuals` pointer names, beside it.
+       */
       readGigFolder: (
         folderPath: string,
         visualsPointer?: string
@@ -111,12 +118,15 @@ declare global {
         gigsRoot: string,
         name: string
       ) => Promise<{ ok: true; folderPath: string } | { ok: false; error: string }>
-      /** Writes `gig.json`. Pregonero is its only writer, so there is nothing to merge. */
+      /**
+       * Writes `gig.json` into the folder it is handed, making that folder if it is not there.
+       * Pregonero is its only writer, so there is nothing to merge.
+       */
       writeGigFile: (
         folderPath: string,
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
-      /** Writes `debrief.md` into the gig folder. Pregonero writes it, then Jorge edits it. */
+      /** Writes `debrief.md` at the gig folder's root. Pregonero writes it, then Jorge edits it. */
       writeDebriefFile: (
         folderPath: string,
         text: string
@@ -141,9 +151,16 @@ declare global {
         bombistaPath: string | null
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
       /** The song files in the songs folder, sorted. `songs/` is the source of truth. */
+      /**
+       * The song files in the folder it is handed — `<songs>/song-performance`, joined by the
+       * renderer. A folder that is not there yet is `present: false` with no files and no problem;
+       * only a folder that refuses to be read is `ok: false`.
+       */
       listSongsFolder: (
         folderPath: string
-      ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>
+      ) => Promise<
+        { ok: true; present: boolean; files: string[] } | { ok: false; error: string }
+      >
       /** Opens a tool's page in a window of its own, over localhost. */
       openTool: (
         key: string,
