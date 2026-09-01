@@ -45,7 +45,7 @@ import {
   type LibrarySong,
   type SetlistStoreSnapshot,
 } from './setlistStore'
-import { installLibrary } from './testSupport/library'
+import { installCatalogue, installLibrary } from './testSupport/library'
 import { APP_VERSION } from './appVersion'
 import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
@@ -3764,6 +3764,42 @@ describe('ControlView performer state flow', () => {
       // seeds a reference for every file in the folder, and the deletion came back on the next
       // hydration. Removing from a SETLIST is a different act and it is still here, one line up.
       expect(screen.queryByRole('button', { name: /Delete Vidas from library/ })).toBeNull()
+    })
+
+    /**
+     * **The second surface, and the one this round was told to sweep for** (Jorge, 2026-09-01: a
+     * song that disappears disappears from everywhere it is offered).
+     *
+     * SONG LIBRARY says *you can use this*, so it is the catalogue. SETLIST SONGS is the opposite
+     * kind of list — what was recorded — and it keeps its ids and shows what it cannot resolve.
+     */
+    it('offers only the catalogue in SONG LIBRARY, and keeps a vanished song in the setlist', async () => {
+      clearStorage()
+      await installCatalogue(
+        SONGS.map((s) => ({ id: s.id, title: s.title, items: [{ languages: { es: 't' } }] })),
+        SONGS.filter((s) => s.id !== 'vidas' && s.id !== 'pimiento').map((s) => `${s.id}.json`),
+        [
+          { id: DEFAULT_SETLIST_ID, name: 'Default', songIds: [] },
+          { id: TONIGHT_ID, name: 'Tonight', songIds: ['duelo', 'pimiento'] },
+        ],
+        TONIGHT_ID
+      )
+      sessionStorage.setItem('liveLyricLaunched', '1')
+      window.location.hash = '#/songs/manage-setlists'
+      stubFetchForSongsScreens()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'SONG LIBRARY' })).toBeTruthy()
+      })
+      const library = screen.getByRole('list', { name: 'Library songs not in this setlist' })
+      // Gone from the folder, so no longer on offer — where before it drew the whole stored library.
+      expect(within(library).queryByText('Vidas')).toBeNull()
+      // Still in the folder, so still on offer: this is the filter, not an empty column.
+      expect(within(library).getByText('Libertad')).toBeTruthy()
+      // `pimiento` is in Tonight and gone from the folder. The record keeps it.
+      const inList = screen.getByRole('list', { name: 'Songs in setlist' })
+      expect(within(inList).getByText('Pimiento')).toBeTruthy()
     })
 
     it('renders setlists unframed while songs and library stay panel-framed with aligned headers', async () => {

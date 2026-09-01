@@ -1912,6 +1912,22 @@ html, body, #root {
   gap: 1em;
 }
 
+/* The songs that have gone, named in the popup and nothing else in it. Left-aligned inside a
+   centred dialog: a list of filenames is read down its first letters, not down its middle. */
+.setup-songs-gone-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  align-self: stretch;
+  max-height: 40vh;
+  overflow-y: auto;
+  font-family: var(--font-control);
+  font-size: 0.875em;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
 /* ---- Display profile selector (setup panel, spans all columns) ---- */
 
 .ctrl-display-row {

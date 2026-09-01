@@ -318,6 +318,48 @@ export function getEntriesNotInCatalogue(): LibraryEntry[] {
   return getLibraryEntries().filter((entry) => !inFolder.has(entry.ref.id))
 }
 
+/**
+ * **Whether the folder has been read at all**, which is not the same as whether it held anything.
+ *
+ * Only the vanished-songs announcement needs to ask: it must not record *nothing is missing* on an
+ * answer it never got. Everything else reads it through `getCatalogueEntries`, which already falls
+ * back to the library when nobody looked.
+ */
+export function catalogueWasRead(): boolean {
+  return catalogue !== null
+}
+
+/**
+ * **Whether this id is a song the catalogue is currently offering.**
+ *
+ * The predicate behind *a song that disappears disappears from everywhere it is offered* (Jorge,
+ * 2026-09-01). Every list that says **you can use this** — Setup home's Songs list, the gig flow's
+ * setlist step, the manage-setlists library — filters on it. Lists of what was **recorded** do not:
+ * a gig's setlist keeps its ids and reports what it cannot resolve, because deleting a song must
+ * not rewrite the record of a decision about a night.
+ *
+ * **True for everything when nobody looked**, for the same reason `getCatalogueEntries` falls back
+ * to the library: outside Electron there is no folder to be absent from, and a screen that offered
+ * nothing would be reporting a fact it never learned.
+ */
+export function isInCatalogue(id: string): boolean {
+  return catalogue === null || catalogue.includes(id)
+}
+
+/**
+ * **A song written into the catalogue's own folder joins the catalogue now**, without waiting for
+ * the folder to be listed again.
+ *
+ * Not the cache overruling the folder: the file was just written into that folder, so the next read
+ * says the same thing. A reference stored as an absolute path is by definition somewhere else and
+ * does not join — it is offered nowhere and named by the vanished notice, which is the truth about
+ * where it is.
+ */
+export function noteCatalogueAdoption(ref: SongRef): void {
+  if (catalogue === null || isAbsolutePath(ref.path) || catalogue.includes(ref.id)) return
+  catalogue = [...catalogue, ref.id].sort((a, b) => a.localeCompare(b))
+}
+
 /** The songs the app can actually use: references whose file was read successfully. */
 export function getLibrarySongs(): LibrarySong[] {
   return getLibraryEntries()
@@ -978,9 +1020,7 @@ export async function adoptSongFile(
     const next = addSongRefToSnapshot(snap, ref)
     if (next !== null) saveSetlistStore(next)
   }
-  if (catalogue !== null && !isAbsolutePath(ref.path) && !catalogue.includes(ref.id)) {
-    catalogue = [...catalogue, ref.id].sort((a, b) => a.localeCompare(b))
-  }
+  noteCatalogueAdoption(ref)
   const entry = await resolveSongRef(ref, read)
   const others = getLibraryEntries().filter((e) => e.ref.id !== ref.id)
   setLibraryEntries([...others, entry])
