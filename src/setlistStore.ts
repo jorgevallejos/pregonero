@@ -9,7 +9,8 @@ import {
   type MediaFile,
 } from './songState'
 import { getSongsFolder, resolveSongPath, songRefPathFor } from './contentFolders'
-import { listSongsFolder, readSongFileText } from './platform'
+import { isAbsolutePath } from './paths'
+import { listSongsFolder, readSongFileText, type SongsFolderListing } from './platform'
 import { digest } from './fingerprint'
 
 export const SETLIST_STORE_KEY = 'liveLyricSetlistStore'
@@ -243,9 +244,27 @@ export function areSetlistStoreSnapshotsEqual(
 
 let libraryCache = new Map<string, LibraryEntry>()
 
-/** Throws the resolved library away. The references in storage are what survive. */
+/**
+ * **The catalogue: the ids `<songs>/song-performance` held at the last read of it, in its order.**
+ *
+ * **Null means the folder was never looked at** — no songs folder is set, or there is no Electron
+ * to look with. It is not the same as an empty catalogue, and the difference is the whole reason
+ * this is `string[] | null` rather than `string[]`: *nothing there* is an answer about the folder,
+ * *we could not look* is no answer, and a screen that emptied itself on the second would be
+ * reporting a fact it never learned.
+ *
+ * **This exists because the library is a cache and a cache cannot answer a question about the
+ * world.** Hydration seeds references from the folder and never drops one, which is right for
+ * adding and wrong for removing, so a reference outlives its file. Twelve song files deleted from
+ * the catalogue on 2026-09-01 produced twelve rows on Setup home, each with an ENOENT beside it and
+ * a red report above them: the screen answering a question about the folder out of a memory of it.
+ */
+let catalogue: string[] | null = null
+
+/** Throws the resolved library away, and with it the last look at the folder. */
 export function dropLibraryCache(): void {
   libraryCache = new Map()
+  catalogue = null
 }
 
 /** Replaces the resolved library. Hydration calls this once every reference has been read. */
@@ -256,6 +275,47 @@ export function setLibraryEntries(entries: readonly LibraryEntry[]): void {
 /** Every library row in reference order, resolved or not. */
 export function getLibraryEntries(): LibraryEntry[] {
   return [...libraryCache.values()]
+}
+
+/**
+ * **The catalogue, as the folder had it at the last read** — what the Songs list draws.
+ *
+ * Not the library, and not a union of the two. A file that is not in the folder is not in the
+ * catalogue, however recently the app was holding a reference to it: *a screen answering a question
+ * about the world derives the answer from the thing it is about, at the moment it is asked.*
+ *
+ * **Absent and broken are different, and only one of them belongs in this list.** A file that is
+ * gone is not a broken song, it is not a song here at all, and it drops out. A file that is there
+ * and will not parse **stays, visibly broken** — that ruling is older than this function and still
+ * stands; it was always about parse failures and never about missing files, and applying it to
+ * ENOENT is what put twelve dead rows on the screen.
+ *
+ * **With no answer from the folder this falls back to the library**, which is everything the app
+ * knows in that case. Outside Electron that is the only honest list there is.
+ */
+export function getCatalogueEntries(): LibraryEntry[] {
+  if (catalogue === null) return getLibraryEntries()
+  return catalogue
+    .map((id) => libraryCache.get(id))
+    .filter((entry): entry is LibraryEntry => entry !== undefined)
+}
+
+/**
+ * **What the app is holding that the folder did not list** — the notice above the Songs list.
+ *
+ * **This is not decoration.** Without it a catalogue on a drive that is not mounted empties the
+ * Songs list in silence: a confident wrong answer, invisible, catchable only by somebody who
+ * already knew how many songs they had. The list tells the truth about the folder; this tells the
+ * truth about the change.
+ *
+ * **Nothing is forgotten here.** These references stay in storage exactly as they are, and come
+ * back into the list the moment the folder lists their files again. Empty when the folder was never
+ * looked at, because nothing can be said to be missing from a folder nobody read.
+ */
+export function getEntriesNotInCatalogue(): LibraryEntry[] {
+  if (catalogue === null) return []
+  const inFolder = new Set(catalogue)
+  return getLibraryEntries().filter((entry) => !inFolder.has(entry.ref.id))
 }
 
 /** The songs the app can actually use: references whose file was read successfully. */
@@ -335,53 +395,78 @@ export const defaultReadSongFile: ReadSongFile = async (path: string) => {
 export type EnsureSongLibraryOptions = {
   /** Overrides how a reference's file is read. Defaults to the Electron file reader. */
   readSongFile?: ReadSongFile
-  /** Overrides how the catalogue is listed. Defaults to the Electron directory read. */
-  listFolder?: (songsRoot: string) => Promise<string[]>
+  /**
+   * Overrides how the catalogue is listed. Defaults to the Electron directory read.
+   *
+   * It returns the whole listing rather than the names, because `answered` is the difference
+   * between *the catalogue is empty* and *nobody looked*, and the Songs list renders those two
+   * states differently.
+   */
+  listFolder?: (songsRoot: string) => Promise<SongsFolderListing>
 }
 
 /**
- * **Every song file in `<songs>/song-performance` gets a reference.**
+ * **Every song file in `<songs>/song-performance` gets a reference, and the folder wins.**
  *
  * Without this the library is only what somebody picked from a file dialog one at a time, so a
  * machine whose songs folder held the whole catalogue reported **"No songs yet"** — the app had
  * been pointed at the songs and said there were none. Found walking R1 on 2026-08-31, and it is
  * the same dead-end shape the whole setup redesign exists to remove.
  *
- * **This makes a written rule true rather than aspirational.** `songs/` is the source of truth and
- * the library is a cache of it; the library predates there being a songs root to read, which is
- * why it was ever a hand-assembled list.
+ * **This makes a written rule true rather than aspirational.** `song-performance/` is the source of
+ * truth and the library is a cache of it; the library predates there being a songs root to read,
+ * which is why it was ever a hand-assembled list.
  *
- * **Additive, and it never removes.** A reference to a song outside the folder — an absolute path
- * from before the setting existed — is left exactly as it is. **A song is stored by name** when it
- * sits inside the folder, which is what `songRefPathFor` already does, so the library survives the
- * folder moving.
+ * **A reference the folder contradicts is rewritten, not preserved** (2026-09-01). If the catalogue
+ * holds `libertad.json` and the library remembers `libertad` at some other path, the folder is
+ * right and the memory is stale — the source of truth cannot lose to its own cache. **This is not a
+ * migration**: nothing reads the old location or falls back to it, the wrong-shaped value is simply
+ * replaced by what the folder says, which is the rule this whole round is built on. It matters
+ * because the song files moved on 01/09, so every stored reference from before that day names a
+ * path that is no longer a song, with an id that still is.
+ *
+ * **It still never removes.** A reference the folder does not list is left in storage untouched —
+ * `getEntriesNotInCatalogue` is what says so out loud, and the Songs list simply does not draw it.
+ * Forgetting it here would throw away the one thing that makes an unmounted drive visible.
  *
  * **The consequence worth knowing:** removing a song from the library on the manage-setlists
- * screen no longer sticks if its file is still in the songs folder — the next hydration finds it
+ * screen no longer sticks if its file is still in the catalogue — the next hydration finds it
  * again. That is the right way round. The library is a view of the folder, and a row that vanished
  * while the file was still there would be hiding a song rather than removing one.
  */
-async function seedLibraryFromSongsFolder(
+async function seedLibraryFromCatalogue(
   snap: SetlistStoreSnapshot,
-  listFolder: (songsRoot: string) => Promise<string[]>
-): Promise<SetlistStoreSnapshot> {
+  listFolder: (songsRoot: string) => Promise<SongsFolderListing>
+): Promise<{ snapshot: SetlistStoreSnapshot; catalogue: string[] | null }> {
   const folder = getSongsFolder()
-  if (folder === null) return snap
-  const files = await listFolder(folder)
-  if (files.length === 0) return snap
+  if (folder === null) return { snapshot: snap, catalogue: null }
+  const listing = await listFolder(folder)
+  // **No answer is not an empty catalogue.** Outside Electron nobody looked, and the list falls
+  // back to the library rather than reporting a folder it never read.
+  if (!listing.answered) return { snapshot: snap, catalogue: null }
 
-  const known = new Set(snap.library.map((ref) => ref.id))
+  const ids: string[] = []
   let next = snap
-  for (const file of files) {
+  for (const file of listing.files) {
     const id = songIdFromPath(file)
-    if (id === '' || known.has(id)) continue
-    known.add(id)
+    if (id === '' || ids.includes(id)) continue
+    ids.push(id)
     // `path` is the bare name: inside `<songs>/song-performance` a reference is stored by name so
     // the library survives the catalogue moving. `resolveSongPath` turns it back into a path.
-    const grown = addSongRefToSnapshot(next, { id, path: file })
-    if (grown !== null) next = grown
+    next = withCatalogueRef(next, { id, path: file })
   }
-  return next
+  return { snapshot: next, catalogue: ids }
+}
+
+/** Adds the catalogue's reference for an id, or corrects the stored one to it. */
+function withCatalogueRef(snap: SetlistStoreSnapshot, ref: SongRef): SetlistStoreSnapshot {
+  const existing = snap.library.find((r) => r.id === ref.id)
+  if (existing === undefined) return addSongRefToSnapshot(snap, ref) ?? snap
+  if (existing.path === ref.path) return snap
+  return repairSnapshot({
+    ...snap,
+    library: snap.library.map((r) => (r.id === ref.id ? { id: r.id, path: ref.path } : r)),
+  })
 }
 
 let hydrationInFlight: Promise<SetlistStoreSnapshot> | null = null
@@ -396,10 +481,9 @@ export function ensureSongLibraryHydrated(
 ): Promise<SetlistStoreSnapshot> {
   if (!hydrationInFlight) {
     const read = options.readSongFile ?? defaultReadSongFile
-    // Hydration wants the names; **what could not be read is reported by the screen that lists
-    // the songs**, not folded into the library, which is a cache of what parsed.
-    const listFolder =
-      options.listFolder ?? (async (root: string) => (await listSongsFolder(root)).files)
+    // **What could not be read is reported by the screen that lists the songs**, not folded into
+    // the library, which is a cache of what parsed.
+    const listFolder = options.listFolder ?? listSongsFolder
     hydrationInFlight = (async () => {
       let snap = loadSetlistStore()
       if (!snap) {
@@ -409,15 +493,25 @@ export function ensureSongLibraryHydrated(
       // **The folder comes first, and the references are what is read.** Everything downstream —
       // Setup home, the setlist picker, readiness — sees one library, so there is no second list
       // of songs anywhere and no way for two lists to disagree.
-      const seeded = await seedLibraryFromSongsFolder(snap, listFolder)
-      if (seeded !== snap) {
-        snap = seeded
+      const seeded = await seedLibraryFromCatalogue(snap, listFolder)
+      if (seeded.snapshot !== snap) {
+        snap = seeded.snapshot
         writeRaw(snap)
       }
+      catalogue = seeded.catalogue
       const next = new Map<string, LibraryEntry>()
       for (const ref of snap.library) {
+        // **A cached row is only reusable while it is a row about the same file.** Seeding
+        // corrects a reference the folder contradicts, and the entry beside it was resolved from
+        // the path that just lost — keeping it would leave the corrected reference showing the
+        // stale file's contents, or its ENOENT.
         const cached = libraryCache.get(ref.id)
-        next.set(ref.id, cached ?? (await resolveSongRef(ref, read)))
+        next.set(
+          ref.id,
+          cached !== undefined && cached.ref.path === ref.path
+            ? cached
+            : await resolveSongRef(ref, read)
+        )
       }
       libraryCache = next
       return snap
@@ -867,6 +961,12 @@ export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
  *
  * A file already in the library is not an error and not a duplicate: the reference stays as it is
  * and the file is re-read, because the reason to call this twice is that the file changed.
+ *
+ * **A song adopted from inside the catalogue joins the catalogue**, without waiting for the folder
+ * to be listed again. This is not the cache overruling the folder: the file was just written into
+ * that folder by the tool this call exists to follow, so the next read will say the same thing.
+ * A file adopted from anywhere else does not join it, because it genuinely is not in it — it is
+ * listed nowhere and named by the notice, which is the truth about where it is.
  */
 export async function adoptSongFile(
   absolutePath: string,
@@ -877,6 +977,9 @@ export async function adoptSongFile(
   if (snap !== null) {
     const next = addSongRefToSnapshot(snap, ref)
     if (next !== null) saveSetlistStore(next)
+  }
+  if (catalogue !== null && !isAbsolutePath(ref.path) && !catalogue.includes(ref.id)) {
+    catalogue = [...catalogue, ref.id].sort((a, b) => a.localeCompare(b))
   }
   const entry = await resolveSongRef(ref, read)
   const others = getLibraryEntries().filter((e) => e.ref.id !== ref.id)

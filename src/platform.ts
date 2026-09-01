@@ -413,6 +413,16 @@ export type SongsFolderListing = {
    * it — so this is null for an empty catalogue and a sentence for one that refuses.
    */
   problem: string | null
+  /**
+   * **Whether the folder was actually looked at.** False only outside Electron, where there is no
+   * filesystem to look at.
+   *
+   * The distinction is load-bearing, and conflating it with an empty list is what this listing is
+   * for. *Nothing there* is an answer about the catalogue and empties the Songs list; *we could not
+   * look* is no answer at all, and a screen that emptied itself on it would be reporting a fact it
+   * never learned.
+   */
+  answered: boolean
 }
 
 /**
@@ -425,14 +435,16 @@ export type SongsFolderListing = {
  */
 export async function listSongsFolder(songsRoot: string): Promise<SongsFolderListing> {
   const a = api()
-  if (!a || typeof a.listSongsFolder !== 'function') return { files: [], problem: null }
+  if (!a || typeof a.listSongsFolder !== 'function') {
+    return { files: [], problem: null, answered: false }
+  }
   try {
     const result = await a.listSongsFolder(songFilesFolder(songsRoot))
     return result.ok
-      ? { files: result.files, problem: null }
-      : { files: [], problem: result.error }
+      ? { files: result.files, problem: null, answered: true }
+      : { files: [], problem: result.error, answered: true }
   } catch (e) {
-    return { files: [], problem: e instanceof Error ? e.message : String(e) }
+    return { files: [], problem: e instanceof Error ? e.message : String(e), answered: true }
   }
 }
 

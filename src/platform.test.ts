@@ -85,8 +85,23 @@ describe('inside Electron', () => {
   it('lists <songs>/song-performance, from the songs root', async () => {
     const list = vi.fn().mockResolvedValue({ ok: true, present: true, files: ['a.json'] })
     setApi({ listSongsFolder: list })
-    expect(await listSongsFolder('/vault/songs')).toEqual({ files: ['a.json'], problem: null })
+    expect(await listSongsFolder('/vault/songs')).toEqual({
+      files: ['a.json'],
+      problem: null,
+      answered: true,
+    })
     expect(list).toHaveBeenCalledWith('/vault/songs/song-performance')
+  })
+
+  it('says nobody looked when there is no Electron, which is not an empty catalogue', async () => {
+    // The difference the Songs list renders: *nothing there* empties it, *we could not look*
+    // leaves it showing what the app already knows.
+    setApi({})
+    expect(await listSongsFolder('/vault/songs')).toEqual({
+      files: [],
+      problem: null,
+      answered: false,
+    })
   })
 
   it('reports a catalogue that will not read, rather than an empty one', async () => {
@@ -98,6 +113,7 @@ describe('inside Electron', () => {
     expect(await listSongsFolder('/vault/songs')).toEqual({
       files: [],
       problem: 'EACCES: permission denied',
+      answered: true,
     })
   })
 

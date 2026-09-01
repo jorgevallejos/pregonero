@@ -22,6 +22,8 @@ import {
   deleteSetlist,
   getLibrarySongs,
   getLibraryEntries,
+  getCatalogueEntries,
+  getEntriesNotInCatalogue,
   getLibrarySongById,
   getOrderedSongsForSetlist,
   addSongToSetlist,
@@ -596,11 +598,14 @@ describe('seeding the library from the songs folder', () => {
   const read = async (path: string) =>
     JSON.stringify({ title: path.replace(/.*\//, '').replace('.json', ''), lyrics: [{ es: 'a' }] })
 
+  /** One look at the catalogue that answered. `answered: false` is only "there was no Electron". */
+  const listing = (files: string[]) => ({ files, problem: null, answered: true })
+
   it('lists every song in the folder, with no reference added by hand', async () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
     await ensureSongLibraryHydrated({
       readSongFile: read,
-      listFolder: async () => ['duelo.json', 'pimiento.json', 'vidas.json'],
+      listFolder: async () => listing(['duelo.json', 'pimiento.json', 'vidas.json']),
     })
     expect(getLibraryEntries().map((e) => e.ref.id).sort()).toEqual([
       'duelo',
@@ -613,7 +618,7 @@ describe('seeding the library from the songs folder', () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
     await ensureSongLibraryHydrated({
       readSongFile: read,
-      listFolder: async () => ['duelo.json'],
+      listFolder: async () => listing(['duelo.json']),
     })
     expect(getLibraryEntries()[0]!.ref.path).toBe('duelo.json')
   })
@@ -630,7 +635,7 @@ describe('seeding the library from the songs folder', () => {
     })
     await ensureSongLibraryHydrated({
       readSongFile: read,
-      listFolder: async () => ['duelo.json'],
+      listFolder: async () => listing(['duelo.json']),
     })
     const ids = getLibraryEntries().map((e) => e.ref.id).sort()
     expect(ids).toEqual(['duelo', 'elsewhere'])
@@ -646,7 +651,7 @@ describe('seeding the library from the songs folder', () => {
     })
     await ensureSongLibraryHydrated({
       readSongFile: read,
-      listFolder: async () => ['duelo.json'],
+      listFolder: async () => listing(['duelo.json']),
     })
     expect(getLibraryEntries()).toHaveLength(1)
   })
@@ -669,10 +674,165 @@ describe('seeding the library from the songs folder', () => {
         if (path.includes('libertad')) throw new Error('24 lines against a 20-entry timeline')
         return read(path)
       },
-      listFolder: async () => ['duelo.json', 'libertad.json'],
+      listFolder: async () => listing(['duelo.json', 'libertad.json']),
     })
     const broken = getLibraryEntries().find((e) => e.ref.id === 'libertad')!
     expect(broken.song).toBeUndefined()
     expect(broken.error).toContain('24 lines')
+  })
+
+  it('corrects a reference the folder contradicts, rather than keeping both truths', async () => {
+    // The song files moved into `song-performance/` on 01/09, so every reference stored before
+    // that names a path that is no longer a song, with an id that still is. The folder is the
+    // source of truth; its cache does not get to outvote it.
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    saveSetlistStore({
+      version: SETLIST_STORE_VERSION,
+      library: [{ id: 'duelo', path: '/songs/duelo.json' }],
+      setlists: [{ id: 'default', name: 'Default', songIds: [] }],
+      activeSetlistId: 'default',
+    })
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    expect(getLibraryEntries()).toHaveLength(1)
+    expect(getLibraryEntries()[0]!.ref.path).toBe('duelo.json')
+  })
+
+  it('re-reads a corrected reference instead of serving the old file’s cached row', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    saveSetlistStore({
+      version: SETLIST_STORE_VERSION,
+      library: [{ id: 'duelo', path: '/old/duelo.json' }],
+      setlists: [{ id: 'default', name: 'Default', songIds: [] }],
+      activeSetlistId: 'default',
+    })
+    setLibraryEntries([
+      { ref: { id: 'duelo', path: '/old/duelo.json' }, error: 'ENOENT: no such file' },
+    ])
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    const entry = getLibraryEntries()[0]!
+    expect(entry.error).toBeUndefined()
+    expect(entry.song).toBeTruthy()
+  })
+})
+
+/**
+ * **The catalogue is the folder, and the library is a cache of it.**
+ *
+ * Found by walking `v0.24.0` on 2026-09-01: twelve song files were deleted from the catalogue and
+ * Setup home drew twelve rows, each with an ENOENT beside it. The list was rendered from the stored
+ * library, and hydration seeds additively and never drops — so a reference outlived its file and
+ * the screen answered a question about the folder out of a memory of it.
+ */
+describe('the catalogue, versus what the app is holding', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setLibraryEntries([])
+    dropLibraryCache()
+  })
+
+  const read = async (path: string) =>
+    JSON.stringify({ title: path.replace(/.*\//, '').replace('.json', ''), lyrics: [{ es: 'a' }] })
+  const listing = (files: string[]) => ({ files, problem: null, answered: true })
+
+  it('lists what the folder holds, and not what it used to hold', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo', 'vidas'])
+
+    // The files go. Nothing else changes.
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo'])
+  })
+
+  it('says what left, once, naming it — and has not forgotten it', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    expect(getEntriesNotInCatalogue().map((e) => e.ref.id)).toEqual(['vidas'])
+    // The reference survives in storage: the folder may be on a drive that is not plugged in.
+    expect(loadSetlistStore()!.library.map((r) => r.id).sort()).toEqual(['duelo', 'vidas'])
+  })
+
+  it('comes back when the files do', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    await ensureSongLibraryHydrated({ readSongFile: read, listFolder: async () => listing([]) })
+    expect(getCatalogueEntries()).toEqual([])
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo', 'vidas'])
+    expect(getEntriesNotInCatalogue()).toEqual([])
+  })
+
+  it('an unmounted catalogue empties the list and says so, rather than emptying it in silence', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => ({ files: [], problem: 'ENOENT: /songs', answered: true }),
+    })
+    expect(getCatalogueEntries()).toEqual([])
+    expect(getEntriesNotInCatalogue().map((e) => e.ref.id).sort()).toEqual(['duelo', 'vidas'])
+  })
+
+  it('falls back to the library when nobody looked at the folder', async () => {
+    // Outside Electron there is no folder to read. An empty list would be a fact never learned.
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => ({ files: [], problem: null, answered: false }),
+    })
+    setLibraryEntries([{ ref: { id: 'duelo', path: 'duelo.json' }, error: 'not read' }])
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo'])
+    expect(getEntriesNotInCatalogue()).toEqual([])
+  })
+
+  it('a song that is gone is not a song that is broken', async () => {
+    // The distinction the screen was missing: absent drops out of the list, unparseable stays in
+    // it. Applying the broken-stays-listed ruling to ENOENT is what produced twelve dead rows.
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: async (path: string) => {
+        if (path.includes('libertad')) throw new Error('24 lines against a 20-entry timeline')
+        return read(path)
+      },
+      listFolder: async () => listing(['libertad.json', 'vidas.json']),
+    })
+    await ensureSongLibraryHydrated({
+      readSongFile: async (path: string) => {
+        if (path.includes('libertad')) throw new Error('24 lines against a 20-entry timeline')
+        return read(path)
+      },
+      listFolder: async () => listing(['libertad.json']),
+    })
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['libertad'])
+    expect(getCatalogueEntries()[0]!.song).toBeUndefined()
+    expect(getEntriesNotInCatalogue().map((e) => e.ref.id)).toEqual(['vidas'])
   })
 })
