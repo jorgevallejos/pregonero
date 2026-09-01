@@ -28,6 +28,7 @@ import { isAbsolutePath, joinPath } from './paths'
 
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
 export const MEDIA_FOLDER_KEY = 'pregoneroMediaFolder'
+export const GIGS_FOLDER_KEY = 'pregoneroGigsFolder'
 export const MURALISTA_FOLDER_KEY = 'pregoneroMuralistaFolder'
 export const BOMBISTA_PATH_KEY = 'pregoneroBombistaPath'
 
@@ -58,6 +59,28 @@ export function getSongsFolder(): string | null {
 
 export function setSongsFolder(folderPath: string | null): void {
   write(SONGS_FOLDER_KEY, folderPath)
+}
+
+/**
+ * **The gigs folder — where gigs live on this machine.** Null when none has been chosen.
+ *
+ * Asked for once, on first run, alongside the songs folder. A per-machine fact like the others:
+ * the files stay portable, and the folder is where this machine keeps them.
+ */
+export function getGigsFolder(): string | null {
+  return read(GIGS_FOLDER_KEY)
+}
+
+export function setGigsFolder(folderPath: string | null): void {
+  write(GIGS_FOLDER_KEY, folderPath)
+}
+
+/**
+ * **Whether the app has been told where its two folders are** — the one predicate first run turns
+ * on. Both, or the app asks.
+ */
+export function hasRequiredFolders(): boolean {
+  return getSongsFolder() !== null && getGigsFolder() !== null
 }
 
 /**

@@ -4,6 +4,7 @@
  * Renders App with hash #/ so ControlView is shown; drives state via storage and DOM.
  */
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
+import { installRequiredFolders } from './testSupport/folders'
 import { StrictMode } from 'react'
 import { render, screen, act, waitFor, within, cleanup } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
@@ -160,6 +161,7 @@ function setupControlViewWithReadinessFailing() {
 function clearStorage() {
   sessionStorage.clear()
   localStorage.clear()
+  installRequiredFolders()
   dropLibraryCache()
 }
 
@@ -4894,6 +4896,7 @@ describe('Control next-line preview', () => {
   beforeEach(() => {
     cleanup()
     localStorage.clear()
+  installRequiredFolders()
     sessionStorage.clear()
     installProductionLikeLibrary()
     window.location.hash = '#/'
@@ -5068,6 +5071,7 @@ describe('Control performance timer/status button', () => {
   beforeEach(() => {
     cleanup()
     localStorage.clear()
+  installRequiredFolders()
     sessionStorage.clear()
     installProductionLikeLibrary()
     window.location.hash = '#/'
@@ -5482,6 +5486,7 @@ describe('Control pre-first-lyric notes display', () => {
   beforeEach(() => {
     cleanup()
     localStorage.clear()
+  installRequiredFolders()
     sessionStorage.clear()
     window.location.hash = '#/'
     const mockApi = {
@@ -5613,6 +5618,7 @@ describe('Control pre-first-lyric intro display', () => {
   beforeEach(() => {
     cleanup()
     localStorage.clear()
+  installRequiredFolders()
     sessionStorage.clear()
     window.location.hash = '#/'
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {

@@ -2875,6 +2875,35 @@ html, body, #root {
   overflow-y: auto;
 }
 
+/* ---- First run: the two folders, asked once, replacing the main screen ---- */
+.songs-screen.first-run-screen .songs-body.first-run-body {
+  /* Two classes for the same reason Setup home needs them: `.songs-screen:not(.languages-screen)
+     .songs-body` declares the song-button grid and outranks one class. */
+  display: flex;
+  flex-direction: column;
+  gap: 1.6em;
+  align-items: stretch;
+  justify-items: stretch;
+  max-width: 40em;
+  margin: 0 auto;
+  padding: 2em;
+}
+
+.first-run-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 1em 0;
+  border-bottom: 1px solid var(--rule-faint);
+}
+
+.first-run-row .ctrl-btn.ctrl-setup-link {
+  width: auto;
+  max-width: none;
+  align-self: flex-start;
+  margin-top: 0.5em;
+}
+
 /* ---- Setup home: gigs and songs, side by side, both in full ----
    Two columns because songs and gigs are PEERS, one level below the stage. A screen whose only
    content is two buttons is a signpost rather than a place, and putting songs behind a "manage
