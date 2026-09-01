@@ -330,7 +330,9 @@ export async function closeTool(key: string): Promise<void> {
 }
 
 /** The native file picker, filtered. Null when cancelled, or when there is no Electron. */
-export async function chooseFilePath(kind: 'video' | 'audio' | 'json'): Promise<string | null> {
+export async function chooseFilePath(
+  kind: 'video' | 'audio' | 'json' | 'lyrics'
+): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openFileDialog !== 'function') return null
   return a.openFileDialog(kind)

@@ -85,7 +85,7 @@ declare global {
       projectionPlacement: () => Promise<ProjectorPlacement>
       onProjectionOpened: (cb: () => void) => () => void
       onProjectionClosed: (cb: () => void) => () => void
-      openFileDialog: (kind?: 'video' | 'audio' | 'json') => Promise<string | null>
+      openFileDialog: (kind?: 'video' | 'audio' | 'json' | 'lyrics') => Promise<string | null>
       getFileStats: (filePath: string) => Promise<{ exists: boolean; size: number }>
       /** Native picker for song files in `songs/`. Resolves to absolute paths, or [] if cancelled. */
       openSongFileDialog: () => Promise<string[]>
