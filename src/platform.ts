@@ -81,6 +81,27 @@ export async function readGigFolder(
   }
 }
 
+/**
+ * **Makes a gig's folder under the gigs root.** A name, never a path.
+ *
+ * Outside Electron there is no filesystem to make one in, and that is said rather than guessed at:
+ * the button stays, disabled, with the reason beside it.
+ */
+export async function createGigFolder(
+  gigsRoot: string,
+  name: string
+): Promise<{ ok: true; folderPath: string } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.createGigFolder !== 'function') {
+    return { ok: false, error: 'A gig folder can only be created from the desktop app.' }
+  }
+  try {
+    return await a.createGigFolder(gigsRoot, name)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function writeGigFile(
   folderPath: string,
   text: string

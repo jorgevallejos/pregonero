@@ -3287,3 +3287,62 @@ html, body, #root {
   justify-content: flex-end;
   margin: 0 0 0.5rem;
 }
+
+/* ── The gig flow, four steps ──────────────────────────────────────────────────────────────
+   Step 2 is two tables side by side, and step 3 is two halves stacked. Both collapse to one
+   column when the window is narrow: setup is desk work on a real screen, but a window dragged
+   small must degrade rather than overflow. */
+
+.setup-setlist-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5em;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .setup-setlist-tables {
+    grid-template-columns: 1fr;
+  }
+}
+
+.setup-setlist-table {
+  min-width: 0;
+}
+
+.setup-setlist-rows {
+  list-style: none;
+  margin: 0.6em 0 0;
+  padding: 0;
+}
+
+.setup-setlist-table ol.setup-setlist-rows {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+
+.setup-setlist-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0;
+  border-bottom: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+}
+
+.setup-setlist-rows li:last-child {
+  border-bottom: none;
+}
+
+.setup-setlist-rows .setup-song-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Each half of step 3 is a section with a rule between them, so the required half and the
+   optional one read as two things rather than one long list. */
+.setup-visuals-half + .setup-visuals-half {
+  margin-top: 1.5em;
+  padding-top: 1.25em;
+  border-top: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+}

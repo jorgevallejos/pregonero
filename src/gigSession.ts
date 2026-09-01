@@ -16,9 +16,11 @@ import {
   readGigSetlist,
   serializeGigFile,
   setlistMatches,
+  withIdentity,
   withSetlist,
   withSetup,
   type GigFile,
+  type GigVenue,
   type SetlistProjection,
   type SetupFingerprints,
 } from './gigFile'
@@ -44,7 +46,7 @@ import {
   defaultReadSongFile,
   type LibraryEntry,
 } from './setlistStore'
-import { resolveSongPath } from './contentFolders'
+import { getGigsFolder, resolveSongPath } from './contentFolders'
 import { resolveMediaPath } from './mediaPathStore'
 import { digest } from './fingerprint'
 import * as platform from './platform'
@@ -79,7 +81,6 @@ export function getGigReadiness(): GigReadiness {
     visuals: null,
     visualsProblem: null,
     setlist: readSetlist(),
-    library: readLibrary(),
     mediaResolution: {},
     validation: {},
   })
@@ -94,18 +95,6 @@ export function subscribeGigReadiness(listener: () => void): () => void {
 function readSetlist(): SetlistSongInput[] {
   try {
     return getOrderedEntriesForActiveSetlist().map(toSetlistInput)
-  } catch {
-    return []
-  }
-}
-
-/**
- * The whole library as readiness input, for step 1 — which is about the songs and not about this
- * gig, and is why songs come first in the flow.
- */
-function readLibrary(): SetlistSongInput[] {
-  try {
-    return getLibraryEntries().map(toSetlistInput)
   } catch {
     return []
   }
@@ -323,7 +312,6 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
         visuals: null,
         visualsProblem: null,
         setlist: readSetlist(),
-        library: readLibrary(),
         mediaResolution: {},
         validation: {},
       })
@@ -376,6 +364,100 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
 }
 
 /**
+ * One read of the gig folder, parsed. The shape every write path starts from: read what is on
+ * disk, change one thing, write it back — rather than writing from what a screen was holding.
+ */
+async function readGig(folderPath: string): Promise<{
+  read: Awaited<ReturnType<typeof platform.readGigFolder>>
+  gig: GigFile | null
+  gigProblem: string | null
+}> {
+  const read = await platform.readGigFolder(folderPath)
+  if (read.gigText === null || read.gigError !== null) {
+    return { read, gig: null, gigProblem: read.gigError }
+  }
+  try {
+    return { read, gig: parseGigFile(read.gigText), gigProblem: null }
+  } catch (e) {
+    return { read, gig: null, gigProblem: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * **The gig's date and venue, written down.** Setup step 1, and the only step that writes anything
+ * a person typed — every other step is derived from files somebody else's tool owns.
+ *
+ * `id` is not writable here on purpose: it is the folder's name, born with the gig, and
+ * `visuals.json`'s `gigId` is compared against it.
+ */
+export async function saveGigIdentity(identity: {
+  date: string
+  venue: GigVenue
+}): Promise<GigReadiness> {
+  const folderPath = getRememberedGigFolder()
+  if (folderPath === null) return refreshGigReadiness()
+
+  const state = await readGig(folderPath)
+  let read = state.read
+  const gig = state.gig
+  const gigProblem = state.gigProblem
+  if (gig === null) return publishFromFolder(folderPath, gig, gigProblem, read)
+
+  const next = withIdentity(gig, identity)
+  const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
+  if (!written.ok) return publishFromFolder(folderPath, gig, written.error, read)
+
+  if (next.visuals && next.visuals !== './visuals.json') {
+    read = await platform.readGigFolder(folderPath, next.visuals)
+  }
+  return publishFromFolder(folderPath, next, gigProblem, read)
+}
+
+/**
+ * **A gig is made by naming it.** The folder is created under the gigs root that first run
+ * recorded, and the gig is opened.
+ *
+ * **There is no folder question**, and removing it is the point rather than a convenience. `New
+ * gig` used to open a directory picker, so the first thing asked of somebody making their first
+ * gig was a filesystem decision — before the gig had a venue or a date, and on the screen the
+ * setup redesign exists to unblock. Choosing a folder survives as **Import**, for a gig that
+ * already exists somewhere else: a stick, a shared drive. That is the portability case the
+ * two-file split protects, and it is a different act from making one.
+ */
+export async function createGig(
+  name: string,
+  identity: { date: string; venue: GigVenue }
+): Promise<{ ok: true; folderPath: string } | { ok: false; error: string }> {
+  const gigsRoot = getGigsFolder()
+  if (gigsRoot === null) {
+    return {
+      ok: false,
+      error: 'There is no gigs folder yet, so there is nowhere for a gig to be created.',
+    }
+  }
+
+  const made = await platform.createGigFolder(gigsRoot, name)
+  if (!made.ok) return made
+
+  // **Written whole, once, before it is opened.** Creating the folder and then letting the on-open
+  // path write an identity-only file — and writing the venue over it afterwards — would be three
+  // writes and one read-back, and would leave a gig that briefly exists without the venue that was
+  // typed in the same breath as its name.
+  const base = createGigFile(made.folderPath, new Date().toISOString().slice(0, 10))
+  const gig = withIdentity(base, {
+    // A blank date keeps the one the folder's name implies, or today. Clearing a default nobody
+    // was shown is not what an empty field means here; it means *I did not say*.
+    date: identity.date.trim() === '' ? (base.date ?? '') : identity.date,
+    venue: identity.venue,
+  })
+  const written = await platform.writeGigFile(made.folderPath, serializeGigFile(gig))
+  if (!written.ok) return { ok: false, error: written.error }
+
+  await openGigFolder(made.folderPath)
+  return { ok: true, folderPath: made.folderPath }
+}
+
+/**
  * **Pregonero writing the running order it just changed.** The only path that replaces a setlist
  * already in the file, and the reason it is a function of its own rather than a side effect of
  * reading: reading is what the app does constantly, and a write folded into it is a write nobody
@@ -389,16 +471,10 @@ export async function publishSetlistToGig(): Promise<GigReadiness> {
   const folderPath = getRememberedGigFolder()
   if (folderPath === null) return refreshGigReadiness()
 
-  let read = await platform.readGigFolder(folderPath)
-  let gigProblem: string | null = read.gigError
-  let gig: GigFile | null = null
-  if (read.gigText !== null && gigProblem === null) {
-    try {
-      gig = parseGigFile(read.gigText)
-    } catch (e) {
-      gigProblem = e instanceof Error ? e.message : String(e)
-    }
-  }
+  const state = await readGig(folderPath)
+  let read = state.read
+  let gig = state.gig
+  const gigProblem = state.gigProblem
   if (gig === null) return publishFromFolder(folderPath, gig, gigProblem, read)
 
   const projection = readSetlist().map(toProjection)
@@ -472,7 +548,6 @@ async function publishFromFolder(
       visuals,
       visualsProblem,
       setlist,
-      library: readLibrary(),
       mediaResolution,
       validation,
       fingerprints,
@@ -493,16 +568,10 @@ export async function confirmSetup(): Promise<GigReadiness> {
   const folderPath = getRememberedGigFolder()
   if (folderPath === null) return refreshGigReadiness()
 
-  let read = await platform.readGigFolder(folderPath)
-  let gigProblem: string | null = read.gigError
-  let gig: GigFile | null = null
-  if (read.gigText !== null && gigProblem === null) {
-    try {
-      gig = parseGigFile(read.gigText)
-    } catch (e) {
-      gigProblem = e instanceof Error ? e.message : String(e)
-    }
-  }
+  const state = await readGig(folderPath)
+  let read = state.read
+  const gig = state.gig
+  const gigProblem = state.gigProblem
   if (gig === null) return publishFromFolder(folderPath, gig, gigProblem, read)
 
   if (gig.visuals && gig.visuals !== './visuals.json') {

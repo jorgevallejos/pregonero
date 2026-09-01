@@ -102,6 +102,15 @@ declare global {
         folderPath: string,
         visualsPointer?: string
       ) => Promise<GigFolderRead>
+      /**
+       * Makes a gig's folder under the gigs root. **A name, never a path** — picking a folder is
+       * the import path now. Refuses a name that is not one folder segment, and refuses to create
+       * over something that is already there.
+       */
+      createGigFolder: (
+        gigsRoot: string,
+        name: string
+      ) => Promise<{ ok: true; folderPath: string } | { ok: false; error: string }>
       /** Writes `gig.json`. Pregonero is its only writer, so there is nothing to merge. */
       writeGigFile: (
         folderPath: string,

@@ -198,6 +198,38 @@ export function serializeGigFile(gig: GigFile): string {
   return `${JSON.stringify(ordered, null, 2)}\n`
 }
 
+/**
+ * **Records the gig's own identity: its date and its venue.**
+ *
+ * `id` is deliberately not here. It is born with the folder and never rewritten — `visuals.json`'s
+ * `gigId` is compared against it, so a gig that could be renamed is a gig whose room mapping can
+ * silently stop belonging to it. Renaming a gig is renaming its folder, outside the app.
+ *
+ * **An emptied field is removed rather than written blank.** `date: ""` and `venue: {}` are not
+ * states this file has: absent means *not yet*, which is exactly what clearing a field means, and
+ * readiness already knows how to say so.
+ */
+export function withIdentity(
+  gig: GigFile,
+  identity: { date: string; venue: GigVenue }
+): GigFile {
+  const next: GigFile = { ...gig }
+
+  const date = identity.date.trim()
+  if (date === '') delete next.date
+  else next.date = date
+
+  const venue: GigVenue = {}
+  const name = identity.venue.name?.trim() ?? ''
+  const city = identity.venue.city?.trim() ?? ''
+  if (name !== '') venue.name = name
+  if (city !== '') venue.city = city
+  if (Object.keys(venue).length > 0) next.venue = venue
+  else delete next.venue
+
+  return next
+}
+
 /** Records a confirmation. Nothing else about the gig moves. */
 export function withSetup(gig: GigFile, setup: GigSetup): GigFile {
   return { ...gig, setup }

@@ -31,6 +31,18 @@ export function isLyricLine(item: SongItem): item is LyricLine {
   )
 }
 
+/**
+ * Whether a song carries any words at all.
+ *
+ * **A `bombista new` skeleton does not**, and that is its normal state — it exists to carry
+ * `artist`, `notes` and `title_translations` for a song that has not been recorded yet. The
+ * distinction matters wherever a song file is about to be treated as the words: handing `align` a
+ * file with nothing in it to align is not a starting point.
+ */
+export function hasLyricLines(song: { items: SongItem[] }): boolean {
+  return song.items.some(isLyricLine)
+}
+
 /** Returns the text for a given language from a lyric line, or empty string. */
 export function getLyricText(line: LyricLine, lang: string): string {
   const text = line.languages[lang]

@@ -9,6 +9,7 @@ import {
   readGigSetlist,
   serializeGigFile,
   setlistMatches,
+  withIdentity,
   withSetlist,
   withSetup,
 } from './gigFile'
@@ -117,6 +118,66 @@ describe('createGigFile', () => {
 
   it('invents no venue', () => {
     expect(createGigFile('/gigs/bar-eduard', '2026-08-26').venue).toBeUndefined()
+  })
+})
+
+/**
+ * **The gig's date and venue, written down** — setup step 1, and the one step where anything is
+ * typed rather than derived from a file another tool owns.
+ */
+describe('withIdentity', () => {
+  const gig = { gigVersion: GIG_VERSION, id: '2026-09-12-bar-eduard', visuals: './visuals.json' }
+
+  it('records the date and the venue', () => {
+    const next = withIdentity(gig, {
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard', city: 'Ghent' },
+    })
+    expect(next.date).toBe('2026-09-12')
+    expect(next.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
+  })
+
+  it('trims what was typed, so a stray space is not part of the venue’s name', () => {
+    expect(withIdentity(gig, { date: ' 2026-09-12 ', venue: { name: ' Bar Eduard ' } }).venue)
+      .toEqual({ name: 'Bar Eduard' })
+  })
+
+  /**
+   * **Absent means *not yet*, and that is exactly what clearing a field means.** `date: ""` and
+   * `venue: {}` are not states this file has, and readiness already knows how to report absence.
+   */
+  it('removes an emptied field rather than writing it blank', () => {
+    const filled = withIdentity(gig, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    const cleared = withIdentity(filled, { date: '', venue: { name: '', city: '' } })
+    expect('date' in cleared).toBe(false)
+    expect('venue' in cleared).toBe(false)
+    expect(serializeGigFile(cleared)).not.toContain('venue')
+  })
+
+  it('keeps a city with no venue name, because half an answer is still an answer', () => {
+    expect(withIdentity(gig, { date: '', venue: { city: 'Ghent' } }).venue).toEqual({ city: 'Ghent' })
+  })
+
+  /**
+   * **The id is born with the folder and never rewritten.** `visuals.json` records which gig it
+   * maps and is checked against this, so a renamable gig is a gig whose room mapping can silently
+   * stop belonging to it.
+   */
+  it('never touches the id, the version or the visuals pointer', () => {
+    const next = withIdentity(gig, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(next.id).toBe('2026-09-12-bar-eduard')
+    expect(next.gigVersion).toBe(GIG_VERSION)
+    expect(next.visuals).toBe('./visuals.json')
+  })
+
+  it('leaves the setlist and the confirmation where they are', () => {
+    const full = withSetup(
+      { ...gig, songs: [{ id: 'duelo' }], setlist: ['duelo'] },
+      { confirmedAt: 'then', against: { songs: {}, visuals: null, display: '' } }
+    )
+    const next = withIdentity(full, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(next.setlist).toEqual(['duelo'])
+    expect(next.setup!.confirmedAt).toBe('then')
   })
 })
 

@@ -92,20 +92,17 @@ describe('with no gig folder open', () => {
     expect(r.playableSongIds).toEqual(['duelo'])
   })
 
-  it('reports every gig step as not yet, never as broken', () => {
+  it('reports every step as not yet, never as broken', () => {
     const r = computeGigReadiness(input({ folderPath: null }))
-    expect(r.steps.filter((s) => s.step > 1).map((s) => s.status)).toEqual([
-      'not-yet',
-      'not-yet',
-      'not-yet',
-      'not-yet',
-      'not-yet',
-    ])
+    expect(r.steps.map((s) => s.status)).toEqual(['not-yet', 'not-yet', 'not-yet', 'not-yet'])
   })
 
-  it('still answers step 1, because songs are gig-independent', () => {
+  it('has nothing to say about songs here, because every step is about the gig now', () => {
+    // The library step that used to be real with no gig open is gone: song preparation is the
+    // song door's, reached from Setup home without a gig at all.
     const r = computeGigReadiness(input({ folderPath: null }))
-    expect(r.steps.find((s) => s.step === 1)!.status).toBe('complete')
+    expect(r.steps.map((s) => s.step)).toEqual([1, 2, 3, 4])
+    for (const step of r.steps) expect(step.missing).toEqual(['No gig folder is open.'])
   })
 
   it('emptyGigReadiness is the same shape', () => {
@@ -128,17 +125,15 @@ describe('the common case: a song set up by doing nothing at all', () => {
 
   it('is ready with every step complete up to the confirmation, which is not derived', () => {
     const r = computeGigReadiness(input())
-    expect(r.steps.filter((s) => s.step < 6).map((s) => s.status)).toEqual([
-      'complete',
-      'complete',
+    expect(r.steps.filter((s) => s.step < 4).map((s) => s.status)).toEqual([
       'complete',
       'complete',
       'complete',
     ])
-    // Step 6 is the one thing that is stored rather than derived: nothing here can confirm setup
+    // Step 4 is the one thing that is stored rather than derived: nothing here can confirm setup
     // on the person's behalf, and the screen says so instead of pretending.
-    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
-    expect(r.steps.find((s) => s.step === 6)!.missing[0]).toMatch(/Confirm setup/)
+    expect(r.steps.find((s) => s.step === 4)!.status).toBe('not-yet')
+    expect(r.steps.find((s) => s.step === 4)!.missing[0]).toMatch(/Confirm setup/)
   })
 })
 
@@ -270,13 +265,31 @@ describe('bombista is reported, never a gate', () => {
     expect(r.songs[0]!.notes).toEqual(['bombista: timeline is missing'])
   })
 
-  it('the finding lands on step 2, which is the step that can act on it', () => {
+  /**
+   * **The trap this round exists to not rebuild.**
+   *
+   * The six-step flow pushed every `bombista:` finding into the setlist step's `missing`, so a
+   * setlist holding `libertad` — which fails `bombista validate` today — greyed the forward button
+   * on a screen with no way to repair it. Porting that one loop into the new step 2 would have
+   * rebuilt the dead end one step later.
+   */
+  it('the finding is a note on the setlist step, and never greys the forward button', () => {
     const r = computeGigReadiness(
       input({ validation: { duelo: { status: 'failed', messages: ['timeline is missing'] } } })
     )
-    const step2 = r.steps.find((s) => s.step === 2)!
-    expect(step2.status).toBe('not-yet')
-    expect(step2.missing.join(' ')).toMatch(/timeline is missing/)
+    const setlistStep = r.steps.find((s) => s.step === 2)!
+    expect(setlistStep.status).toBe('complete')
+    expect(setlistStep.missing).toEqual([])
+    expect(setlistStep.notes.join(' ')).toMatch(/timeline is missing/)
+  })
+
+  it('a reference that will not read is a note there too, not a blocker', () => {
+    const r = computeGigReadiness(
+      input({ setlist: [row(song('duelo')), brokenRow('libertad', '20 against 24')] })
+    )
+    const setlistStep = r.steps.find((s) => s.step === 2)!
+    expect(setlistStep.status).toBe('complete')
+    expect(setlistStep.notes.join(' ')).toMatch(/20 against 24/)
   })
 
   it('does not fail closed when bombista is not on PATH', () => {
@@ -291,6 +304,7 @@ describe('bombista is reported, never a gate', () => {
     expect(r.validationSkipped).toBe(true)
     expect(r.playableSongIds).toEqual(['duelo', 'vidas'])
     expect(r.steps.find((s) => s.step === 2)!.status).toBe('complete')
+    expect(r.steps.find((s) => s.step === 2)!.notes).toEqual([])
   })
 })
 
@@ -304,33 +318,41 @@ describe('the per-step verdict', () => {
         setlist: [],
       })
     )
-    expect(r.steps.filter((s) => s.step > 1).map((s) => s.status)).toEqual([
-      'not-yet',
-      'not-yet',
-      'not-yet',
-      'not-yet',
-      'not-yet',
-    ])
+    expect(r.steps.map((s) => s.status)).toEqual(['not-yet', 'not-yet', 'not-yet', 'not-yet'])
     expect(r.refusals).toEqual([])
   })
 
-  it('names what step 2 is still missing', () => {
+  it('step 1 is the gig itself: its date and its venue, and nothing else', () => {
     const r = computeGigReadiness(
       input({ gig: { gigVersion: GIG_VERSION, id: GIG_ID }, setlist: [] })
     )
-    const step2 = r.steps.find((s) => s.step === 2)!
-    expect(step2.missing).toEqual([
+    expect(r.steps.find((s) => s.step === 1)!.missing).toEqual([
       'The gig has no date.',
       'The gig has no venue.',
-      'The gig has no setlist.',
     ])
+  })
+
+  it('step 2 is the setlist, and the empty one is what holds it', () => {
+    const r = computeGigReadiness(input({ setlist: [] }))
+    const setlistStep = r.steps.find((s) => s.step === 2)!
+    expect(setlistStep.status).toBe('not-yet')
+    expect(setlistStep.missing).toEqual(['The gig has no setlist.'])
+  })
+
+  it('a named id with no file here blocks the setlist step, because nothing else can name it', () => {
+    const r = computeGigReadiness(
+      input({ adoption: { direction: 'adopted', now: [], displaced: [], unresolved: ['perdido'] } })
+    )
+    const setlistStep = r.steps.find((s) => s.step === 2)!
+    expect(setlistStep.status).toBe('not-yet')
+    expect(setlistStep.missing.join(' ')).toMatch(/perdido/)
   })
 
   it('a missing visuals.json is step 3 not yet, and says where to go', () => {
     const r = computeGigReadiness(input({ visualsPresent: false, visuals: null }))
-    const step3 = r.steps.find((s) => s.step === 3)!
-    expect(step3.status).toBe('not-yet')
-    expect(step3.missing[0]).toMatch(/map the room in Muralista/)
+    const visualsStep = r.steps.find((s) => s.step === 3)!
+    expect(visualsStep.status).toBe('not-yet')
+    expect(visualsStep.missing[0]).toMatch(/map the room in Muralista/)
   })
 
   it('a gig with visuals but no lyrics shape is step 3 not yet', () => {
@@ -340,33 +362,54 @@ describe('the per-step verdict', () => {
 
   it('a refused visuals.json is broken, and the refusal is carried verbatim', () => {
     const refusal = 'visuals.json belongs to gig "last-month", not "2026-09-12-bar-eduard".'
-    const r = computeGigReadiness(
-      input({ visuals: null, visualsProblem: refusal })
-    )
+    const r = computeGigReadiness(input({ visuals: null, visualsProblem: refusal }))
     expect(r.steps.find((s) => s.step === 3)!.status).toBe('broken')
     expect(r.refusals).toEqual([refusal])
-    expect(r.steps.find((s) => s.step === 5)!.status).toBe('broken')
+    // A refusal above the confirmation is a refusal at it: a milestone about an unreadable file
+    // would be peace of mind about nothing.
+    expect(r.steps.find((s) => s.step === 4)!.status).toBe('broken')
   })
 
-  it('an unparseable gig.json is broken at step 2', () => {
+  it('an unparseable gig.json is broken at the first two steps', () => {
     const r = computeGigReadiness(
       input({ gig: null, gigProblem: 'gig.json is not valid JSON: Unexpected end of input' })
     )
+    expect(r.steps.find((s) => s.step === 1)!.status).toBe('broken')
     expect(r.steps.find((s) => s.step === 2)!.status).toBe('broken')
   })
+})
 
-  it('step 4 waits for step 3 rather than claiming to be done', () => {
-    const r = computeGigReadiness(input({ visualsPresent: false, visuals: null }))
-    expect(r.steps.find((s) => s.step === 4)!.status).toBe('not-yet')
+/**
+ * **Optionality moved inside a step**, and step 3 is where it landed. The gig's own shapes are
+ * required; the songs that deviate are not. The old shape said this with a step number in a list
+ * in `setupFlow.ts`, which cannot express half a step.
+ */
+describe('step 3: two halves, and only one of them holds the flow', () => {
+  it('is complete on the gig-level shape alone, which is the common case', () => {
+    // A gig where no song deviates is fully set up here having done nothing at all.
+    expect(computeGigReadiness(input()).steps.find((s) => s.step === 3)!.status).toBe('complete')
   })
 
-  it('step 4 names the song no shape carries', () => {
+  it('names the song no shape carries — as a note, so the common case is not held by the rare one', () => {
     const r = computeGigReadiness(
       input({ visuals: visuals({ 'song-lyrics': ['lyr'] }, { duelo: { 'song-lyrics': ['gone'] } }) })
     )
-    const step4 = r.steps.find((s) => s.step === 4)!
-    expect(step4.status).toBe('not-yet')
-    expect(step4.missing.join(' ')).toMatch(/duelo/)
+    const visualsStep = r.steps.find((s) => s.step === 3)!
+    expect(visualsStep.status).toBe('complete')
+    expect(visualsStep.missing).toEqual([])
+    expect(visualsStep.notes.join(' ')).toMatch(/duelo/)
+  })
+
+  it('still keeps that song out of the playable setlist, because the hard gate is elsewhere', () => {
+    const r = computeGigReadiness(
+      input({ visuals: visuals({ 'song-lyrics': ['lyr'] }, { duelo: { 'song-lyrics': ['gone'] } }) })
+    )
+    expect(isSongReadyToArm(r, 'duelo')).toBe(false)
+  })
+
+  it('the required half still holds it: no room mapped is not yet, whatever the songs say', () => {
+    const r = computeGigReadiness(input({ visualsPresent: false, visuals: null }))
+    expect(r.steps.find((s) => s.step === 3)!.status).toBe('not-yet')
   })
 })
 
@@ -389,73 +432,42 @@ describe('the playable setlist', () => {
   })
 })
 
-describe('step 1: the songs, and the library is its subject', () => {
-  function step1(overrides: Partial<GigReadinessInput> = {}) {
-    return computeGigReadiness(input(overrides)).steps.find((s) => s.step === 1)!
-  }
-
-  it('is complete when the library holds a song that reads', () => {
-    expect(step1({ library: [row(song('duelo'))] }).status).toBe('complete')
-  })
-
-  it('is not yet with no songs at all, and says what a song needs', () => {
-    const s = step1({ library: [], setlist: [] })
-    expect(s.status).toBe('not-yet')
-    expect(s.missing[0]).toMatch(/lyrics and audio/)
-  })
-
-  it('is not yet when nothing in the library reads', () => {
-    expect(step1({ library: [brokenRow('libertad', '20 against 24')] }).status).toBe('not-yet')
-  })
-
-  it('names an unreadable reference as work, not as a blocker', () => {
-    const s = step1({ library: [row(song('duelo')), brokenRow('libertad', '20 against 24')] })
-    expect(s.status).toBe('complete')
-    expect(s.missing).toEqual([])
-    expect(s.notes).toEqual(['libertad: 20 against 24'])
-  })
-
-  it('carries a bombista finding as a note, never as a block', () => {
-    const s = step1({
-      library: [row(song('duelo'))],
-      validation: { duelo: { status: 'failed', messages: ['timeline is short'] } },
-    })
-    expect(s.status).toBe('complete')
-    expect(s.notes).toEqual(['duelo: bombista: timeline is short'])
-  })
-
-  it('falls back to the setlist when no separate library is given', () => {
-    expect(step1({ library: undefined }).status).toBe('complete')
-  })
-
-  it('holds the later steps: a gig cannot be complete while step 1 is not', () => {
-    const r = computeGigReadiness(input({ library: [], setlist: [] }))
-    expect(r.steps.find((s) => s.step === 5)!.status).toBe('not-yet')
-    expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
-  })
-})
-
-describe('step 6: the setup confirmation, a milestone and not a lock', () => {
+describe('step 4: the setup confirmation, a milestone and not a lock', () => {
   const FP = { songs: { duelo: 'aaa', vidas: 'bbb' }, visuals: 'ccc', display: 'ddd' }
   const confirmedGig = { ...gig, setup: { confirmedAt: '2026-09-12T19:04:11.000Z', against: FP } }
 
-  function step6(overrides: Partial<GigReadinessInput> = {}) {
-    return computeGigReadiness(input(overrides)).steps.find((s) => s.step === 6)!
+  function confirmStep(overrides: Partial<GigReadinessInput> = {}) {
+    return computeGigReadiness(input(overrides)).steps.find((s) => s.step === 4)!
   }
 
   it('is not yet until someone confirms it — nothing derives a confirmation', () => {
-    const s = step6({ fingerprints: FP })
+    const s = confirmStep({ fingerprints: FP })
     expect(s.status).toBe('not-yet')
     expect(s.missing[0]).toMatch(/Confirm setup when you are standing in the room/)
   })
 
   it('is complete once it is recorded and everything it names is unchanged', () => {
-    expect(step6({ gig: confirmedGig, fingerprints: FP }).status).toBe('complete')
+    expect(confirmStep({ gig: confirmedGig, fingerprints: FP }).status).toBe('complete')
   })
 
   it('says the checks have not passed yet rather than asking to confirm them', () => {
-    const s = step6({ visualsPresent: false, visuals: null, fingerprints: FP })
-    expect(s.missing[0]).toMatch(/readiness check at the venue has not passed yet/)
+    const s = confirmStep({ visualsPresent: false, visuals: null, fingerprints: FP })
+    expect(s.missing[0]).toMatch(/Everything above has to be true/)
+  })
+
+  /**
+   * *Readiness at the venue* was a step of its own and is not one now. It discovered nothing —
+   * everything it re-checked had been checked by the step that could act on it — and its only
+   * content was that everything above had to be true, which is what a confirmation says anyway.
+   */
+  it('absorbed the venue check rather than keeping it as a step that owned no work', () => {
+    const r = computeGigReadiness(input({ fingerprints: FP }))
+    expect(r.steps.map((s) => s.name)).toEqual([
+      'The gig',
+      'The setlist',
+      'Visuals',
+      'Setup confirmed',
+    ])
   })
 
   describe('going stale, which is the part that earns its keep', () => {
@@ -465,7 +477,7 @@ describe('step 6: the setup confirmation, a milestone and not a lock', () => {
       )
       expect(r.confirmation!.stale).toBe(true)
       expect(r.confirmation!.moved).toEqual(['duelo has been edited since setup was confirmed.'])
-      expect(r.steps.find((s) => s.step === 6)!.status).toBe('not-yet')
+      expect(r.steps.find((s) => s.step === 4)!.status).toBe('not-yet')
     })
 
     it('lapses when the room has been re-mapped', () => {

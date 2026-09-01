@@ -8,6 +8,7 @@ const writeGigFile = vi.fn()
 const validateSongForPerformance = vi.fn()
 const fileExists = vi.fn()
 const chooseGigFolderPath = vi.fn()
+const createGigFolder = vi.fn()
 const readSongFileText = vi.fn()
 
 const describeDisplays = vi.fn()
@@ -28,6 +29,7 @@ vi.mock('./platform', async (importOriginal) => ({
   hasGigFolderAccess: () => true,
   readSongFileText: (...a: unknown[]) => readSongFileText(...a),
   chooseGigFolderPath: (...a: unknown[]) => chooseGigFolderPath(...a),
+  createGigFolder: (...a: unknown[]) => createGigFolder(...a),
   readGigFolder: (...a: unknown[]) => readGigFolder(...a),
   writeGigFile: (...a: unknown[]) => writeGigFile(...a),
   validateSongForPerformance: (...a: unknown[]) => validateSongForPerformance(...a),
@@ -37,6 +39,8 @@ vi.mock('./platform', async (importOriginal) => ({
 const {
   chooseGigFolder,
   closeGig,
+  createGig,
+  saveGigIdentity,
   getGigReadiness,
   getRememberedGigFolder,
   confirmSetup,
@@ -96,6 +100,115 @@ beforeEach(() => {
     })
   })
   installLibrary([song('duelo'), song('vidas')])
+})
+
+/**
+ * **A gig is made by naming it, and the folder question is gone.** R4 item 9, pulled into this
+ * round because `journey-setup.md` step 8 opens with `New gig` and the old one opened a directory
+ * picker — a filesystem decision asked before the gig had a venue or a date.
+ */
+describe('making a gig by naming it', () => {
+  const GIGS_ROOT = '/vault/gigs'
+
+  beforeEach(() => {
+    localStorage.setItem('pregoneroGigsFolder', GIGS_ROOT)
+    createGigFolder.mockResolvedValue({ ok: true, folderPath: `${GIGS_ROOT}/${GIG_ID}` })
+    // A filesystem that remembers what was written to it, so the on-open read sees the file the
+    // creation just made rather than an empty folder.
+    let onDisk: string | null = null
+    writeGigFile.mockImplementation((_folder: string, text: string) => {
+      onDisk = text
+      return Promise.resolve({ ok: true })
+    })
+    readGigFolder.mockImplementation(() =>
+      Promise.resolve({
+        ...emptyRead(),
+        folderPath: `${GIGS_ROOT}/${GIG_ID}`,
+        gigPresent: onDisk !== null,
+        gigText: onDisk,
+      })
+    )
+  })
+
+  it('creates the folder under the gigs root that first run recorded', async () => {
+    const r = await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+    expect(r.ok).toBe(true)
+    expect(createGigFolder).toHaveBeenCalledWith(GIGS_ROOT, GIG_ID)
+  })
+
+  it('opens it, so the flow continues on the gig it just made', async () => {
+    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(getRememberedGigFolder()).toBe(`${GIGS_ROOT}/${GIG_ID}`)
+  })
+
+  it('writes the date and the venue into gig.json', async () => {
+    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+    const calls = writeGigFile.mock.calls as [string, string][]
+    const written = JSON.parse(calls[calls.length - 1]![1]) as {
+      id: string
+      date: string
+      venue: { name: string; city: string }
+    }
+    expect(written.id).toBe(GIG_ID)
+    expect(written.date).toBe('2026-09-12')
+    expect(written.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
+  })
+
+  it('never opens a folder picker', async () => {
+    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(chooseGigFolderPath).not.toHaveBeenCalled()
+  })
+
+  it('refuses with the reason when there is no gigs folder, rather than picking one', async () => {
+    localStorage.removeItem('pregoneroGigsFolder')
+    const r = await createGig(GIG_ID, { date: '', venue: {} })
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.error).toMatch(/no gigs folder/)
+    expect(createGigFolder).not.toHaveBeenCalled()
+  })
+
+  it('carries the main process’s refusal through rather than opening a gig that is not there', async () => {
+    createGigFolder.mockResolvedValue({ ok: false, error: 'There is already something called "x".' })
+    const r = await createGig('x', { date: '', venue: {} })
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.error).toMatch(/already something called/)
+    expect(getRememberedGigFolder()).toBeNull()
+  })
+})
+
+describe('the gig’s date and venue, written down', () => {
+  function openGigWithIdentity() {
+    rememberGigFolder(FOLDER)
+    readGigFolder.mockResolvedValue(
+      emptyRead({
+        gigPresent: true,
+        gigText: JSON.stringify({ gigVersion: 1, id: GIG_ID, visuals: './visuals.json' }),
+      })
+    )
+  }
+
+  it('writes what was typed and leaves the rest of the file alone', async () => {
+    openGigWithIdentity()
+    await saveGigIdentity({ date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+    const calls = writeGigFile.mock.calls as [string, string][]
+    const written = JSON.parse(calls[calls.length - 1]![1]) as Record<string, unknown>
+    expect(written.date).toBe('2026-09-12')
+    expect(written.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
+    expect(written.id).toBe(GIG_ID)
+    expect(written.visuals).toBe('./visuals.json')
+  })
+
+  it('turns the step green once both are there', async () => {
+    openGigWithIdentity()
+    const r = await saveGigIdentity({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(r.steps.find((s) => s.step === 1)!.status).toBe('complete')
+  })
+
+  it('does nothing with no gig open, rather than writing somewhere', async () => {
+    rememberGigFolder(null)
+    await saveGigIdentity({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
 })
 
 describe('the remembered folder', () => {
@@ -270,7 +383,7 @@ describe('opening a folder that already holds a gig', () => {
     expect(r.playableSongIds).toEqual(['duelo', 'vidas'])
     // Everything up to the confirmation, which is stored rather than derived and is nobody's to
     // make on the person's behalf.
-    expect(r.steps.filter((s) => s.step < 6).every((s) => s.status === 'complete')).toBe(true)
+    expect(r.steps.filter((s) => s.step < 4).every((s) => s.status === 'complete')).toBe(true)
     expect(r.confirmation).toBeNull()
   })
 
