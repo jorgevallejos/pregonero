@@ -313,25 +313,56 @@ export async function bombistaStagingDir(songId: string): Promise<string | null>
 }
 
 /**
- * **Bombista's review page, which Bombista serves itself.**
+ * **The song flow's pages, which Bombista serves itself.** Starts `bombista serve` and gives back
+ * the address it prints; the caller renders it. **No window opens** — that is step 6's whole
+ * point, and it is the one thing that changed about this call.
  *
  * Not hosted from Pregonero's own server, and the reason is concrete rather than stylistic: the
  * static `--emit html` review page names its audio with a path relative to the staging directory,
  * so serving it from a mount rooted there produces a review page **with no audio** — and hearing
  * the doubtful lines is the whole of what that page is for. `bombista serve` has `/api/audio`
- * precisely so the page needs no relative src, and it is where tempo editing lives.
+ * precisely so the page needs no relative src.
  */
-export async function openBombistaReview(
+export async function startBombistaFlow(
   args: string[]
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const a = api()
-  if (!a || typeof a.openBombistaReview !== 'function') {
-    return { ok: false, error: 'Bombista can only be opened from the desktop app.' }
+  if (!a || typeof a.startBombistaFlow !== 'function') {
+    return { ok: false, error: 'The song flow can only be run from the desktop app.' }
   }
   try {
-    return await a.openBombistaReview(args, getBombistaPath())
+    return await a.startBombistaFlow(args, getBombistaPath())
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Stops it. Leaving the flow, cancelling it, or finishing it all end here. */
+export async function stopBombistaFlow(): Promise<void> {
+  const a = api()
+  if (!a || typeof a.stopBombistaFlow !== 'function') return
+  try {
+    await a.stopBombistaFlow()
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * **What `Save to the catalogue` wrote, or null.**
+ *
+ * The one thing that comes back out of the flow. The page is Bombista's and Pregonero does not
+ * reach into it, so there is no press to listen for — **a directory in, a file path out**, which
+ * is the same contract as every other join in this suite. `since` is the moment the flow began,
+ * so a file left in a reused staging directory by a previous edit is not mistaken for this one.
+ */
+export async function emittedSong(stagingDir: string, since: number): Promise<string | null> {
+  const a = api()
+  if (!a || typeof a.emittedSong !== 'function') return null
+  try {
+    return (await a.emittedSong(stagingDir, since)).path
+  } catch {
+    return null
   }
 }
 
@@ -458,6 +489,28 @@ export async function listSongsFolder(songsRoot: string): Promise<SongsFolderLis
       : { files: [], problem: result.error, answered: false }
   } catch (e) {
     return { files: [], problem: e instanceof Error ? e.message : String(e), answered: false }
+  }
+}
+
+/**
+ * **Moves a song file to the Trash.** The one place Pregonero removes a song file, and it removes
+ * only that: the lyrics and the recordings are the author's and live in other folders.
+ *
+ * **The Trash, and not out of existence.** A song file carries a timeline nothing can recompute
+ * without the recording it was measured from, and this project has already lost six irreplaceable
+ * backups to a delete that was described as a move.
+ */
+export async function deleteSongFile(
+  filePath: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.deleteSongFile !== 'function') {
+    return { ok: false, error: 'A song can only be deleted from the desktop app.' }
+  }
+  try {
+    return await a.deleteSongFile(filePath)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

@@ -145,11 +145,18 @@ declare global {
       bombistaStagingDir: (
         songId: string
       ) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
-      /** Starts `bombista serve` and opens a window on the address it prints. */
-      openBombistaReview: (
+      /** Starts `bombista serve` and hands back the address it prints. Opens no window. */
+      startBombistaFlow: (
         args: string[],
         bombistaPath: string | null
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
+      /** Stops it. */
+      stopBombistaFlow: () => Promise<void>
+      /**
+       * The `<stem>.json` that `Save to the catalogue` wrote into a staging directory, or null
+       * when it has not been pressed. `since` drops a file left by an earlier flow.
+       */
+      emittedSong: (stagingDir: string, since: number) => Promise<{ path: string | null }>
       /** The song files in the songs folder, sorted. `songs/` is the source of truth. */
       /**
        * The song files in the folder it is handed — `<songs>/song-performance`, joined by the
@@ -167,6 +174,13 @@ declare global {
        */
       folderReadable: (
         folderPath: string
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /**
+       * Moves one song file to the Trash. **The Trash, not out of existence**: a song file carries
+       * a timeline nothing can recompute without the recording it was measured from.
+       */
+      deleteSongFile: (
+        filePath: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
       /** Opens a tool's page in a window of its own, over localhost. */
       openTool: (

@@ -2867,21 +2867,6 @@ html, body, #root {
   gap: 0.5em;
 }
 
-.subflow-question {
-  margin: 0.9em 0 0;
-  font-size: 1em;
-  color: var(--text-primary);
-}
-
-.subflow-gap {
-  margin: 0.9em 0 0;
-  padding: 0.6em 0.8em;
-  border-left: 2px solid var(--text-dim);
-  font-size: 0.875em;
-  line-height: 1.45;
-  color: var(--text-secondary);
-}
-
 .bombista-result {
   margin-top: 0.8em;
   padding-left: 0.8em;
@@ -3278,6 +3263,82 @@ html, body, #root {
   border-bottom: none;
 }
 
+/* THE ACTIONS ARE ON THE ROW (2026-09-02, walking v0.34.0). A labelled `Edit` stacked under the
+   title made a two-line row out of a one-line fact and left nowhere for a second action to go. The
+   title, its mode and the two marks sit on one line; the marks are the ones `ManageSetlistsView`
+   already uses, and now literally the same components — see `RowIcons`. */
+.setup-song-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.setup-song-row .setup-home-row-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.setup-song-row .setup-home-row-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* A PROPERTY, NOT A WARNING (2026-09-02). A song with no timeline is a legitimate song: it goes in
+   setlists and is advanced by hand, which this app did before it did anything else. So it reads as
+   a mode on the thing — the muted grey of a fact — and deliberately NOT `--state-warn`, which
+   would say something is missing from a song that is complete. Where a message goes is decided by
+   what caused it, and nothing caused this. */
+.setup-song-mode {
+  font-family: var(--font-label);
+  font-size: 0.7em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* The two facts of the delete dialog, and the second is the one worth interrupting for: what goes,
+   and what stays. Left-aligned inside a centred dialog, because it is read as a sentence. */
+.setup-song-delete-what {
+  margin: 0;
+  align-self: stretch;
+  text-align: left;
+  font-size: 0.9375em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.setup-song-delete-uses {
+  align-self: stretch;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.setup-song-delete-uses-head,
+.setup-song-delete-uses-foot {
+  margin: 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* Named, never blocked: the nights are listed and the button still says Delete. */
+.setup-song-delete-uses-foot {
+  color: var(--text-muted);
+}
+
+.setup-song-delete-confirm:not(:disabled) {
+  color: var(--state-fail);
+  border-color: var(--state-fail);
+}
+
+.setup-song-delete-confirm:not(:disabled):hover {
+  border-color: var(--state-fail);
+}
+
 .setup-home-row-open {
   background: none;
   border: 0;
@@ -3386,6 +3447,97 @@ html, body, #root {
   color: var(--text-muted);
   opacity: 0.7;
   font-style: italic;
+}
+
+/* ---- The song flow: Bombista's pages, inside Pregonero's window ----
+   ONE WINDOW (2026-09-02, journey-setup step 6). It used to be two — `bombista serve` printed an
+   address and Pregonero opened a second BrowserWindow on it — so the flow you were in was
+   somewhere else on the desktop and *how you get back* was written on neither screen. The page is
+   still Bombista's, still served by Bombista over localhost; only where it is drawn changed.
+
+   The frame takes everything below the bar, with no padding of its own: Bombista's pages carry
+   their own skin, and a Pregonero margin around them would read as one page inside another. */
+.songs-screen.song-flow-screen .songs-body.song-flow-body {
+  /* Two classes for the same reason Backstage needs them: `.songs-screen:not(.languages-screen)
+     .songs-body` declares the song-button grid and outranks one class. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+/* THE REFUSAL, ABOVE THE PAGE THAT ANSWERS IT (2026-09-02). `Save to the catalogue` wrote a file
+   Pregonero's own reader refuses, the flow closed, and Backstage met it for the first time and put
+   up a popup — a failure reported on a screen that cannot act on it, after the screen that caused
+   it is gone. It sits here instead, above the page, with the page still alive: the person is one
+   field away from a file that reads, and this is the only screen where that field is.
+
+   `--state-fail` on the border and the head, the surface untouched, like every other state in this
+   app. It is not a banner about a standing condition — it is one press's result. */
+.song-flow-refused {
+  border-bottom: 1px solid var(--state-fail);
+  padding: 1em 2em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.song-flow-refused-head {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--state-fail);
+}
+
+/* The reader's own words. The difference between knowing something is wrong and knowing what is. */
+.song-flow-refused-why {
+  margin: 0;
+  font-family: var(--font-control);
+  font-size: 0.9375em;
+  line-height: 1.4;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.song-flow-refused-next {
+  margin: 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* THE TRANSLATION STEP, AND IT IS PREGONERO'S TO NAME (2026-09-02). One line, at the end of the
+   flow, under the page that just made the file. Dim and small because it is a fact about the work
+   rather than something to do here — and it is the only prose on this screen, which is what makes
+   it readable at all. */
+.song-flow-outside {
+  margin: 0;
+  padding: 0.9em 2em;
+  border-top: 1px solid var(--rule-faint);
+  font-size: 0.8125em;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.song-flow-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  min-height: 0;
+  /* Bombista's own ground, not this app's: the page inside is a whole page. */
+  background: #fff;
+}
+
+/* The two moments the frame is not there — starting the subprocess, and writing to the catalogue
+   after `Save` — sit where the frame would, with the padding the frame does not need. */
+.song-flow-body .setup-home-empty,
+.song-flow-body .setup-song-problem {
+  padding: 2em;
 }
 
 /* ---- Folders: where this machine keeps the songs and the media ----
