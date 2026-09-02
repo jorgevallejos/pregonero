@@ -7,6 +7,7 @@ import {
   chooseFolderPath,
   hasGigFolderAccess,
   listSongsFolder,
+  folderReadable,
   readGigFolder,
   validateSongForPerformance,
   writeGigFile,
@@ -104,16 +105,55 @@ describe('inside Electron', () => {
     })
   })
 
-  it('reports a catalogue that will not read, rather than an empty one', async () => {
+  it('reports a catalogue that will not read, and calls it no answer at all', async () => {
     // "No songs yet" with a folder full of songs is the app disagreeing with the disk in the
-    // quietest possible way. The songs list says the reason out loud instead.
+    // quietest possible way. **`answered` is false** (2026-09-02): a read that failed says nothing
+    // about what is in the folder, and calling it an answer emptied the list AND announced every
+    // song in it as vanished.
     setApi({
       listSongsFolder: vi.fn().mockResolvedValue({ ok: false, error: 'EACCES: permission denied' }),
     })
     expect(await listSongsFolder('/vault/songs')).toEqual({
       files: [],
       problem: 'EACCES: permission denied',
+      answered: false,
+    })
+  })
+
+  it('asks about the songs root before it asks what is inside it', async () => {
+    // `song-performance/` is absent on a fresh machine and that is deliberately not a problem — so
+    // a catalogue on a drive that is not plugged in reads as an empty folder inside a folder
+    // nobody checked. The root is the question that catches it.
+    const list = vi.fn().mockResolvedValue({ ok: true, present: false, files: [] })
+    setApi({
+      listSongsFolder: list,
+      folderReadable: vi.fn().mockResolvedValue({ ok: false, error: 'ENOENT: /vault/songs' }),
+    })
+    expect(await listSongsFolder('/vault/songs')).toEqual({
+      files: [],
+      problem: 'ENOENT: /vault/songs',
+      answered: false,
+    })
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  it('says nobody looked at a folder when there is no Electron to look with', async () => {
+    // Never *it is not there*: a browser tab has no filesystem, and a screen that disabled a half
+    // on that would be reporting a fact it never learned.
+    setApi({})
+    expect(await folderReadable('/vault/gigs')).toEqual({
+      readable: true,
+      answered: false,
+      problem: null,
+    })
+  })
+
+  it('names why a folder would not read, and says it did look', async () => {
+    setApi({ folderReadable: vi.fn().mockResolvedValue({ ok: false, error: 'ENOENT: /vault/gigs' }) })
+    expect(await folderReadable('/vault/gigs')).toEqual({
+      readable: false,
       answered: true,
+      problem: 'ENOENT: /vault/gigs',
     })
   })
 

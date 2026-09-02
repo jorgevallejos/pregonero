@@ -161,6 +161,13 @@ declare global {
       ) => Promise<
         { ok: true; present: boolean; files: string[] } | { ok: false; error: string }
       >
+      /**
+       * Whether a folder can be read at all. Moved, renamed and refusing are one answer: the
+       * folder this machine was pointed at is not there to be read.
+       */
+      folderReadable: (
+        folderPath: string
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
       /** Opens a tool's page in a window of its own, over localhost. */
       openTool: (
         key: string,

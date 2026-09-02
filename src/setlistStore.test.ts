@@ -23,6 +23,7 @@ import {
   getLibrarySongs,
   getLibraryEntries,
   getCatalogueEntries,
+  getUnreadableCatalogueEntries,
   getEntriesNotInCatalogue,
   getLibrarySongById,
   getOrderedSongsForSetlist,
@@ -808,14 +809,18 @@ describe('the catalogue, versus what the app is holding', () => {
       readSongFile: read,
       listFolder: async () => ({ files: [], problem: null, answered: false }),
     })
-    setLibraryEntries([{ ref: { id: 'duelo', path: 'duelo.json' }, error: 'not read' }])
+    setLibraryEntries([
+      { ref: { id: 'duelo', path: 'duelo.json' }, song: { id: 'duelo', title: 'Duelo', items: [] } },
+    ])
     expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo'])
     expect(getEntriesNotInCatalogue()).toEqual([])
   })
 
-  it('a song that is gone is not a song that is broken', async () => {
-    // The distinction the screen was missing: absent drops out of the list, unparseable stays in
-    // it. Applying the broken-stays-listed ruling to ENOENT is what produced twelve dead rows.
+  it('a song that is gone and a song that will not read are two different silences', async () => {
+    // **Both drop out of the list, and they are reported by two different popups** (2026-09-02).
+    // Absent is `getEntriesNotInCatalogue` — the folder stopped listing the file. Unreadable is
+    // `getUnreadableCatalogueEntries` — the file is there and did not parse, so it is not a song
+    // this app can offer and a row for it would be a row that does nothing but accuse.
     localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
     await ensureSongLibraryHydrated({
       readSongFile: async (path: string) => {
@@ -831,8 +836,9 @@ describe('the catalogue, versus what the app is holding', () => {
       },
       listFolder: async () => listing(['libertad.json']),
     })
-    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['libertad'])
-    expect(getCatalogueEntries()[0]!.song).toBeUndefined()
+    expect(getCatalogueEntries()).toEqual([])
+    expect(getUnreadableCatalogueEntries().map((e) => e.ref.id)).toEqual(['libertad'])
+    expect(getUnreadableCatalogueEntries()[0]!.error).toContain('24 lines')
     expect(getEntriesNotInCatalogue().map((e) => e.ref.id)).toEqual(['vidas'])
   })
 })

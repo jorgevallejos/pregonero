@@ -411,11 +411,16 @@ export type SongsFolderListing = {
    * Why the folder could not be read, or null. **A folder that is not there yet is not a problem**
    * — nothing creates `song-performance/`, Bombista makes it the first time it writes a song into
    * it — so this is null for an empty catalogue and a sentence for one that refuses.
+   *
+   * **A problem always comes with `answered: false`** (2026-09-02). It used to come with
+   * `answered: true`, which said *the folder is empty, and by the way it would not read* — so a
+   * catalogue that refused emptied the Songs list and announced thirteen songs as vanished. A read
+   * that failed is not an answer about what is in the folder.
    */
   problem: string | null
   /**
-   * **Whether the folder was actually looked at.** False only outside Electron, where there is no
-   * filesystem to look at.
+   * **Whether the folder was actually looked at.** False outside Electron, where there is no
+   * filesystem to look at, and false when the read failed.
    *
    * The distinction is load-bearing, and conflating it with an empty list is what this listing is
    * for. *Nothing there* is an answer about the catalogue and empties the Songs list; *we could not
@@ -438,13 +443,50 @@ export async function listSongsFolder(songsRoot: string): Promise<SongsFolderLis
   if (!a || typeof a.listSongsFolder !== 'function') {
     return { files: [], problem: null, answered: false }
   }
+  // **The root is asked about first, and it has to be.** `song-performance/` is absent on a fresh
+  // machine and that is deliberately not a problem — so a catalogue on a drive that is not plugged
+  // in reads as *an empty folder inside a folder nobody checked*, which is the silent wrong answer
+  // this whole listing exists to prevent. One extra call per hydration.
+  const root = await folderReadable(songsRoot)
+  if (root.answered && !root.readable) {
+    return { files: [], problem: root.problem, answered: false }
+  }
   try {
     const result = await a.listSongsFolder(songFilesFolder(songsRoot))
     return result.ok
       ? { files: result.files, problem: null, answered: true }
-      : { files: [], problem: result.error, answered: true }
+      : { files: [], problem: result.error, answered: false }
   } catch (e) {
-    return { files: [], problem: e instanceof Error ? e.message : String(e), answered: true }
+    return { files: [], problem: e instanceof Error ? e.message : String(e), answered: false }
+  }
+}
+
+/**
+ * **Whether a folder this machine was pointed at is there to be read.**
+ *
+ * Moved, renamed and refusing are one answer, because they are one thing from where the person
+ * stands: the folder they chose is not where they said it was. `answered` is false outside
+ * Electron, where there is no filesystem — and *we could not look* must never render as *it is
+ * not there*.
+ */
+export async function folderReadable(
+  folderPath: string
+): Promise<{ readable: boolean; answered: boolean; problem: string | null }> {
+  const a = api()
+  if (!a || typeof a.folderReadable !== 'function') {
+    return { readable: true, answered: false, problem: null }
+  }
+  try {
+    const result = await a.folderReadable(folderPath)
+    return result.ok
+      ? { readable: true, answered: true, problem: null }
+      : { readable: false, answered: true, problem: result.error }
+  } catch (e) {
+    return {
+      readable: false,
+      answered: true,
+      problem: e instanceof Error ? e.message : String(e),
+    }
   }
 }
 

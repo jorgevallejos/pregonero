@@ -284,16 +284,35 @@ export function getLibraryEntries(): LibraryEntry[] {
  * catalogue, however recently the app was holding a reference to it: *a screen answering a question
  * about the world derives the answer from the thing it is about, at the moment it is asked.*
  *
- * **Absent and broken are different, and only one of them belongs in this list.** A file that is
- * gone is not a broken song, it is not a song here at all, and it drops out. A file that is there
- * and will not parse **stays, visibly broken** — that ruling is older than this function and still
- * stands; it was always about parse failures and never about missing files, and applying it to
- * ENOENT is what put twelve dead rows on the screen.
+ * **Absent and broken both drop out, for different reasons** (Jorge, 2026-09-02, reversing the
+ * ruling written here on 01/09). A file that is gone is not a song here at all. A file that is
+ * there and will not read is a song **Pregonero cannot offer**: it cannot be put in a setlist, it
+ * cannot be projected, and a row for it is a row that does nothing. It was listed and marked
+ * broken until this; the mark was a standing accusation on a screen whose job is the two lists
+ * that decide tonight. **What replaces it is one popup, once per launch** — see
+ * `getUnreadableCatalogueEntries` and `unreadableSongs.ts`. The file is untouched.
  *
  * **With no answer from the folder this falls back to the library**, which is everything the app
  * knows in that case. Outside Electron that is the only honest list there is.
  */
 export function getCatalogueEntries(): LibraryEntry[] {
+  return catalogueRows().filter((entry) => entry.song !== undefined)
+}
+
+/**
+ * **The catalogue's files that would not read** — what the popup names, and the only place they
+ * appear at all.
+ *
+ * They are in the folder, so they are not vanished; they did not parse, so they are not offered.
+ * Each carries its own validator reason, which is the difference between knowing something is
+ * wrong and knowing what is wrong.
+ */
+export function getUnreadableCatalogueEntries(): LibraryEntry[] {
+  return catalogueRows().filter((entry) => entry.song === undefined)
+}
+
+/** Every row the folder listed at the last read, readable or not. */
+function catalogueRows(): LibraryEntry[] {
   if (catalogue === null) return getLibraryEntries()
   return catalogue
     .map((id) => libraryCache.get(id))
@@ -341,6 +360,12 @@ export function catalogueWasRead(): boolean {
  * **True for everything when nobody looked**, for the same reason `getCatalogueEntries` falls back
  * to the library: outside Electron there is no folder to be absent from, and a screen that offered
  * nothing would be reporting a fact it never learned.
+ *
+ * **It is about presence in the folder and nothing else.** Whether the file *reads* is
+ * `getCatalogueEntries`' question — the two lists drawn from that one (Setup home's Songs list and
+ * the gig flow's setlist step) drop a file that will not parse, and the manage-setlists library
+ * column, which is a picker over files anywhere on the disk, still shows one it could not read.
+ * That difference is unresolved rather than intended; it is named in `journey-setup.md`.
  */
 export function isInCatalogue(id: string): boolean {
   return catalogue === null || catalogue.includes(id)

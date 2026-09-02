@@ -1912,8 +1912,17 @@ html, body, #root {
   gap: 1em;
 }
 
+/* The file name is what the reader is looking for, so it is not smaller than the reason beside it.
+   `code`'s default shrink is right in a sentence and wrong when the name IS the row. */
+.setup-songs-gone-list code {
+  font-family: var(--font-control);
+  font-size: 1em;
+  color: var(--text-primary);
+}
+
 /* The songs that have gone, named in the popup and nothing else in it. Left-aligned inside a
-   centred dialog: a list of filenames is read down its first letters, not down its middle. */
+   centred dialog: a list of filenames is read down its first letters, not down its middle.
+   Shared with the popup for the files that will not read: the same shape, one line per file. */
 .setup-songs-gone-list {
   margin: 0;
   padding: 0;
@@ -1926,6 +1935,23 @@ html, body, #root {
   font-size: 0.875em;
   line-height: 1.6;
   color: var(--text-primary);
+}
+
+/* The validator's own words, one step back from the file name they belong to. */
+.setup-songs-unreadable-reason {
+  color: var(--text-secondary);
+}
+
+/* The folder that will not read, in the popup that names it. Mono because it is a path, and the
+   loudest thing in the dialog because *the songs folder* is a role and the path is what moved. */
+.setup-folder-popup-path {
+  margin: 0;
+  align-self: stretch;
+  font-family: var(--font-control);
+  font-size: 0.9375em;
+  line-height: 1.4;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 /* ---- Display profile selector (setup panel, spans all columns) ---- */
@@ -2778,15 +2804,6 @@ html, body, #root {
   color: var(--state-fail);
 }
 
-/* What the catalogue would not read, above the list and never in front of it. A report, not a
-   modal: nothing here has to be cleared before you can go on. */
-.setup-home-report {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
-  margin-bottom: 0.8em;
-}
-
 .song-doors-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -3138,31 +3155,104 @@ html, body, #root {
      `justify-items: center`, and it outranks a single class. Manage-setlists escapes it the same
      way, and this follows that precedent rather than inventing a second one. Everything it sets
      that would leak into a two-column reading list is reset here explicitly. */
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2em;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   justify-items: stretch;
   max-width: none;
   margin: 0;
   padding: 2em;
-  row-gap: 2em;
-  column-gap: 2em;
+}
+
+/* THE TWO HALVES, IN THE FIRST-RUN SCREEN'S VOCABULARY (2026-09-02, walking the screen).
+   Two topics that are not the same topic were sharing an undivided field. Same device as
+   `.first-run-columns`, for the same reason and with the same tokens: equal columns, a hard rule
+   between them, `subgrid` so the name, the buttons and the top of the frame line up ACROSS the two
+   however unevenly either wraps. The rule runs the block's full height because both columns are
+   as tall as the taller one. */
+.setup-home-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* Name, actions, frame. The frame takes the slack, which is what makes it span the screen. */
+  grid-template-rows: auto auto 1fr;
+  align-items: stretch;
+  column-gap: 0;
+  /* `.songs-body` already takes the leftover height, so the grid fills what is left of the window
+     and the frames are as tall as the screen even when both lists are empty. Content taller than
+     the viewport grows the grid and the page scrolls — no fold, no max-height, no "show more". */
+  flex: 1;
+  min-height: 0;
 }
 
 .setup-home-column {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75em;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  align-content: stretch;
   min-width: 0;
+  box-sizing: border-box;
+  /* 2em of inline padding either side of the line keeps it centred between the two columns'
+     content, the way first run and the control view's setup sections do it. */
+  padding-inline: 2em;
+  border-left: 1px solid var(--rule-strong);
 }
 
-.setup-home-column-head {
+/* The line is between the columns, so the left one does not draw one, and its content starts at
+   the block's left edge. */
+.setup-home-column:first-of-type {
+  border-left: none;
+  padding-left: 0;
+}
+
+/* THE COLUMN'S NAME, the loudest thing in it — `.first-run-name`'s treatment, because these are
+   the same two nouns being told apart on the same grounds. It is also what lets the buttons drop
+   to `New` and `Import`: the heading already says which noun. */
+.setup-home-name {
+  font-family: var(--font-label);
+  font-size: 2.25em;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  align-self: start;
+}
+
+/* `New` and `Import` on one line, at the same level, above the frame. `Import a gig from
+   elsewhere…` was a footnote under the empty state until 2026-09-02; it is a sibling action. */
+.setup-home-actions {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1em;
+  align-items: flex-start;
+  gap: 0.75em;
   flex-wrap: wrap;
+  padding: 1em 0;
+}
+
+/* THE FRAME: ALWAYS THERE, EMPTY OR NOT (2026-09-02). The operational surface of the screen is the
+   frame, and its contents are what change — a list that only appears once it has something in it
+   makes the screen reflow into a different shape the first time it is used. It spans the length of
+   the screen because `.setup-home-columns` gives its row the slack. */
+.setup-home-frame {
+  border: 1px solid var(--rule-strong);
+  padding: 0.5em 1em;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* `No gigs yet.` / `No songs yet.`, and nothing more. The buttons above already say what to do, so
+   the line only has to say the frame is empty rather than broken. */
+.setup-home-empty {
+  margin: 0;
+  padding: 0.75em 0;
+  color: var(--text-muted);
+}
+
+/* THE SAME SLOT, WHEN THE APP COULD NOT LOOK (2026-09-02). It replaces the empty line rather than
+   sitting above it, because it answers the same question — what is in this frame — and `No songs
+   yet.` over an unread folder is a claim the app is in no position to make. It is also the reason
+   the half's buttons are disabled, which is why it is `--state-warn` and not the muted grey of an
+   empty frame: one is a state, the other is something being wrong. */
+.setup-home-blocked {
+  color: var(--state-warn);
 }
 
 .setup-home-list {
@@ -3180,6 +3270,12 @@ html, body, #root {
   padding: 0.75em 0;
   border-bottom: 1px solid var(--rule-faint);
   min-width: 0;
+}
+
+/* The frame already closes the list, so a separator under the last row is a rule that divides
+   nothing from the frame's own edge. */
+.setup-home-row:last-child {
+  border-bottom: none;
 }
 
 .setup-home-row-open {
@@ -3222,7 +3318,7 @@ html, body, #root {
    wrong here: three full-width buttons turn one gig into 200px of screen, and four gigs into the
    wall this list exists to avoid. They size to their own labels and sit on one line. */
 .setup-home-row-actions .ctrl-btn.ctrl-setup-link,
-.setup-home-column-head .ctrl-btn.ctrl-setup-link {
+.setup-home-actions .ctrl-btn.ctrl-setup-link {
   width: auto;
   max-width: none;
   min-width: 0;
