@@ -2900,62 +2900,130 @@ html, body, #root {
   overflow-y: auto;
 }
 
-/* ---- First run: the two folders, asked once, replacing the main screen ---- */
+/* ---- First run: the two folders, asked once, replacing the main screen ----
+   TWO EQUAL COLUMNS WITH A HARD RULE BETWEEN THEM, songs left and gigs right (2026-09-02).
+   Stacked, the second question read as the first one asked again; side by side with a line
+   through the middle they are two questions before either is read. Same reasoning and the same
+   vocabulary as Setup home and the control view's setup sections — the separator is a border on
+   the column, not a background gradient positioned from a hardcoded pitch. */
 .songs-screen.first-run-screen .songs-body.first-run-body {
   /* Two classes for the same reason Setup home needs them: `.songs-screen:not(.languages-screen)
      .songs-body` declares the song-button grid and outranks one class. */
   display: flex;
   flex-direction: column;
-  gap: 1.6em;
+  gap: 2em;
   align-items: stretch;
   justify-items: stretch;
-  max-width: 40em;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 2em;
 }
 
-.first-run-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
-  padding: 1em 0;
-  border-bottom: 1px solid var(--rule-faint);
+/* The rule runs the full height of the block: the columns are rows of one grid, so both are as
+   tall as the taller one and the border does not stop where the shorter paragraph does. */
+.first-run-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* Label, path, paragraph, button — named here so both columns can borrow them below. The
+     paragraph takes the slack, which pins both buttons to the same line. */
+  grid-template-rows: auto auto 1fr auto;
+  align-items: stretch;
+  column-gap: 0;
 }
 
-.first-run-row .ctrl-btn.ctrl-setup-link {
+.first-run-column {
+  /* `subgrid`, the same device the control view's setup sections use: the four parts line up
+     ACROSS the two columns, so a label that wraps onto a second line does not push its own path
+     out of step with the other one. Without it the two answers sit at different heights, which
+     is exactly the "one question asked twice" reading this layout exists to break. */
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  align-content: start;
+  justify-items: start;
+  min-width: 0;
+  box-sizing: border-box;
+  /* 2em of inline padding either side of the line keeps it centred between the two columns'
+     content, the way the control view's setup sections do it. */
+  padding-inline: 2em;
+  border-left: 1px solid var(--rule-strong);
+}
+
+/* The line is between the columns, so the left one does not draw one, and its content starts at
+   the block's left edge — where `Confirm` starts too. */
+.first-run-column:first-of-type {
+  border-left: none;
+  padding-left: 0;
+}
+
+/* The question, named by what it finds: a catalogue, a body of work. It is the quietest thing in
+   the column on purpose — the answer is what the column is about. */
+.first-run-label {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: start;
+}
+
+/* THE LOUDEST THING IN THE COLUMN. Mono because it is a path, and large because the answer is
+   what someone comes back to this screen to check. */
+.first-run-path {
+  font-family: var(--font-control);
+  font-size: 1.375em;
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  align-self: start;
+  padding-top: 0.25em;
+}
+
+/* Unanswered is still the loudest slot, at the size the answer will be — the column does not
+   reflow when it is filled in. Only the colour says there is nothing there yet. */
+.first-run-path[data-unset='true'] {
+  color: var(--text-dim);
+}
+
+/* The one paragraph. It argues for what the folder is worth; it does not explain the app. */
+.first-run-paragraph {
+  margin: 0.7em 0 0;
+  font-size: 0.875em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 34em;
+}
+
+.first-run-column .ctrl-btn.ctrl-setup-link {
   width: auto;
   max-width: none;
-  align-self: flex-start;
-  margin-top: 0.5em;
+  margin-top: 1em;
+  align-self: start;
 }
 
-/* What the question finds. It sits under the question because it IS the question restated in one
-   noun — a catalogue, a body of work — which is what stops the second one reading as the first
-   asked twice. */
-.first-run-finds {
-  font-size: 0.8125em;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+/* `Confirm` sits below both, on the same grid: full-width rule above it, and the button itself at
+   the left column's left edge, which is what makes it read as belonging to both answers rather
+   than to the second one. */
+.first-run-confirm-row {
+  border-top: 1px solid var(--rule-strong);
+  padding-top: 1.5em;
 }
 
-/* The shape, drawn as the answers arrive. A monospace block because it is a folder tree: the screen
-   shows what it is about to work with rather than describing it. */
-.first-run-shape {
+/* It sizes to its own label, like the two pickers above it. A full-bleed button would be the one
+   element on the screen that ignores the two-column grid. */
+.first-run-confirm-row .gated-action {
+  align-items: flex-start;
+}
+
+.first-run-confirm-row .ctrl-btn.ctrl-setup-link {
+  width: auto;
+  max-width: none;
+}
+
+/* The no-picker state is not part of the two-column reading: it sits above both. */
+.first-run-no-picker {
   margin: 0;
-  padding: 1em 1.2em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8125em;
-  line-height: 1.7;
-  white-space: pre;
-  overflow-x: auto;
-  border: 1px solid var(--rule-faint);
-  border-radius: 0.4em;
-  color: var(--text-primary);
-}
-
-.first-run-shape-note {
-  color: var(--text-secondary);
 }
 
 /* ---- Setup home: gigs and songs, side by side, both in full ----
