@@ -2906,11 +2906,43 @@ html, body, #root {
    through the middle they are two questions before either is read. Same reasoning and the same
    vocabulary as Setup home and the control view's setup sections — the separator is a border on
    the column, not a background gradient positioned from a hardcoded pitch. */
+/* NO RULE UNDER THE TITLE (2026-09-02, the fourth walk). `.songs-top-bar` draws one on every
+   screen that has somewhere to go back to, where it separates the navigation from the content.
+   This screen has no navigation: the title names the moment and the two columns are everything
+   below it, so the line was cutting one block in two rather than separating two blocks. The hard
+   vertical rule between the columns and the one above `Confirm` stay — those divide things that
+   are actually different. */
+.first-run-screen .songs-top-bar {
+  border-bottom: none;
+  /* ROOM ABOVE THE TITLE (2026-09-02, the sixth walk). `.songs-title` is absolutely positioned and
+     centred on the bar, and it is the bar's only child — so the bar has no content height at all,
+     just its 0.75em of padding, and a 1.5em heading centred on that overhangs the window's top
+     edge. The heading was touching the chrome. The bar stops centring the title on itself and lays
+     it out in the flow, so the padding above is the space you actually see: 2em, the unit this
+     screen already uses for `.first-run-body`'s padding and the gap between its blocks. */
+  padding-top: 2em;
+  justify-content: center;
+}
+
+/* In the flow rather than centred on a bar with no height. The flex parent above centres it
+   horizontally, which is the only thing the absolute positioning was still earning here. */
+.first-run-screen .songs-title {
+  position: static;
+  transform: none;
+}
+
 .songs-screen.first-run-screen .songs-body.first-run-body {
   /* Two classes for the same reason Setup home needs them: `.songs-screen:not(.languages-screen)
      .songs-body` declares the song-button grid and outranks one class. */
   display: flex;
   flex-direction: column;
+  /* CENTRED IN THE SCREEN, not sitting at the top of it (2026-09-02, the third walk). The pair of
+     questions is the whole content of this screen; pinned to the top with empty space below, it
+     read as the head of a document with the rest still to come. `.songs-body` already takes the
+     leftover height (`flex: 1`), so centring on the main axis is all it needs. Content taller than
+     the viewport grows the body instead of overflowing off the top, because a flex item's
+     `min-height` is `auto`. `Confirm` is centred with them: it is on their grid, not the page's. */
+  justify-content: center;
   gap: 2em;
   align-items: stretch;
   justify-items: stretch;
@@ -2924,20 +2956,21 @@ html, body, #root {
 .first-run-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  /* Label, path, paragraph, button — named here so both columns can borrow them below. The
-     paragraph takes the slack, which pins both buttons to the same line. */
-  grid-template-rows: auto auto 1fr auto;
+  /* Name, label, paragraph, button, path — named here so both columns can borrow them below. The
+     paragraph takes the slack, which pins both buttons AND both paths to the same line however
+     unevenly the two paragraphs wrap. */
+  grid-template-rows: auto auto 1fr auto auto;
   align-items: stretch;
   column-gap: 0;
 }
 
 .first-run-column {
-  /* `subgrid`, the same device the control view's setup sections use: the four parts line up
+  /* `subgrid`, the same device the control view's setup sections use: the five parts line up
      ACROSS the two columns, so a label that wraps onto a second line does not push its own path
      out of step with the other one. Without it the two answers sit at different heights, which
      is exactly the "one question asked twice" reading this layout exists to break. */
   display: grid;
-  grid-row: span 4;
+  grid-row: span 5;
   grid-template-rows: subgrid;
   align-content: start;
   justify-items: start;
@@ -2956,8 +2989,28 @@ html, body, #root {
   padding-left: 0;
 }
 
-/* The question, named by what it finds: a catalogue, a body of work. It is the quietest thing in
-   the column on purpose — the answer is what the column is about. */
+/* THE NAME, AND IT IS THE LOUDEST THING IN THE COLUMN (2026-09-02, the fifth walk). `SONGS` and
+   `GIGS`, one word each, because at rest both paths read `Not chosen yet` and the two columns
+   opened looking identical — the exact reading the side-by-side layout exists to prevent. The
+   difference between the two questions is the whole screen, so the naming carries it, and the
+   caps line below is the subtitle it always was. This SUPERSEDES *the path is the loudest thing in
+   the column*, decided the same day; the reversal is deliberate and recorded, not an oversight.
+   Mono like every other label here, and `--text-primary` because loudest on this ground is the
+   brightest paper, not a colour — the one colour that means anything on this screen is the green
+   on `Confirm`. */
+.first-run-name {
+  font-family: var(--font-label);
+  font-size: 2.25em;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  align-self: start;
+}
+
+/* The question, named by what it finds: a catalogue, a body of work. A subtitle under the name
+   rather than the column's heading — it says what the folder is worth being called, where the
+   name says which column you are in. */
 .first-run-label {
   font-family: var(--font-label);
   font-size: 0.75em;
@@ -2965,10 +3018,17 @@ html, body, #root {
   text-transform: uppercase;
   color: var(--text-dim);
   align-self: start;
+  padding-top: 0.4em;
 }
 
-/* THE LOUDEST THING IN THE COLUMN. Mono because it is a path, and large because the answer is
-   what someone comes back to this screen to check. */
+/* THE ANSWER, LAST IN THE COLUMN AND NO LONGER THE LOUDEST THING IN IT (2026-09-02, the fifth
+   walk — see `.first-run-name`). Mono because it is a path, and still large enough to be read at
+   a glance by someone who came back to check it; what it no longer does is outrank the name.
+   THE GREEN COMES OFF IT, back to `--text-primary`. The fourth walk put `--state-ok` here as well
+   as on `Confirm`, which spread one meaning over three marks; one green mark on the screen means
+   one thing, and that thing is *you are ready*. The answered state is still legible without it —
+   the picker turns over to `Choose another folder` and `Confirm` goes green. If that proves too
+   quiet, the repair is WEIGHT on the path, not colour returning to it. */
 .first-run-path {
   font-family: var(--font-control);
   font-size: 1.375em;
@@ -2977,11 +3037,11 @@ html, body, #root {
   overflow-wrap: anywhere;
   max-width: 100%;
   align-self: start;
-  padding-top: 0.25em;
+  padding-top: 0.75em;
 }
 
-/* Unanswered is still the loudest slot, at the size the answer will be — the column does not
-   reflow when it is filled in. Only the colour says there is nothing there yet. */
+/* Unanswered sits in the same slot at the same size, so the column does not reflow when it is
+   filled in. Dim is what says nothing has been answered here yet. */
 .first-run-path[data-unset='true'] {
   color: var(--text-dim);
 }
@@ -3002,6 +3062,25 @@ html, body, #root {
   align-self: start;
 }
 
+/* THE PICKER IS YELLOW UNTIL ITS FOLDER IS ANSWERED (2026-09-02, the fourth walk), and reverts to
+   the ordinary dark grey once picked — the point at which it already stops saying `Choose` and
+   starts saying `Choose another folder`, so the colour and the word turn over together. Outlined
+   rather than filled, like every other state in this app: `--state-warn` on the text and the
+   border, the surface untouched. `:not(:disabled)` keeps it out of the no-picker case, where the
+   button is dead and colouring it would promise a click that does nothing. The objection that
+   two warning-coloured buttons sit on a screen where nothing is wrong was raised and overruled;
+   it is not a caveat. */
+.first-run-column .ctrl-btn.ctrl-setup-link[data-unset='true']:not(:disabled) {
+  color: var(--state-warn);
+  border-color: var(--state-warn);
+}
+
+/* Hover still lifts the surface — what it must not do is drop the state back to the generic
+   border, which is what `.ctrl-btn:hover:not(:disabled)` would otherwise hand it. */
+.first-run-column .ctrl-btn.ctrl-setup-link[data-unset='true']:not(:disabled):hover {
+  border-color: var(--state-warn);
+}
+
 /* `Confirm` sits below both, on the same grid: full-width rule above it, and the button itself at
    the left column's left edge, which is what makes it read as belonging to both answers rather
    than to the second one. */
@@ -3019,6 +3098,22 @@ html, body, #root {
 .first-run-confirm-row .ctrl-btn.ctrl-setup-link {
   width: auto;
   max-width: none;
+}
+
+/* `CONFIRM` TURNS GREEN ONCE BOTH FOLDERS ARE IN (2026-09-02, the fourth walk). The moment it
+   becomes pressable is the moment the screen is finished, and before this it looked identical the
+   instant before and the instant after — the `:disabled` opacity was the whole signal, which is a
+   difference you notice only if you were watching. **It is the ONLY green on the screen** (the
+   fifth walk took it off the paths): one mark, one meaning, and the meaning is *you are ready*.
+   **Disabled is deliberately unchanged** — the generic disabled treatment is what makes the turn
+   legible when it lands. */
+.first-run-confirm-row .ctrl-btn.ctrl-setup-link:not(:disabled) {
+  color: var(--state-ok);
+  border-color: var(--state-ok);
+}
+
+.first-run-confirm-row .ctrl-btn.ctrl-setup-link:not(:disabled):hover {
+  border-color: var(--state-ok);
 }
 
 /* The no-picker state is not part of the two-column reading: it sits above both. */
