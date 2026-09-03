@@ -349,8 +349,16 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
       const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
       if (written.ok) {
         gig = next
-        lastAdoptedSetlist = projection.map((song) => song.id)
-        lastAdoption = null
+        // **And then it is adopted, exactly as a file that already had one is.** Writing the field
+        // is what makes the gig's running order exist, so the app has to come away holding the
+        // gig's own setlist — `gig-<id>`, active — and not the setlist it happened to have before.
+        //
+        // **Missing this is what made `Add →` do nothing** (walked 2026-09-03). On a machine that
+        // has never made a setlist there is no active one, `addSongToSetlist` is handed `''` and
+        // refuses, and screen 2 draws an empty running order with nothing anywhere saying why. The
+        // branch above never bit because a file with a setlist adopts one on the way in; this one
+        // is the path every new gig takes, and it left the store with nothing to write into.
+        await adoptSetlistFromGig(gig, folderPath)
       } else {
         gigProblem = written.error
       }

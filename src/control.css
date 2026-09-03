@@ -3527,7 +3527,27 @@ html, body, #root {
 /* `BACK` ASKS, AND IT IS THE DELETE DIALOG'S SHAPE (2026-09-02). Same overlay, same box, same two
    buttons — because it is the same kind of popup: a destructive action needing consent. Nothing new
    is introduced here; only the two lines of copy differ, so only the two lines have rules. One set
-   of rules, because one component draws it in both flows. */
+   of rules, because one component draws it in both flows.
+
+   ONE CONSENT-DIALOG SHAPE ACROSS THE SUITE (2026-09-03). Bombista's `No recording` asks the same
+   kind of question across a seam the person cannot see, and the two were in different visual
+   languages: this one centred, that one left. **The shape is left-aligned title and text, two
+   outlined buttons, the leaving action on the right**, and this is the half that moved. It cannot
+   be a shared component — the other one is rendered by a Python process — so it is written down in
+   `journey-setup.md` and implemented on both sides.
+
+   These three rules override the centring `.ctrl-timeline-save-dialog` sets for every other popup
+   that uses it, rather than un-centring that box for all of them: the delete-song dialog is the
+   same category of thing and should follow, but it was not in this round's findings. */
+.leave-without-saving {
+  align-items: stretch;
+  text-align: left;
+}
+
+.leave-without-saving-actions {
+  justify-content: flex-end;
+}
+
 .leave-without-saving-what {
   margin: 0;
   align-self: stretch;
@@ -3962,11 +3982,16 @@ html, body, #root {
 
 /* A STEP THAT IS NOT BUILT YET: present, so the flow still reads as four, and not a control.
    Bombista renders a step that did not happen the same way and for the same reason — a bar that
-   still offered it would say it is available. */
+   still offered it would say it is available.
+
+   **It is not struck through** (Jorge, 2026-09-03). Strike-through is the mark for something
+   CANCELLED, and these two are not cancelled, they have not arrived. So the treatment is the one
+   step 2 already gets before there is a gig to write into: `--text-disabled` and no pointer, which
+   is what *shut for now* looks like everywhere else in this app. The `later` chip beside it is
+   what carries the difference between *shut* and *not built*, and it stays. */
 .gig-step-later {
   color: var(--text-disabled);
-  text-decoration: line-through;
-  text-decoration-color: var(--rule);
+  cursor: default;
 }
 
 .gig-step-later .why {
@@ -4044,23 +4069,7 @@ html, body, #root {
   color: var(--text-muted);
 }
 
-.gig-flow-unbuilt {
-  padding-top: 0.9em;
-  border-top: 1px solid var(--rule-faint);
-}
-
-/* A pointer inside a sentence, not a button pretending to be one. */
-.gig-flow-inline-link {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: var(--text-primary);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* THE TWO LISTS, SIDE BY SIDE. The catalogue on the left, tonight's running order on the right —
+/* THE TWO LISTS, SIDE BY SIDE. The catalogue on the left, the gig's running order on the right —
    the direction the songs travel, which is what the `Add →` and `←` marks read against. Same
    device as Backstage's two halves: equal columns, a hard rule between them, `subgrid` so the two
    names and the tops of the two frames line up however unevenly either wraps. */

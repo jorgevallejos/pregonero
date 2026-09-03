@@ -539,7 +539,12 @@ describe('opening a folder that already holds a gig', () => {
 })
 
 describe('bombista', () => {
+  // **The songs folder is set here because the app cannot run without one.** Bombista is handed a
+  // resolved file, and resolving a bare reference is what the songs folder is for — with none, the
+  // reference passes through as the bare name and the assertion below would be about a path no
+  // machine ever produces. First run makes both folders a precondition of everything past it.
   beforeEach(() => {
+    localStorage.setItem('pregoneroSongsFolder', '/vault/songs')
     rememberGigFolder(FOLDER)
     readGigFolder.mockResolvedValue(emptyRead())
   })
@@ -554,7 +559,9 @@ describe('bombista', () => {
     validateSongForPerformance.mockResolvedValue({ status: 'ok' })
     await refreshGigReadiness()
     expect(validateSongForPerformance).toHaveBeenCalledTimes(2)
-    expect(validateSongForPerformance).toHaveBeenCalledWith('duelo.json')
+    expect(validateSongForPerformance).toHaveBeenCalledWith(
+      '/vault/songs/song-performance/duelo.json'
+    )
   })
 })
 
