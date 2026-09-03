@@ -352,8 +352,8 @@ export function catalogueWasRead(): boolean {
  * **Whether this id is a song the catalogue is currently offering.**
  *
  * The predicate behind *a song that disappears disappears from everywhere it is offered* (Jorge,
- * 2026-09-01). Every list that says **you can use this** — Setup home's Songs list, the gig flow's
- * setlist step, the manage-setlists library — filters on it. Lists of what was **recorded** do not:
+ * 2026-09-01). Every list that says **you can use this** — Setup home's Songs list and the gig
+ * flow's setlist step — filters on it. Lists of what was **recorded** do not:
  * a gig's setlist keeps its ids and reports what it cannot resolve, because deleting a song must
  * not rewrite the record of a decision about a night.
  *
@@ -362,10 +362,10 @@ export function catalogueWasRead(): boolean {
  * nothing would be reporting a fact it never learned.
  *
  * **It is about presence in the folder and nothing else.** Whether the file *reads* is
- * `getCatalogueEntries`' question — the two lists drawn from that one (Setup home's Songs list and
- * the gig flow's setlist step) drop a file that will not parse, and the manage-setlists library
- * column, which is a picker over files anywhere on the disk, still shows one it could not read.
- * That difference is unresolved rather than intended; it is named in `journey-setup.md`.
+ * `getCatalogueEntries`' question — the two lists drawn from that one, Setup home's Songs list and
+ * the gig flow's setlist step, drop a file that will not parse. The one surface that still drew an
+ * unreadable row was the manage-setlists library column, a picker over files anywhere on the disk;
+ * it was deleted on 2026-09-03 and the difference went with it.
  */
 export function isInCatalogue(id: string): boolean {
   return catalogue === null || catalogue.includes(id)
@@ -508,9 +508,9 @@ export type EnsureSongLibraryOptions = {
  * `getEntriesNotInCatalogue` is what says so out loud, and the Songs list simply does not draw it.
  * Forgetting it here would throw away the one thing that makes an unmounted drive visible.
  *
- * **The consequence worth knowing:** removing a song from the library on the manage-setlists
- * screen no longer sticks if its file is still in the catalogue — the next hydration finds it
- * again. That is the right way round. The library is a view of the folder, and a row that vanished
+ * **The consequence worth knowing:** removing a song from the library would not stick if its file
+ * is still in the catalogue — the next hydration finds it again. That is the right way round, and
+ * it is why no surface offers it. The library is a view of the folder, and a row that vanished
  * while the file was still there would be hiding a song rather than removing one.
  */
 async function seedLibraryFromCatalogue(
@@ -644,7 +644,7 @@ export function getOrderedSongsForSetlist(setlistId: string): LibrarySong[] {
   return orderedSongsForSetlistId(getSnapshot(), setlistId)
 }
 
-/** Same as `getOrderedSongsForSetlist` but reads from an arbitrary snapshot (e.g. manage-setlists draft). */
+/** Same as `getOrderedSongsForSetlist` but reads from an arbitrary snapshot rather than the store. */
 export function getOrderedSongsForSetlistFromSnapshot(
   snap: SetlistStoreSnapshot,
   setlistId: string
@@ -844,7 +844,7 @@ export function removeSongFromSetlistInSnapshot(
  *
  * `deleteSongFromLibraryInSnapshot`, `deleteSongFromLibrary` and the "is it still in a setlist?"
  * check that gated them were removed on 2026-09-01, along with the trash can on the manage-setlists
- * screen. **`songs/` is the source of truth, the library is a cache of it, and hydration seeds a
+ * screen — and that screen itself went on 2026-09-03. **`songs/` is the source of truth, the library is a cache of it, and hydration seeds a
  * reference for every song file in the songs folder** — so a reference deleted here reappears on the
  * next hydration. A control that silently undoes itself must not remain, looking functional.
  *
