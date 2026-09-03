@@ -38,7 +38,7 @@
 import type { LibrarySong } from './setlistStore'
 import { hasLyricLines } from './songState'
 import type { GigFile, SetupFingerprints } from './gigFile'
-import { resolveShapesForType, type VisualsFile } from './visualsFile'
+import { resolveShapesForType, type VisualsFile, type VisualsRefusalKind } from './visualsFile'
 
 /** The song-aware types a song can point content at. `gig-contact` is gig-level and not per song. */
 const PER_SONG_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
@@ -72,6 +72,30 @@ export type SongReadiness = {
   missing: string[]
   /** Reported, never blocking: what `bombista` said, and whether it ran at all. */
   notes: string[]
+  /**
+   * **The reference turned into a song file that read and parsed.**
+   *
+   * Its own field since 2026-09-03, and the reason is the check screen: *every song in the setlist
+   * resolves to a file* is one of the three checks the design names, and it lived only inside the
+   * sentences in `missing`. **A screen that had to match a substring to draw a pass/fail line is
+   * the trap step 9 already fell into**, where `libertad`'s own wording blocked silently while
+   * never being mentioned.
+   *
+   * It is also the one thing that **blocks step 4 while staying a note at step 2** — a problem you
+   * can route around while composing becomes a blocker at the moment you assert readiness.
+   */
+  fileResolves: boolean
+  /**
+   * **Every file this song's own content needs is linked and present on this machine.**
+   *
+   * The design's second check, *every file those name resolves*. True when the song needs no file
+   * — a lyrics-only song names none — and false only when one it needs is missing. Computed from
+   * exactly the condition `contentMissingFor` already applies, never a second one.
+   *
+   * **Reported, not blocking at step 4** (2026-09-03): the ruling widened the gate for an
+   * unreadable song file and named nothing else.
+   */
+  contentResolves: boolean
 }
 
 export type GigReadiness = {
@@ -98,6 +122,24 @@ export type GigReadiness = {
   playableSongIds: string[]
   /** The loud refusals, verbatim. A non-empty list is a file to fix, not a state to work around. */
   refusals: string[]
+  /**
+   * **Why the room was refused**, or null when it was not. Null also covers *there is no room yet*,
+   * which is an ordinary state and not a refusal — the difference is `steps[3].status`.
+   */
+  visualsRefusal: VisualsRefusalKind | null
+  /**
+   * **Whether setup may be confirmed right now**, and it is a field rather than something a screen
+   * assembles.
+   *
+   * `steps[4].status` cannot answer this: `not-yet` there covers both *the checks fail* and *this
+   * has simply never been confirmed*, and the second is the ordinary state in which you press the
+   * button. A screen adding up steps 1 to 3 plus the unreadable songs would be **a second opinion
+   * about what ready means**, which is the one thing this file forbids.
+   *
+   * It is everything step 4 asserts, apart from the confirmation existing: steps 1 to 3 complete,
+   * and **every setlist song's file reads** (Jorge, 2026-09-03).
+   */
+  canConfirm: boolean
   /** True when `bombista` could not be run at all, so no song carries its verdict. */
   validationSkipped: boolean
   /**
@@ -170,6 +212,11 @@ export type GigReadinessInput = {
   visuals: VisualsFile | null
   /** The refusal, when `visuals.json` exists and was rejected. */
   visualsProblem: string | null
+  /**
+   * **Which refusal it was**, when there is one. Carried beside the sentence so a screen can tell
+   * *this mapping is another room's* from *this file will not parse* without reading the sentence.
+   */
+  visualsRefusal?: VisualsRefusalKind | null
   /** The setlist, in order. */
   setlist: readonly SetlistSongInput[]
   /** Keyed by the song file's logical `media.src`. */
@@ -260,28 +307,36 @@ function contentMissingFor(
   song: LibrarySong,
   types: readonly string[],
   mediaResolution: Readonly<Record<string, MediaResolution>>
-): string[] {
+): { missing: string[]; filesResolve: boolean } {
   const missing: string[] = []
+  // **The file half, split out and returned rather than inferred from the sentences.** It is one
+  // computation with two answers, not a second opinion: everything below writes to both, so a
+  // caller can never read a `filesResolve` that disagrees with what `missing` says.
+  let filesResolve = true
   if (types.includes('song-lyrics') && !hasLyricLines(song)) {
+    // Not a file. A song with no lyric lines names nothing that failed to resolve.
     missing.push('has a lyrics shape but no lyric lines')
   }
   if (types.includes('song-video')) {
     const src = song.media?.src
     if (!src) {
+      // Also not a file question: there is no name here that failed to resolve, there is no name.
       missing.push('has a video shape but declares no media')
     } else {
       const resolution = mediaResolution[src]
       if (!resolution || !resolution.linked) {
         missing.push(`has a video shape but ${src} is not linked on this machine`)
+        filesResolve = false
       } else if (!resolution.exists) {
         missing.push(`has a video shape but the file linked for ${src} is not there`)
+        filesResolve = false
       }
       if ((song.timeline ?? []).length === 0) {
         missing.push('has a video shape but no timeline to bind subtitles to')
       }
     }
   }
-  return missing
+  return { missing, filesResolve }
 }
 
 /**
@@ -323,6 +378,9 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     ready: entry.song !== null,
     missing: entry.song === null ? [entry.error ?? `${entry.path} could not be read`] : [],
     notes: [],
+    fileResolves: entry.song !== null,
+    // With no gig there is no room, so no song points at a shape, so no song needs a file.
+    contentResolves: true,
   }))
   return {
     folderPath: null,
@@ -343,6 +401,9 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     songs,
     playableSongIds: songs.filter((s) => s.ready).map((s) => s.songId),
     refusals: [],
+    visualsRefusal: null,
+    // Nothing to confirm: there is no gig folder open.
+    canConfirm: false,
     validationSkipped: false,
     confirmation: null,
     adoption: null,
@@ -366,6 +427,10 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   const songs: SongReadiness[] = input.setlist.map((entry) => {
     const missing: string[] = []
     const notes = songNotes(input.validation[entry.id])
+    const fileResolves = entry.song !== null
+    // **A song whose file did not read names no files that failed**, because nothing got as far as
+    // reading what it names. True is the honest answer, and the file line above it is what fails.
+    let contentResolves = true
 
     if (entry.song === null) {
       missing.push(entry.error ?? `${entry.path} could not be read`)
@@ -379,7 +444,9 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
       if (performing.length === 0) {
         missing.push('no shape carries this song — the gig has no lyrics or video shape for it')
       }
-      missing.push(...contentMissingFor(entry.song, types, input.mediaResolution))
+      const content = contentMissingFor(entry.song, types, input.mediaResolution)
+      missing.push(...content.missing)
+      contentResolves = content.filesResolve
     }
 
     return {
@@ -388,6 +455,8 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
       ready: missing.length === 0,
       missing,
       notes,
+      fileResolves,
+      contentResolves,
     }
   })
 
@@ -517,11 +586,34 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
       ? null
       : { confirmedAt: recorded.confirmedAt, stale: moved.length > 0, moved }
 
+  // **A SONG WHOSE FILE WILL NOT READ FAILS HERE, AND STAYS A NOTE AT STEP 2** (Jorge,
+  // 2026-09-03). The two are not in conflict, and the principle is the whole of it:
+  //
+  //   **A problem you can still route around while composing becomes a blocker at the moment you
+  //   assert readiness.**
+  //
+  // At step 2 such a song cannot be repaired from inside the flow — Bombista cannot take a file it
+  // will not parse — so blocking there would make a guided path nobody can finish, and `libertad`
+  // is the standing example. At step 4 you are asserting the gig is ready, and a song changed
+  // outside the app is not. Same fact, two moments, two treatments.
+  //
+  // **Read off `fileResolves`, never off a message.** Step 9's blocking trap was a predicate
+  // matching a substring against rendered prose.
+  const unreadable = songs.filter((song) => !song.fileResolves)
+
   const step4Missing: string[] = []
   let step4Status: StepStatus = 'complete'
   if (earlierStatus === 'broken') {
     step4Status = 'broken'
     step4Missing.push('Something above is a refusal, not a gap.')
+  } else if (unreadable.length > 0) {
+    step4Status = 'not-yet'
+    step4Missing.push(
+      unreadable.length === 1
+        ? 'One song in the setlist will not read, so the gig is not ready:'
+        : `${unreadable.length} songs in the setlist will not read, so the gig is not ready:`,
+      ...unreadable.map((song) => `${song.title}: ${song.missing.join('; ')}`)
+    )
   } else if (confirmation === null) {
     step4Status = 'not-yet'
     step4Missing.push(
@@ -569,6 +661,10 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     songs,
     playableSongIds,
     refusals,
+    // **Null when there is no refusal, including when there is simply no room yet.** *Not mapped*
+    // and *mapped wrong* are different answers and `steps[3].status` is what tells them apart.
+    visualsRefusal: input.visualsProblem ? (input.visualsRefusal ?? 'unparseable') : null,
+    canConfirm: earlierStatus === 'complete' && unreadable.length === 0,
     validationSkipped,
     confirmation,
     adoption: input.adoption ?? null,

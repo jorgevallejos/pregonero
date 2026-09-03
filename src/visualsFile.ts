@@ -18,6 +18,41 @@
 
 export const VISUALS_VERSION = 1
 
+/**
+ * **Why the refusal is typed** (2026-09-03).
+ *
+ * `parseVisualsFile` refuses three different things and used to say so only in a sentence. The
+ * check screen's last line before a gig is confirmed is *the visuals belong to this gig*, and
+ * telling that apart from *this file will not parse* meant matching the message — **which is the
+ * trap step 9 already fell into**, where a predicate matched a substring against rendered prose
+ * and blocked silently while never mentioning the real reason.
+ *
+ * So the kind travels with the message. Nothing reads the sentence to decide anything.
+ *
+ * - `unparseable` — not JSON, not an object, or declaring no `visualsVersion`.
+ * - `unknown-version` — a `visualsVersion` this build does not understand.
+ * - `other-gig` — a mapping of a different room. **The one this file exists to catch**: copying
+ *   last month's gig folder to start the next one renders perfectly and reports nothing.
+ * - `unreadable` — never thrown here. It is the kind for a folder read that failed before this
+ *   function was reached, so callers have one vocabulary rather than two.
+ */
+export type VisualsRefusalKind = 'unparseable' | 'unknown-version' | 'other-gig' | 'unreadable'
+
+/** A refusal that names its kind. `parseVisualsFile` throws only this. */
+export class VisualsRefused extends Error {
+  readonly kind: VisualsRefusalKind
+  constructor(kind: VisualsRefusalKind, message: string) {
+    super(message)
+    this.name = 'VisualsRefused'
+    this.kind = kind
+  }
+}
+
+/** The kind of a caught refusal, or `unparseable` for anything that is not one of ours. */
+export function visualsRefusalKind(error: unknown): VisualsRefusalKind {
+  return error instanceof VisualsRefused ? error.kind : 'unparseable'
+}
+
 /** The four song-aware types. `gig-contact` is a gig-level fact and is never reassigned per song. */
 export const SONG_AWARE_TYPES = ['song-lyrics', 'song-video', 'song-intro', 'gig-contact'] as const
 export const SONG_REASSIGNABLE_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
@@ -139,28 +174,40 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
   try {
     raw = JSON.parse(text) as unknown
   } catch (e) {
-    throw new Error(`visuals.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`)
+    throw new VisualsRefused(
+      'unparseable',
+      `visuals.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`
+    )
   }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('visuals.json is not an object.')
+    throw new VisualsRefused('unparseable', 'visuals.json is not an object.')
   }
   const o = raw as Record<string, unknown>
 
   if (typeof o.visualsVersion !== 'number') {
-    throw new Error('visuals.json declares no visualsVersion. Re-save it from Muralista.')
+    throw new VisualsRefused(
+      'unparseable',
+      'visuals.json declares no visualsVersion. Re-save it from Muralista.'
+    )
   }
   if (o.visualsVersion !== VISUALS_VERSION) {
-    throw new Error(
+    throw new VisualsRefused(
+      'unknown-version',
       `visuals.json is version ${o.visualsVersion}; this build understands version ${VISUALS_VERSION}. Nothing will be projected from it.`
     )
   }
+  // **Naming no gig is `other-gig`, not `unparseable`.** The question the screen asks is *does
+  // this mapping belong to this gig*, and a file that names none does not — the shape of the file
+  // is fine and the answer is still no.
   if (!isNonEmptyString(o.gigId)) {
-    throw new Error(
+    throw new VisualsRefused(
+      'other-gig',
       'visuals.json names no gig. It cannot be used as this gig’s room — re-map it in Muralista with this gig connected.'
     )
   }
   if (o.gigId !== expectedGigId) {
-    throw new Error(
+    throw new VisualsRefused(
+      'other-gig',
       `visuals.json belongs to gig "${o.gigId}", not "${expectedGigId}". That is a mapping of a different room — re-map it in Muralista with this gig connected.`
     )
   }

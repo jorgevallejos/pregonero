@@ -613,3 +613,185 @@ describe('a gig with identity and no setlist: valid, and not ready', () => {
     expect(r.gate).toBe('on')
   })
 })
+
+/**
+ * **Every designed check is its own structured field** (Jorge, 2026-09-03).
+ *
+ * `v0.47.0` shipped the check screen reporting that it could not draw the design's three checks as
+ * three lines: two of them lived inside `songs[].missing` prose and the third shared a verdict
+ * with a bad `visualsVersion` and a bad parse. **Reading strings to decide anything is the trap
+ * step 9 already fell into**, where a predicate matched a substring against a rendered message and
+ * blocked silently while never naming the real reason.
+ *
+ * These are the fields that replaced that, and the point of each is that **nothing reads a
+ * sentence to know it**.
+ */
+describe('the checks as fields', () => {
+  const readable = song('duelo')
+
+  it('says which songs resolved to a file, without anybody reading the message', () => {
+    const r = computeGigReadiness(
+      input({
+        setlist: [row(readable), brokenRow('libertad', '20 timeline entries, 24 lyric lines')],
+      })
+    )
+    expect(r.songs.map((s) => [s.songId, s.fileResolves])).toEqual([
+      ['duelo', true],
+      ['libertad', false],
+    ])
+  })
+
+  it('says which songs name a file that does not resolve, separately from that', () => {
+    // A song whose own file read perfectly and whose media is not linked on this machine. Before
+    // the split these were one verdict and one sentence.
+    const withVideo = song('tragedia', {
+      media: { type: 'video', src: 'tragedia.mp4' },
+      timeline: [{ start: 0, end: 1 }],
+    } as Partial<LibrarySong>)
+    const r = computeGigReadiness(
+      input({
+        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        setlist: [row(withVideo)],
+        mediaResolution: {},
+      })
+    )
+    const s = r.songs[0]!
+    expect(s.fileResolves).toBe(true)
+    expect(s.contentResolves).toBe(false)
+  })
+
+  it('calls a song that names no file resolved, because it names none', () => {
+    // A lyrics-only song. `true` is the honest answer: there is nothing that failed to resolve.
+    const r = computeGigReadiness(input({ setlist: [row(readable)] }))
+    expect(r.songs[0]!.contentResolves).toBe(true)
+  })
+
+  it('does not blame a song whose own file did not read for files it never named', () => {
+    // Nothing got as far as reading what it names, so there is no failed resolution to report.
+    // The file line above it is what fails.
+    const r = computeGigReadiness(input({ setlist: [brokenRow('libertad', 'nope')] }))
+    expect(r.songs[0]!.fileResolves).toBe(false)
+    expect(r.songs[0]!.contentResolves).toBe(true)
+  })
+
+  it('does not disagree with the sentences it sits beside', () => {
+    // One computation, two answers: `contentResolves` cannot say *fine* while `missing` names a
+    // file that is not there, because both are written by the same branch.
+    const withVideo = song('tragedia', {
+      media: { type: 'video', src: 'tragedia.mp4' },
+      timeline: [{ start: 0, end: 1 }],
+    } as Partial<LibrarySong>)
+    const r = computeGigReadiness(
+      input({
+        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        setlist: [row(withVideo)],
+        mediaResolution: { 'tragedia.mp4': { linked: true, exists: false } },
+      })
+    )
+    const s = r.songs[0]!
+    expect(s.contentResolves).toBe(false)
+    expect(s.missing.join(' ')).toContain('is not there')
+  })
+
+  it('names which refusal the room was, rather than only that it was one', () => {
+    // **A mapping of a different room renders perfectly and reports nothing**, and it used to be
+    // indistinguishable here from a file that will not parse.
+    const r = computeGigReadiness(
+      input({
+        visuals: null,
+        visualsProblem: 'visuals.json belongs to gig "last-month", not "k3f9x2abcd".',
+        visualsRefusal: 'other-gig',
+      })
+    )
+    expect(r.visualsRefusal).toBe('other-gig')
+  })
+
+  it('reports no refusal when there is simply no room yet', () => {
+    // *Not mapped* and *mapped wrong* are different answers; `steps[3].status` tells them apart.
+    const r = computeGigReadiness(input({ visuals: null, visualsPresent: false }))
+    expect(r.visualsRefusal).toBeNull()
+    expect(r.steps.find((s) => s.step === 3)!.status).toBe('not-yet')
+  })
+
+  it('falls back to unparseable for a refusal whose kind was not carried', () => {
+    // Defensive: a caller that sets the sentence and forgets the kind gets the least specific
+    // answer rather than a null that would read as *no refusal*.
+    const r = computeGigReadiness(input({ visuals: null, visualsProblem: 'something went wrong' }))
+    expect(r.visualsRefusal).toBe('unparseable')
+  })
+})
+
+/**
+ * **A song whose file will not read is a note at step 2 and a failure at step 4** (Jorge,
+ * 2026-09-03). The two are not in conflict, and the principle is the whole of it: **a problem you
+ * can still route around while composing becomes a blocker at the moment you assert readiness.**
+ *
+ * At step 2 such a song cannot be repaired from inside the flow — Bombista cannot take a file it
+ * will not parse — so blocking there would make a guided path nobody can finish, and `libertad` is
+ * the standing example. At step 4 you are asserting the gig is ready, and a song changed outside
+ * the app is not.
+ */
+describe('an unreadable song: routed around while composing, blocking at the assertion', () => {
+  const withBroken = () =>
+    computeGigReadiness(
+      input({
+        setlist: [row(song('duelo')), brokenRow('libertad', '20 timeline entries, 24 lyric lines')],
+      })
+    )
+
+  it('leaves step 2 complete, and keeps it as a note there', () => {
+    const step2 = withBroken().steps.find((s) => s.step === 2)!
+    expect(step2.status).toBe('complete')
+    expect(step2.missing).toEqual([])
+    expect(step2.notes.join(' ')).toContain('24 lyric lines')
+  })
+
+  it('fails step 4 and names the song', () => {
+    const step4 = withBroken().steps.find((s) => s.step === 4)!
+    expect(step4.status).toBe('not-yet')
+    expect(step4.missing[0]).toContain('will not read')
+    expect(step4.missing.join(' ')).toContain('libertad')
+  })
+
+  it('refuses the confirmation', () => {
+    expect(withBroken().canConfirm).toBe(false)
+  })
+
+  it('says so in the plural when more than one will not read', () => {
+    const r = computeGigReadiness(
+      input({ setlist: [brokenRow('a', 'nope'), brokenRow('b', 'nope')] })
+    )
+    expect(r.steps.find((s) => s.step === 4)!.missing[0]).toContain('2 songs')
+  })
+
+  it('allows the confirmation when every file reads', () => {
+    expect(computeGigReadiness(input()).canConfirm).toBe(true)
+  })
+
+  it('does not block the confirmation for a file the song NAMES not resolving', () => {
+    // The ruling widened the gate for an unreadable song file and named nothing else. That song
+    // still cannot be armed, which is a gate on the night rather than on the gig.
+    const withVideo = song('tragedia', {
+      media: { type: 'video', src: 'tragedia.mp4' },
+      timeline: [{ start: 0, end: 1 }],
+    } as Partial<LibrarySong>)
+    const r = computeGigReadiness(
+      input({
+        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        setlist: [row(withVideo)],
+        mediaResolution: {},
+      })
+    )
+    expect(r.songs[0]!.ready).toBe(false)
+    expect(r.canConfirm).toBe(true)
+  })
+
+  it('refuses the confirmation while an earlier step is not done', () => {
+    const r = computeGigReadiness(input({ visuals: null, visualsPresent: false }))
+    expect(r.canConfirm).toBe(false)
+  })
+
+  it('refuses the confirmation with no gig folder open', () => {
+    expect(computeGigReadiness(input({ folderPath: null })).canConfirm).toBe(false)
+  })
+})
