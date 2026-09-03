@@ -6322,3 +6322,33 @@ describe('The contact panel condition is broadcast from the control window', () 
     expect(lit()).toBe(true)
   })
 })
+
+// ── The gig column says which night, never which folder ──────────────────────────────────────
+//
+// **Jorge, 2026-09-03.** The column that answers *which gig is this* rendered `gigReadiness.gigId`,
+// and since 03/09 that is an opaque ten-character id — so the stage read `k3f9x2abcd`. Backstage
+// was fixed for exactly this the same day, with `gigLabels.ts`; the control view was missed.
+//
+// **One owner**: `gigFile.gigLabelFrom`. A second rendering of *what a gig is called* is how the
+// row and the stage start disagreeing.
+
+describe('the gig column', () => {
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+    installProductionLikeLibrary()
+  })
+
+  afterEach(() => {
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('reads No gig from nothing', async () => {
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(screen.getByTestId('control-gig-value').textContent).toBe('No gig')
+    }, { timeout: 3000 })
+  })
+})
