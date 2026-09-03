@@ -125,11 +125,6 @@ declare global {
         folderPath: string,
         text: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
-      /** Writes `debrief.md` at the gig folder's root. Pregonero writes it, then Jorge edits it. */
-      writeDebriefFile: (
-        folderPath: string,
-        text: string
-      ) => Promise<{ ok: true } | { ok: false; error: string }>
       /** Runs one Bombista subcommand. A song file path, never a gig. */
       runBombista: (
         subcommand: string,

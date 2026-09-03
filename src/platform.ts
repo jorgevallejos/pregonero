@@ -138,22 +138,6 @@ export async function writeGigFile(
   }
 }
 
-/** Writes `debrief.md` at the gig folder's root, beside the poster and the contract. */
-export async function writeDebriefFile(
-  folderPath: string,
-  text: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const a = api()
-  if (!a || typeof a.writeDebriefFile !== 'function') {
-    return { ok: false, error: 'The gig folder can only be written from the desktop app.' }
-  }
-  try {
-    return await a.writeDebriefFile(folderPath, text)
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
-  }
-}
-
 /**
  * Reads a song file's text. The library's own reader goes through here rather than reaching for
  * `window.electronAPI` itself — this is the one module that knows Electron exists, and a song file

@@ -77,7 +77,7 @@ export type SongReadiness = {
 export type GigReadiness = {
   folderPath: string | null
   gigId: string | null
-  /** The gig's own identity fields, carried so the debrief can name the night without a second read. */
+  /** The gig's own identity fields, carried so a caller can name the night without a second read. */
   date: string | null
   venue: { name?: string; city?: string } | null
   /**
@@ -93,8 +93,7 @@ export type GigReadiness = {
    * The setlist as it can actually be played, in order. **The one list any "setlist is done"
    * predicate may be derived against** — see `isSetlistComplete`. A trailing song that cannot be
    * played is never played, so a predicate reading the authored setlist would wait for it forever
-   * and the gig would never end: no contact panel, no debrief, discovered at the end of a real
-   * night.
+   * and the gig would never end: no contact panel, discovered at the end of a real night.
    */
   playableSongIds: string[]
   /** The loud refusals, verbatim. A non-empty list is a file to fix, not a state to work around. */
