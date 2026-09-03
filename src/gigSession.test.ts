@@ -324,27 +324,21 @@ describe('opening a folder with no gig.json', () => {
     readGigFolder.mockResolvedValue(emptyRead())
   })
 
-  it('creates one, taking its id from the folder and its date from today', async () => {
-    // **The folder no longer says which night it is** (2026-09-03): it is an opaque id, so the
-    // date is today's rather than read off the name. Only a folder found without a file in it
-    // keeps that date — a gig made by the flow has the real one written in the same breath.
+  it('writes nothing at all, and invents no date', async () => {
+    // **Reading a folder must not create a file in it** (Jorge, 2026-09-03). This used to write an
+    // identity-only `gig.json` carrying today's date, which is how a folder nobody had called a
+    // gig became one with an invented night. Under *the gigs list is the folder* such a folder is
+    // not a gig and is never listed, so there is nothing to date and nothing to write.
     await refreshGigReadiness()
-    const [, text] = writeGigFile.mock.calls[0] as [string, string]
-    const written = JSON.parse(text) as { gigVersion: number; id: string; date: string }
-    expect(written).toMatchObject({ gigVersion: 1, id: GIG_ID })
-    expect(written.date).toBe(new Date().toISOString().slice(0, 10))
+    expect(writeGigFile).not.toHaveBeenCalled()
   })
 
-  it('writes the setlist into it as songs and setlist', async () => {
-    await refreshGigReadiness()
-    const calls = writeGigFile.mock.calls as [string, string][]
-    const last = calls[calls.length - 1]!
-    const written = JSON.parse(last[1]) as { songs: unknown[]; setlist: string[] }
-    expect(written.setlist).toEqual(['duelo', 'vidas'])
-    expect(written.songs).toEqual([
-      { id: 'duelo', title: 'duelo', file: 'duelo.json' },
-      { id: 'vidas', title: 'vidas', file: 'vidas.json' },
-    ])
+  it('says so, rather than covering it with a file it made itself', async () => {
+    const r = await refreshGigReadiness()
+    expect(r.steps.find((s) => s.step === 1)!.status).toBe('not-yet')
+    expect(r.steps.find((s) => s.step === 1)!.missing).toContain('No gig.json in this folder yet.')
+    // Not a refusal: a folder without a gig file is a state, not a failure to report.
+    expect(r.refusals).toEqual([])
   })
 
   it('reports step 3 as not yet, because Muralista has not run', async () => {

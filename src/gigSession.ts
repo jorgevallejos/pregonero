@@ -36,7 +36,6 @@ import {
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
 import { broadcastVisuals } from './visualsBroadcast'
 import { getRememberedGigFolder, rememberGigFolder } from './gigFolderStore'
-import { rememberGigInList } from './gigListStore'
 import {
   adoptSetlistInSnapshot,
   getOrderedEntriesForActiveSetlist,
@@ -288,12 +287,17 @@ async function adoptSetlistFromGig(gig: GigFile, folderPath: string): Promise<vo
 /**
  * Reads the gig folder and recomputes the delta.
  *
- * **Re-read on open.** Two writes can still happen here, and both are Pregonero writing the file it
- * owns: a folder with no `gig.json` gets one carrying identity and nothing else, and a `gig.json`
- * that has not reached the step where it carries a running order gets the app's written in. That
- * second one is accretion, not an overwrite — `docs/gig-file.md`, "The file exists before it is
- * finished". **A file that already states a setlist is read, never rewritten here**; changing the
- * running order is `publishSetlistToGig`, which is an explicit act with a screen behind it.
+ * **Re-read on open. One write can still happen here**, and it is Pregonero writing the file it
+ * owns: a `gig.json` that has not reached the step where it carries a running order gets the app's
+ * written in. That is accretion, not an overwrite — `docs/gig-file.md`, "The file exists before it
+ * is finished". **A file that already states a setlist is read, never rewritten here**; changing
+ * the running order is `publishSetlistToGig`, which is an explicit act with a screen behind it.
+ *
+ * **A folder with no `gig.json` no longer gets one written into it** (2026-09-03). It used to,
+ * carrying an id and today's date — which is how a folder nobody had called a gig became one with
+ * an invented date. Under *the gigs list is the folder*, such a folder is not a gig and is not
+ * listed, so there is nothing to date; reading a folder must not create a file in it. The state it
+ * lands in is the one readiness already had a name for: **no gig.json in this folder yet**.
  */
 export async function refreshGigReadiness(): Promise<GigReadiness> {
   const folderPath = getRememberedGigFolder()
@@ -325,13 +329,7 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
   let gig: GigFile | null = null
   let gigProblem: string | null = read.gigError
 
-  if (!read.gigPresent && gigProblem === null) {
-    // Existence is settled in seconds: gigVersion, id, date. Venue and setlist accrete later.
-    const created = createGigFile(folderPath, new Date().toISOString().slice(0, 10))
-    const written = await platform.writeGigFile(folderPath, serializeGigFile(created))
-    if (written.ok) gig = created
-    else gigProblem = written.error
-  } else if (read.gigText !== null) {
+  if (read.gigText !== null) {
     try {
       gig = parseGigFile(read.gigText)
     } catch (e) {
@@ -473,7 +471,7 @@ export async function createGig(identity: {
   // path write an identity-only file — and writing the venue over it afterwards — would be three
   // writes and one read-back, and would leave a gig that briefly exists without the venue that
   // named it.
-  const base = createGigFile(made.folderPath, new Date().toISOString().slice(0, 10))
+  const base = createGigFile(made.folderPath)
   const gig = withIdentity(base, { date: identity.date, venue: identity.venue })
   const written = await platform.writeGigFile(made.folderPath, serializeGigFile(gig))
   if (!written.ok) return { ok: false, error: written.error }
@@ -615,13 +613,12 @@ export async function confirmSetup(): Promise<GigReadiness> {
 /**
  * Opens a gig folder this app already has a path for — a row on Setup home.
  *
- * **Two different memories, and they mean different things.** `rememberGigFolder` is *which gig is
- * open*, one path, read by the Projection window; the list is *which gigs this machine knows
- * about*, a bookmark list. Opening touches both; listing touches only the second.
+ * **One memory, and it is *which gig is open***: one path, read by the Projection window. There is
+ * no second list to keep in step — since 2026-09-03 the gigs list is `<gigs>/setup/` itself, read
+ * on arrival, so opening a gig records nothing about which gigs exist.
  */
 export async function openGigFolder(folderPath: string): Promise<GigReadiness> {
   rememberGigFolder(folderPath)
-  rememberGigInList(folderPath)
   return refreshGigReadiness()
 }
 

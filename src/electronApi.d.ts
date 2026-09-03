@@ -163,6 +163,17 @@ declare global {
         { ok: true; present: boolean; files: string[] } | { ok: false; error: string }
       >
       /**
+       * The gig folders inside `<gigs>/setup`, joined by the renderer. Same three answers as the
+       * songs listing: absent is `present: false` with no problem, and only a folder that refuses
+       * to be read is `ok: false`. Whether a folder is a gig is decided by reading `gig.json`,
+       * not here.
+       */
+      listGigsFolder: (
+        folderPath: string
+      ) => Promise<
+        { ok: true; present: boolean; folders: string[] } | { ok: false; error: string }
+      >
+      /**
        * Whether a folder can be read at all. Moved, renamed and refusing are one answer: the
        * folder this machine was pointed at is not there to be read.
        */

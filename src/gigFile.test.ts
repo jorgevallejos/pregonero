@@ -95,12 +95,11 @@ describe('serializeGigFile', () => {
 })
 
 describe('createGigFile', () => {
-  it('takes its identity from the folder and its date from today', () => {
-    const gig = createGigFile('/gigs/setup/k3f9x2abcd', '2026-08-26')
+  it('takes its identity from the folder and invents nothing else', () => {
+    const gig = createGigFile('/gigs/setup/k3f9x2abcd')
     expect(gig).toEqual({
       gigVersion: 1,
       id: 'k3f9x2abcd',
-      date: '2026-08-26',
       visuals: './visuals.json',
     })
   })
@@ -110,11 +109,18 @@ describe('createGigFile', () => {
     // happens to lead with a date is a coincidence, and a coincidence must not become a fact in
     // the file: an id could be minted that starts with digits, and 2026-05-16 could be a folder
     // somebody made by hand.
-    expect(createGigFile('/gigs/setup/2026-09-12-bar-eduard', '2026-08-26').date).toBe('2026-08-26')
+    expect(createGigFile('/gigs/setup/2026-09-12-bar-eduard').date).toBeUndefined()
+  })
+
+  it('invents no date at all', () => {
+    // **Nothing invents a date** (Jorge, 2026-09-03). Today's used to stand in for a folder found
+    // without a file in it; that case is gone with the bookmark list, and a guess must not take
+    // its place. An absent date is what readiness reports as missing, which is the honest state.
+    expect(createGigFile('/gigs/setup/k3f9x2abcd').date).toBeUndefined()
   })
 
   it('invents no venue', () => {
-    expect(createGigFile('/gigs/setup/k3f9x2abcd', '2026-08-26').venue).toBeUndefined()
+    expect(createGigFile('/gigs/setup/k3f9x2abcd').venue).toBeUndefined()
   })
 })
 
