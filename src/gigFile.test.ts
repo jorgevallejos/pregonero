@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   GIG_VERSION,
   createGigFile,
-  gigDateFromFolderPath,
-  gigIdFrom,
+  GIG_ID_LENGTH,
+  gigIdentityIsAnswered,
+  gigLabel,
+  newGigId,
   gigIdFromFolderPath,
   hasAuthoredSetlist,
   parseGigFile,
@@ -13,37 +15,26 @@ import {
   withIdentity,
   withSetlist,
   withSetup,
-  venueSlug,
 } from './gigFile'
 
 describe('gigIdFromFolderPath', () => {
   it('is the folder name', () => {
-    expect(gigIdFromFolderPath('/Users/j/gigs/2026-09-12-bar-eduard')).toBe('2026-09-12-bar-eduard')
+    expect(gigIdFromFolderPath('/Users/j/gigs/setup/k3f9x2abcd')).toBe('k3f9x2abcd')
   })
 
   it('ignores a trailing slash', () => {
-    expect(gigIdFromFolderPath('/Users/j/gigs/2026-09-12-bar-eduard/')).toBe(
-      '2026-09-12-bar-eduard'
+    expect(gigIdFromFolderPath('/Users/j/gigs/setup/k3f9x2abcd/')).toBe(
+      'k3f9x2abcd'
     )
   })
 })
 
-describe('gigDateFromFolderPath', () => {
-  it('reads a leading ISO date', () => {
-    expect(gigDateFromFolderPath('/gigs/2026-09-12-bar-eduard')).toBe('2026-09-12')
-  })
-
-  it('is null when the folder does not lead with one', () => {
-    expect(gigDateFromFolderPath('/gigs/bar-eduard')).toBeNull()
-  })
-})
-
 describe('parseGigFile', () => {
-  const minimal = JSON.stringify({ gigVersion: 1, id: '2026-09-12-bar-eduard' })
+  const minimal = JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd' })
 
   it('accepts a file carrying only identity — the state it is in from step 2', () => {
     const gig = parseGigFile(minimal)
-    expect(gig.id).toBe('2026-09-12-bar-eduard')
+    expect(gig.id).toBe('k3f9x2abcd')
     expect(gig.songs).toBeUndefined()
     expect(gig.setlist).toBeUndefined()
   })
@@ -104,22 +95,26 @@ describe('serializeGigFile', () => {
 })
 
 describe('createGigFile', () => {
-  it('takes its identity from the folder and its date from the folder name', () => {
-    const gig = createGigFile('/gigs/2026-09-12-bar-eduard', '2026-08-26')
+  it('takes its identity from the folder and its date from today', () => {
+    const gig = createGigFile('/gigs/setup/k3f9x2abcd', '2026-08-26')
     expect(gig).toEqual({
       gigVersion: 1,
-      id: '2026-09-12-bar-eduard',
-      date: '2026-09-12',
+      id: 'k3f9x2abcd',
+      date: '2026-08-26',
       visuals: './visuals.json',
     })
   })
 
-  it('falls back to today when the folder name carries no date', () => {
-    expect(createGigFile('/gigs/bar-eduard', '2026-08-26').date).toBe('2026-08-26')
+  it('reads no date out of the folder name, whatever the name looks like', () => {
+    // **The folder is an opaque id and nothing is derived from it** (2026-09-03). A folder that
+    // happens to lead with a date is a coincidence, and a coincidence must not become a fact in
+    // the file: an id could be minted that starts with digits, and 2026-05-16 could be a folder
+    // somebody made by hand.
+    expect(createGigFile('/gigs/setup/2026-09-12-bar-eduard', '2026-08-26').date).toBe('2026-08-26')
   })
 
   it('invents no venue', () => {
-    expect(createGigFile('/gigs/bar-eduard', '2026-08-26').venue).toBeUndefined()
+    expect(createGigFile('/gigs/setup/k3f9x2abcd', '2026-08-26').venue).toBeUndefined()
   })
 })
 
@@ -128,7 +123,7 @@ describe('createGigFile', () => {
  * typed rather than derived from a file another tool owns.
  */
 describe('withIdentity', () => {
-  const gig = { gigVersion: GIG_VERSION, id: '2026-09-12-bar-eduard', visuals: './visuals.json' }
+  const gig = { gigVersion: GIG_VERSION, id: 'k3f9x2abcd', visuals: './visuals.json' }
 
   it('records the date and the venue', () => {
     const next = withIdentity(gig, {
@@ -167,7 +162,7 @@ describe('withIdentity', () => {
    */
   it('never touches the id, the version or the visuals pointer', () => {
     const next = withIdentity(gig, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
-    expect(next.id).toBe('2026-09-12-bar-eduard')
+    expect(next.id).toBe('k3f9x2abcd')
     expect(next.gigVersion).toBe(GIG_VERSION)
     expect(next.visuals).toBe('./visuals.json')
   })
@@ -346,59 +341,109 @@ describe('the setup confirmation in the file', () => {
 })
 
 /**
- * **The identity is derived, not typed** (2026-09-02, journey step 9.1).
- *
- * `New gig` asked for a name whose answer was a folder name — the folder question in different
- * clothes. A gig is named by its date and its venue now, in the shape of the night folders Jorge
- * already keeps, so a gig row and its night read as the same thing even though they sit apart.
+ * **A gig's identity is an opaque id** (Jorge, 2026-09-03), superseding the 02/09 shape
+ * `2026-05-16-bom-festival`. That name was derived from the date and the venue, and both of them
+ * change: identity derived from data that can change is not identity.
  */
-describe('gigIdFrom — the gig names itself', () => {
-  it('is the date, then the venue', () => {
-    expect(gigIdFrom({ date: '2026-05-16', venue: 'BOM Festival' })).toBe('2026-05-16-bom-festival')
+describe('newGigId — the folder means nothing', () => {
+  it('is ten characters of the id alphabet', () => {
+    const id = newGigId()
+    expect(id).toHaveLength(GIG_ID_LENGTH)
+    expect(id).toMatch(/^[0-9abcdefghjkmnpqrstvwxyz]+$/)
   })
 
-  it('matches the folders Jorge already keeps', () => {
-    // `context/concerts/` holds exactly these two. The shape is not invented here; it is read off
-    // what is already on his disk.
-    expect(gigIdFrom({ date: '2026-05-29', venue: 'PC Hoegaarden' })).toBe('2026-05-29-pc-hoegaarden')
+  it('never uses a character that can be misread', () => {
+    // Crockford's base32: no `i`, `l`, `o` or `u`. Jorge reads a folder name off a screen and
+    // types it into a terminal, and `1` against `l` is the whole reason that alphabet exists.
+    const ids = Array.from({ length: 500 }, newGigId).join('')
+    expect(ids).not.toMatch(/[ilou]/)
   })
 
-  /**
-   * **Null is the gate on writing anything at all.** Nothing reaches disk until a gig can be
-   * named, so there is never a half-made folder in a list nothing shows.
-   */
-  it('is null until both halves are there', () => {
-    expect(gigIdFrom({ date: '', venue: 'BOM Festival' })).toBeNull()
-    expect(gigIdFrom({ date: '2026-05-16', venue: '' })).toBeNull()
-    expect(gigIdFrom({ date: '2026-05-16', venue: '   ' })).toBeNull()
+  it('is a different id every time', () => {
+    const ids = new Set(Array.from({ length: 500 }, newGigId))
+    expect(ids.size).toBe(500)
   })
 
-  it('is null for a date that is not a date', () => {
-    expect(gigIdFrom({ date: '16/05/2026', venue: 'BOM Festival' })).toBeNull()
-    expect(gigIdFrom({ date: '2026-5-16', venue: 'BOM Festival' })).toBeNull()
-  })
-
-  it('is null for a venue with no letters or digits in it', () => {
-    // It would otherwise name the folder after the date alone, and two nights would collide.
-    expect(gigIdFrom({ date: '2026-05-16', venue: '—' })).toBeNull()
+  it('is a folder name with nothing in it a filesystem minds', () => {
+    for (let i = 0; i < 100; i += 1) {
+      const id = newGigId()
+      expect(id).not.toMatch(/[/\\.\s]/)
+    }
   })
 })
 
-describe('venueSlug', () => {
-  /**
-   * **Accents are folded, never dropped.** Jorge's venues are Spanish, French and Dutch, and a name
-   * that loses its letters is a folder nobody recognises in Finder.
-   */
-  it('folds accents rather than eating the letters', () => {
-    expect(venueSlug('Café Central')).toBe('cafe-central')
-    expect(venueSlug('Écurie Saint-Éloi')).toBe('ecurie-saint-eloi')
+/**
+ * **The write gate, stated rather than emergent** (Jorge, 2026-09-03).
+ *
+ * Until the folder became opaque, this rule enforced itself: a gig was named by its date and its
+ * venue, so a missing half meant no name and nothing to create. **An opaque id can be minted about
+ * a gig that is nothing yet**, so the protection had to be written down. `createGig` is where it
+ * binds — see `gigSession.test.ts` — and this is the rule it checks.
+ */
+describe('gigIdentityIsAnswered', () => {
+  it('is true when the date and the venue are both there', () => {
+    expect(gigIdentityIsAnswered({ date: '2026-05-16', venue: 'BOM Festival' })).toBe(true)
   })
 
-  it('collapses everything that is not a letter or a digit into one hyphen', () => {
-    expect(venueSlug('  De  Poel / zaal 2 ')).toBe('de-poel-zaal-2')
+  it('is false until both halves are answered', () => {
+    expect(gigIdentityIsAnswered({ date: '', venue: 'BOM Festival' })).toBe(false)
+    expect(gigIdentityIsAnswered({ date: '2026-05-16', venue: '' })).toBe(false)
+    expect(gigIdentityIsAnswered({ date: '2026-05-16', venue: '   ' })).toBe(false)
+    expect(gigIdentityIsAnswered({ date: '   ', venue: '   ' })).toBe(false)
   })
 
-  it('never leads or trails with a hyphen', () => {
-    expect(venueSlug("'t Ey!")).toBe('t-ey')
+  it('is false for a date that is not a date', () => {
+    expect(gigIdentityIsAnswered({ date: '16/05/2026', venue: 'BOM Festival' })).toBe(false)
+    expect(gigIdentityIsAnswered({ date: '2026-5-16', venue: 'BOM Festival' })).toBe(false)
+  })
+
+  it('takes a venue with no letters in it, which the derived name could not', () => {
+    // `—` used to be refused because it slugged to an empty folder name. The folder is opaque now,
+    // so the only question left is whether the person answered, and they did.
+    expect(gigIdentityIsAnswered({ date: '2026-05-16', venue: '—' })).toBe(true)
+  })
+})
+
+/**
+ * **The row is a label and the folder is machinery, and they are allowed to disagree** (Jorge,
+ * 2026-09-03). Backstage rendered `basename(path)`, so a corrected venue left the old string on
+ * screen; this also closes the 02/09 ruling that a gig is named by its venue where the file has
+ * one and by its folder otherwise, which the code never honoured.
+ */
+describe('gigLabel', () => {
+  const folder = '/gigs/setup/k3f9x2abcd'
+
+  it('is the date and the venue', () => {
+    const gig = parseGigFile(
+      JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd', date: '2026-10-17', venue: { name: 'Geel Coffee' } })
+    )
+    expect(gigLabel(gig, folder)).toBe('2026-10-17 · Geel Coffee')
+  })
+
+  it('follows an edit, because it is read rather than stored', () => {
+    const before = parseGigFile(
+      JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd', date: '2026-10-17', venue: { name: 'Gel Coffe' } })
+    )
+    const after = withIdentity(before, { date: '2026-10-17', venue: { name: 'Geel Coffee' } })
+    expect(gigLabel(before, folder)).toBe('2026-10-17 · Gel Coffe')
+    expect(gigLabel(after, folder)).toBe('2026-10-17 · Geel Coffee')
+    // And the folder did not move.
+    expect(after.id).toBe('k3f9x2abcd')
+  })
+
+  it('shows whichever half the file has', () => {
+    const dated = parseGigFile(JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd', date: '2026-10-17' }))
+    const placed = parseGigFile(
+      JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd', venue: { name: 'Geel Coffee' } })
+    )
+    expect(gigLabel(dated, folder)).toBe('2026-10-17')
+    expect(gigLabel(placed, folder)).toBe('Geel Coffee')
+  })
+
+  it('falls back to the folder, and invents no night', () => {
+    const empty = parseGigFile(JSON.stringify({ gigVersion: 1, id: 'k3f9x2abcd' }))
+    expect(gigLabel(empty, folder)).toBe('k3f9x2abcd')
+    // A file that will not read at all is null here, and the folder still names the row.
+    expect(gigLabel(null, folder)).toBe('k3f9x2abcd')
   })
 })

@@ -3156,14 +3156,6 @@ html, body, #root {
   font-size: 1.0625em;
 }
 
-.setup-home-row-badge {
-  font-family: var(--font-label);
-  font-size: 0.7em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
 .setup-home-row-actions {
   display: flex;
   gap: 0.5em;

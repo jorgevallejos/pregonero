@@ -10,7 +10,7 @@ import {
   type Point,
 } from './visualsFile'
 
-const GIG = '2026-09-12-bar-eduard'
+const GIG = 'k3f9x2abcd'
 
 function doc(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({

@@ -50,8 +50,8 @@ const {
 
 beforeAll(ensureStorage)
 
-const FOLDER = '/gigs/2026-09-12-bar-eduard'
-const GIG_ID = '2026-09-12-bar-eduard'
+const FOLDER = '/gigs/setup/k3f9x2abcd'
+const GIG_ID = 'k3f9x2abcd'
 
 function song(id: string, extra: Partial<LibrarySong> = {}): LibrarySong {
   return { id, title: id, items: [{ languages: { es: 'línea' } }], ...extra } as LibrarySong
@@ -102,8 +102,11 @@ beforeEach(() => {
 /**
  * **A gig is made by saying what it is, and there is no name to type either.** The folder question
  * went first; the `Name it` field that replaced it went on 2026-09-02, because its answer was still
- * a folder name. **The identity is derived from the date and the venue** —
- * `2026-05-16-bom-festival`, the shape of the night folders Jorge already keeps.
+ * a folder name.
+ *
+ * **The folder is an opaque id** (Jorge, 2026-09-03), so nothing about the night is derivable from
+ * it — and the protection that fell out of the old derived name has to be stated instead. That
+ * rule, `nothing is written until date and venue are both answered`, is the block below.
  */
 describe('making a gig by saying what it is', () => {
   const GIGS_ROOT = '/vault/gigs'
@@ -128,12 +131,34 @@ describe('making a gig by saying what it is', () => {
     )
   })
 
-  it('names the folder from the date and the venue, in the gigs root first run recorded', async () => {
+  it('names the folder with an opaque id, in the gigs root first run recorded', async () => {
     const r = await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
     expect(r.ok).toBe(true)
     // The gigs root goes in; `platform.createGigFolder` is what joins `setup/` on to it, at the one
     // boundary that talks to the main process.
-    expect(createGigFolder).toHaveBeenCalledWith(GIGS_ROOT, GIG_ID)
+    const [root, name] = createGigFolder.mock.calls[0] as [string, string]
+    expect(root).toBe(GIGS_ROOT)
+    expect(name).toMatch(/^[0-9abcdefghjkmnpqrstvwxyz]{10}$/)
+  })
+
+  it('puts nothing about the night in the folder name', async () => {
+    // **The whole of the 2026-09-03 ruling.** A name carrying the date or the venue is a name that
+    // has to change when either does, and identity that changes is not identity.
+    await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+    const [, name] = createGigFolder.mock.calls[0] as [string, string]
+    expect(name).not.toContain('2026')
+    expect(name).not.toContain('bar')
+    expect(name).not.toContain('eduard')
+  })
+
+  it('gives two gigs on the same night at the same venue two folders', async () => {
+    const names = new Set<string>()
+    for (let i = 0; i < 5; i += 1) {
+      createGigFolder.mockClear()
+      await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+      names.add((createGigFolder.mock.calls[0] as [string, string])[1])
+    }
+    expect(names.size).toBe(5)
   })
 
   it('opens it, so the flow continues on the gig it just made', async () => {
@@ -151,27 +176,66 @@ describe('making a gig by saying what it is', () => {
     }
     expect(written.id).toBe(GIG_ID)
     expect(written.date).toBe('2026-09-12')
+    // Written once, whole. The id is the folder's name and is never rewritten after this.
     expect(written.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
   })
 
   /**
-   * **Nothing reaches disk until the gig can be named** (2026-09-02). This is the gate that makes
-   * *no half-made thing is ever on disk without being in a list* true rather than usually true: a
-   * folder created before the identity is complete would be a gig nothing lists.
+   * ## The write gate, which is the part an opaque id would silently repeal
+   *
+   * **Nothing is written until the date and the venue are both answered** (Jorge, 2026-09-03).
+   *
+   * Until then this needed no code: the folder was named from the date and the venue, so a missing
+   * half meant no name and there was nothing to create. **An opaque id answers at any moment**, so
+   * the gate stopped being a consequence of the naming scheme and had to become a rule. These are
+   * the tests that would go green on their own if it were dropped, which is why they assert the
+   * *absence of calls* rather than the returned error: the error is a message, and the folder not
+   * existing is the fact.
    */
-  it('creates nothing at all when there is no venue to name it by', async () => {
+  it('creates nothing at all when the venue has not been answered', async () => {
     const r = await createGig({ date: '2026-09-12', venue: {} })
     expect(r.ok).toBe(false)
-    expect(!r.ok && r.error).toMatch(/date and its venue/)
+    expect(!r.ok && r.error).toMatch(/Nothing has been written/)
     expect(createGigFolder).not.toHaveBeenCalled()
     expect(writeGigFile).not.toHaveBeenCalled()
   })
 
-  it('creates nothing at all when there is no date to name it by', async () => {
+  it('creates nothing at all when the date has not been answered', async () => {
     const r = await createGig({ date: '', venue: { name: 'Bar Eduard' } })
     expect(r.ok).toBe(false)
     expect(createGigFolder).not.toHaveBeenCalled()
     expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('creates nothing at all when neither has been answered', async () => {
+    const r = await createGig({ date: '', venue: {} })
+    expect(r.ok).toBe(false)
+    expect(createGigFolder).not.toHaveBeenCalled()
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('creates nothing for a venue that is only whitespace', async () => {
+    const r = await createGig({ date: '2026-09-12', venue: { name: '   ', city: 'Ghent' } })
+    expect(r.ok).toBe(false)
+    expect(createGigFolder).not.toHaveBeenCalled()
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('creates nothing for a date that is not a date', async () => {
+    const r = await createGig({ date: '12/09/2026', venue: { name: 'Bar Eduard' } })
+    expect(r.ok).toBe(false)
+    expect(createGigFolder).not.toHaveBeenCalled()
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('leaves the gig list and the open gig alone when it refuses', async () => {
+    // A refused creation must not be visible anywhere: no row, and no gig open. The half-made
+    // shape this guards against is a folder on disk that is in no list.
+    const before = localStorage.getItem('pregoneroGigList')
+    const r = await createGig({ date: '2026-09-12', venue: {} })
+    expect(r.ok).toBe(false)
+    expect(localStorage.getItem('pregoneroGigList')).toBe(before)
+    expect(getRememberedGigFolder()).toBeNull()
   })
 
   it('refuses with the reason when there is no gigs folder, rather than picking one', async () => {
@@ -260,10 +324,15 @@ describe('opening a folder with no gig.json', () => {
     readGigFolder.mockResolvedValue(emptyRead())
   })
 
-  it('creates one, taking identity from the folder name', async () => {
+  it('creates one, taking its id from the folder and its date from today', async () => {
+    // **The folder no longer says which night it is** (2026-09-03): it is an opaque id, so the
+    // date is today's rather than read off the name. Only a folder found without a file in it
+    // keeps that date — a gig made by the flow has the real one written in the same breath.
     await refreshGigReadiness()
     const [, text] = writeGigFile.mock.calls[0] as [string, string]
-    expect(JSON.parse(text)).toMatchObject({ gigVersion: 1, id: GIG_ID, date: '2026-09-12' })
+    const written = JSON.parse(text) as { gigVersion: number; id: string; date: string }
+    expect(written).toMatchObject({ gigVersion: 1, id: GIG_ID })
+    expect(written.date).toBe(new Date().toISOString().slice(0, 10))
   })
 
   it('writes the setlist into it as songs and setlist', async () => {

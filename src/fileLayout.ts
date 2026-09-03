@@ -23,9 +23,10 @@
  *   `song-performance/` and nothing more.
  *
  *   **The price, on the record:** a night's poster and contract are no longer automatically beside
- *   that night's setup data. `<gig>` is shaped like the night folders Jorge already keeps —
- *   `2026-05-16-bom-festival`, date then venue — so a gig row and its night read as the same thing
- *   even though they sit apart. They are linked by name, not by location.
+ *   that night's setup data, **and since 2026-09-03 they are not linked by name either**. `<gig>`
+ *   was shaped like Jorge's own night folders — `2026-05-16-bom-festival` — and that name derived
+ *   from the date and the venue, both of which change. It is an opaque id now (`gigFile.newGigId`),
+ *   and what says which night a folder is for is `gig.json` inside it.
  *
  * **This module is the only place either name is written.** The main process is handed folders that
  * are already joined, exactly as it is already handed the songs root and the gigs root rather than
@@ -57,7 +58,7 @@ export function gigsSetupFolder(gigsRoot: string): string {
 }
 
 /**
- * `<gigs>` and `2026-05-16-bom-festival` → `<gigs>/setup/2026-05-16-bom-festival`.
+ * `<gigs>` and `k3f9x2abcd` → `<gigs>/setup/k3f9x2abcd`.
  *
  * **One gig, one directory, and it is the gig's whole footprint on disk** — `gig.json` beside
  * `visuals.json`, which is what keeps the guard the code already enforces: a `visuals` pointer

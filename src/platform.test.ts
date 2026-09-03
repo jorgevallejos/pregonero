@@ -105,8 +105,8 @@ describe('inside Electron', () => {
   it('makes a gig folder inside <gigs>/setup, never beside it', async () => {
     const create = vi.fn().mockResolvedValue({ ok: true, folderPath: '/gigs/setup/x' })
     setApi({ createGigFolder: create })
-    await createGigFolder('/gigs', '2026-05-16-bom-festival')
-    expect(create).toHaveBeenCalledWith('/gigs/setup', '2026-05-16-bom-festival')
+    await createGigFolder('/gigs', 'w7q4hbz1nm')
+    expect(create).toHaveBeenCalledWith('/gigs/setup', 'w7q4hbz1nm')
   })
 
   it('lists <songs>/song-performance, from the songs root', async () => {

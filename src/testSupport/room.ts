@@ -14,8 +14,10 @@ import { KEY_VISUALS_BROADCAST } from '../visualsBroadcast'
 import { GIG_FOLDER_KEY } from '../gigFolderStore'
 import type { Point, VisualShape } from '../visualsFile'
 
-export const TEST_GIG_FOLDER = '/gigs/2026-09-12-bar-eduard'
-export const TEST_GIG_ID = '2026-09-12-bar-eduard'
+// **Shaped like a real gig folder, which since 2026-09-03 means an opaque id.** A test fixture
+// carrying the old `2026-09-12-bar-eduard` shape is where the superseded assumption survives.
+export const TEST_GIG_ID = 'k3f9x2abcd'
+export const TEST_GIG_FOLDER = `/gigs/setup/${TEST_GIG_ID}`
 
 /** The whole output frame, in the corner order used everywhere: [TL, TR, BR, BL]. */
 export const FULL_FRAME: Point[] = [
