@@ -209,6 +209,15 @@ declare global {
         page: string,
         title: string
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
+      /**
+       * Serves a tool's page and hands back its address. **No window** — the renderer frames it,
+       * which is what the song flow already does for Bombista.
+       */
+      serveTool: (
+        key: string,
+        folder: string,
+        page: string
+      ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
       closeTool: (key: string) => Promise<void>
       isToolOpen: (key: string) => Promise<boolean>
       /** What displays this machine has. Read-only — nothing renders from it. */

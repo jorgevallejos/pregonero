@@ -3738,6 +3738,24 @@ html, body, #root {
   min-height: 0;
 }
 
+/* The visuals screen takes the slack the same way, because what fills it is another tool's whole
+   page. Bombista's frame in the song flow is the same shape and the same rule. */
+.gig-flow-visuals {
+  flex: 1;
+  min-height: 0;
+}
+
+.gig-flow-frame {
+  flex: 1;
+  width: 100%;
+  border: 1px solid var(--rule);
+  min-height: 0;
+  /* Muralista's own ground, not this app's: the page inside is a whole page. It happens to be ink
+     too, and that is Muralista taking Pregonero's design system rather than a coincidence to lean
+     on — the declaration stays, so a restyle over there cannot leave a white flash here. */
+  background: var(--app-bg);
+}
+
 /* The setlist screen takes the slack, so the two frames are as tall as the screen even when both
    lists are empty — Backstage's rule, and for the same reason: a frame that only fills once it has
    something in it makes the screen reflow the first time it is used. */
