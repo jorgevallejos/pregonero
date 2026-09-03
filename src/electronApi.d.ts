@@ -184,6 +184,13 @@ declare global {
         filePath: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
       /**
+       * Moves one gig's `setup/<gig>/` folder to the Trash. **The Trash, not out of existence**,
+       * and **that folder only** — the artist's own night folders sit beside `setup/`, not in it.
+       */
+      deleteGigFolder: (
+        folderPath: string
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /**
        * Replaces a song file with the candidate an edit produced: a timestamped copy beside the
        * original first, then an atomic write. `backup` is null when nothing was there.
        */

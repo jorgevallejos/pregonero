@@ -1120,103 +1120,6 @@ html, body, #root {
   background: var(--surface-hover);
 }
 
-/* Manage setlists: 3-column workspace */
-.songs-screen.manage-setlists-screen .songs-body.manage-setlists-body {
-  display: grid;
-  grid-template-columns: 320px 420px 420px;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 24px;
-  flex: 1;
-  min-height: 0;
-  max-width: none;
-  margin: 0;
-  width: 100%;
-  padding: 2em 1.25rem;
-  box-sizing: border-box;
-  align-items: stretch;
-  justify-content: center;
-}
-
-.manage-setlists-column {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-}
-
-.manage-setlists-column-header {
-  --manage-setlists-header-height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  height: var(--manage-setlists-header-height);
-  min-height: var(--manage-setlists-header-height);
-  margin-bottom: 0.6rem;
-}
-
-.manage-setlists-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  min-height: min-content;
-}
-
-.manage-setlists-column-setlists .manage-setlists-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  width: 100%;
-}
-
-.manage-setlists-panel {
-  padding: 0.65rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-panel);
-  background: var(--panel-bg);
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
-.manage-setlists-column-header-spacer {
-  height: 2.5rem;
-  width: 5.5rem;
-  flex-shrink: 0;
-}
-
-.manage-setlists-panel .manage-setlists-list,
-.manage-setlists-panel .manage-setlists-song-sublist {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.manage-setlists-item-inner {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.manage-setlists-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
-  gap: 0.35rem;
-  align-items: center;
-  justify-content: flex-end;
-}
-
 .manage-setlists-action-btn {
   background: var(--control-bg-raised);
   color: var(--text-primary);
@@ -1245,177 +1148,6 @@ html, body, #root {
   background: var(--state-danger-bg-hover);
 }
 
-.manage-setlists-row {
-  text-align: left;
-  background: var(--control-bg);
-  color: var(--text-primary);
-  border: 1px solid var(--control-border);
-  padding: 0.65em 1em;
-  font-size: 1em;
-  cursor: pointer;
-  border-radius: var(--radius-tile);
-  font-weight: 500;
-}
-
-.manage-setlists-row-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Selected setlist row: persistent green; must win over .manage-setlists-row base (same issue as .songs-song-btn) */
-.manage-setlists-row.ctrl-arm {
-  background: var(--state-selected-bg);
-  border-color: var(--state-selected-border);
-  color: var(--state-selected-text);
-}
-
-.manage-setlists-row.ctrl-arm:hover:not(:disabled) {
-  background: var(--state-selected-bg-hover);
-  border-color: var(--state-selected-border-hover);
-}
-
-/* Only apply neutral hover to non-selected row buttons */
-.manage-setlists-row:not(.ctrl-arm):hover {
-  background: var(--surface-hover);
-}
-
-.manage-setlists-rename-input {
-  box-sizing: border-box;
-  padding: 0.55em 0.75em;
-  font-size: 1em;
-  border-radius: var(--radius-tile);
-  border: 1px solid var(--control-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-}
-
-.manage-setlists-rename-input-inline {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-}
-
-.manage-setlists-footer {
-  grid-column: 1 / -1;
-  padding-top: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.manage-setlists-footer .ctrl-btn.languages-confirm {
-  width: 280px;
-}
-
-.manage-setlists-song-editor {
-  gap: 0.35rem;
-  min-height: 0;
-}
-
-.manage-setlists-song-editor-active {
-  border-color: var(--state-selected-border);
-}
-
-.manage-setlists-song-editor-inactive {
-  border-color: var(--control-border);
-  background: var(--surface-inset);
-}
-
-.manage-setlists-song-editor-over {
-  border-color: var(--state-drop-border);
-  background: var(--state-drop-bg);
-}
-
-.manage-setlists-song-editor-title {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted-2);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.manage-setlists-song-sublist {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-height: 0;
-  overflow: auto;
-}
-
-.manage-setlists-song-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.manage-setlists-drag-handle {
-  flex-shrink: 0;
-  width: 2rem;
-  padding: 0.2rem 0.15rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-control);
-  background: var(--control-bg);
-  color: var(--text-muted-2);
-  font-size: 0.85em;
-  line-height: 1.2;
-  cursor: grab;
-  touch-action: none;
-}
-
-.manage-setlists-drag-handle:hover {
-  color: var(--text-primary);
-  border-color: var(--control-border);
-}
-
-.manage-setlists-drag-handle:active {
-  cursor: grabbing;
-}
-
-.manage-setlists-song-title {
-  color: var(--text-primary);
-  font-size: 0.95em;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* A library row whose song file could not be read. The row stays: the reference is real and
-   the fix is in songs/, so hiding it would hide the problem. */
-.manage-setlists-song-row--unreadable .manage-setlists-song-title {
-  color: var(--text-dim);
-  flex: 0 1 auto;
-}
-
-.manage-setlists-song-unreadable {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--state-warn);
-  font-family: var(--font-label);
-  font-size: 0.8em;
-}
-
-.manage-setlists-song-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
 .manage-setlists-icon-btn {
   min-width: 2rem;
   height: 2rem;
@@ -1432,13 +1164,6 @@ html, body, #root {
 .manage-setlists-icon-svg {
   display: block;
   flex-shrink: 0;
-}
-
-.manage-setlists-song-empty {
-  color: var(--text-muted);
-  font-size: 0.9em;
-  margin: 0;
-  padding: 0.15rem 0;
 }
 
 .songs-body {
@@ -3265,20 +2990,27 @@ html, body, #root {
 
 /* THE ACTIONS ARE ON THE ROW (2026-09-02, walking v0.34.0). A labelled `Edit` stacked under the
    title made a two-line row out of a one-line fact and left nowhere for a second action to go. The
-   title, its mode and the two marks sit on one line; the marks are the ones `ManageSetlistsView`
-   already uses, and now literally the same components — see `RowIcons`. */
-.setup-song-row {
+   title, its mode and the two marks sit on one line; the marks are the ones the manage-setlists
+   screen introduced, and now literally the same components — see `RowIcons`.
+
+   THE GIG ROW JOINED IT (Jorge, 2026-09-03, walking v0.40.0). It was the name, an OPEN badge, the
+   full path over three lines and three labelled buttons — four gigs made a wall. Same shape, same
+   marks: a gig row is a one-line fact with its own actions on it. */
+.setup-song-row,
+.setup-gig-row {
   flex-direction: row;
   align-items: center;
   gap: 0.6em;
 }
 
-.setup-song-row .setup-home-row-name {
+.setup-song-row .setup-home-row-name,
+.setup-gig-row .setup-home-row-name {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.setup-song-row .setup-home-row-actions {
+.setup-song-row .setup-home-row-actions,
+.setup-gig-row .setup-home-row-actions {
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -3298,15 +3030,66 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-/* The two facts of the delete dialog, and the second is the one worth interrupting for: what goes,
-   and what stays. Left-aligned inside a centred dialog, because it is read as a sentence. */
-.setup-song-delete-what {
+/* ONE CONSENT-DIALOG SHAPE ACROSS THE SUITE, AND THIS IS THE LAST OF THE THREE TO TAKE IT
+   (Jorge, 2026-09-03, walking v0.40.0). The table is Bombista's `.ask`, measured at 1280x900 and
+   written down in `tramoya-integration/project-context.md`:
+
+       box      448px wide, border-box, padding 17.6 / 19.2 / 16
+       title    15.2px, weight 700
+       text     13.44px / 20.16
+       buttons  32px high, 104px min-wide, padding 0 17.6, 13.12px
+
+   THIS ONE MOVED LAST BECAUSE IT HAD DRIFTED. `.leave-without-saving` was built to look exactly
+   like this dialog; when that one went to Bombista's shape and this one stayed centred at 770px,
+   the pair that were meant to be indistinguishable stopped being so.
+
+   REM, NEVER EM. `.songs-screen` sets `font-size: calc(16px * var(--control-ui-scale))` = 24px,
+   which is right for a control view read from a stage and wrong for a modal read at a desk. Every
+   `em` in this box was 1.5x Bombista's, which is the whole of why it was 1.7x too wide.
+
+   TWO DIALOGS WEAR IT: deleting a song, and deleting a gig (2026-09-03). Hence `setup-consent-`
+   and not `setup-song-delete-` — the box is the consent shape, and only the sentence inside it is
+   about a song or a gig. The song's own extra block, the nights its setlists are in, keeps its
+   `setup-song-delete-uses` names because nothing else has one.
+
+   SCOPED TO THESE DIALOGS, like the other one. `.ctrl-timeline-save-dialog`, `.ctrl-btn` and
+   `.setup-songs-gone-list` are shared with popups nobody asked to move, so every rule below names
+   `setup-consent` or a descendant of it. `LeaveWithoutSaving.test.tsx` asserts both
+   boxes against one table, and Bombista's `tests/test_pages.py` asserts the same numbers on the
+   far side of the seam. */
+.setup-consent-dialog {
+  box-sizing: border-box;
+  align-items: stretch;
+  text-align: left;
+  max-width: 28rem;
+  padding: 1.1rem 1.2rem 1rem;
+  /* Bombista's rhythm: 8px title to text, 16px text to the buttons — the second half being this
+     gap plus the button row's own margin. */
+  gap: 0.5rem;
+}
+
+.setup-consent-dialog .ctrl-timeline-save-message {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* The two facts of a delete dialog, and the second is the one worth interrupting for: what goes,
+   and what stays. Read as a sentence, so left-aligned. */
+.setup-consent-what {
   margin: 0;
   align-self: stretch;
   text-align: left;
-  font-size: 0.9375em;
+  font-size: 0.84rem;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+/* The file name is what the reader is looking for, so it is not smaller than the sentence it sits
+   in — `code`'s UA default shrink is right in prose and wrong when the name IS the fact. */
+.setup-consent-what code {
+  font-family: var(--font-control);
+  font-size: 1em;
+  color: var(--text-primary);
 }
 
 .setup-song-delete-uses {
@@ -3314,14 +3097,14 @@ html, body, #root {
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 0.4em;
+  gap: 0.4rem;
 }
 
 .setup-song-delete-uses-head,
 .setup-song-delete-uses-foot {
   margin: 0;
-  font-size: 0.875em;
-  line-height: 1.45;
+  font-size: 0.84rem;
+  line-height: 1.5;
   color: var(--text-secondary);
 }
 
@@ -3330,23 +3113,43 @@ html, body, #root {
   color: var(--text-muted);
 }
 
-.setup-song-delete-confirm:not(:disabled) {
+/* The list of nights is shared markup with the two announcement popups, which keep their own
+   `em` sizing off the stage scale. Inside this box it is body text like everything else. */
+.setup-consent-dialog .setup-songs-gone-list {
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+/* Same reason: `.setup-song-problem` also appears on the screen behind, at the screen's scale. */
+.setup-consent-dialog .setup-song-problem {
+  font-size: 0.8rem;
+}
+
+.setup-consent-actions {
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+}
+
+/* One control drawn twice, and the only difference between the two is which side they are on —
+   plus the fail colour on the one that deletes, which is below. */
+.setup-consent-actions .ctrl-btn {
+  box-sizing: border-box;
+  height: 2rem;
+  min-height: 2rem;
+  min-width: 6.5rem;
+  padding: 0 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+.setup-consent-confirm:not(:disabled) {
   color: var(--state-fail);
   border-color: var(--state-fail);
 }
 
-.setup-song-delete-confirm:not(:disabled):hover {
+.setup-consent-confirm:not(:disabled):hover {
   border-color: var(--state-fail);
-}
-
-.setup-home-row-open {
-  background: none;
-  border: 0;
-  padding: 0;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
 }
 
 .setup-home-row-name {
@@ -3359,14 +3162,6 @@ html, body, #root {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-}
-
-/* A path is long and is the thing that identifies a row when two gigs share a name, so it wraps
-   rather than being clipped or truncated with an ellipsis. */
-.setup-home-row-path {
-  font-size: 0.8em;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
 }
 
 .setup-home-row-actions {
@@ -4036,17 +3831,14 @@ html, body, #root {
    **It is not struck through** (Jorge, 2026-09-03). Strike-through is the mark for something
    CANCELLED, and these two are not cancelled, they have not arrived. So the treatment is the one
    step 2 already gets before there is a gig to write into: `--text-disabled` and no pointer, which
-   is what *shut for now* looks like everywhere else in this app. The `later` chip beside it is
-   what carries the difference between *shut* and *not built*, and it stays. */
+   is what *shut for now* looks like everywhere else in this app.
+
+   **And it says nothing else** (Jorge, 2026-09-03). It carried a `later` chip, kept on the argument
+   that it was the only thing separating *shut for now* from *not built at all*. That distinction is
+   not worth the words: disabled is enough. */
 .gig-step-later {
   color: var(--text-disabled);
   cursor: default;
-}
-
-.gig-step-later .why {
-  text-decoration: none;
-  color: var(--accent-dim);
-  letter-spacing: 0.1em;
 }
 
 .gig-flow-page {

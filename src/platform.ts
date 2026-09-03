@@ -519,6 +519,33 @@ export async function deleteSongFile(
 }
 
 /**
+ * **Moves one gig's folder to the Trash.** `<gigs>/setup/<gig>/` and nothing else: `gig.json`,
+ * `visuals.json`, and whatever else the tools have written into that gig's own directory.
+ *
+ * **Only what the tools own.** Under the single-`setup/` ruling every gig the tools make lives at
+ * `<gigs>/setup/<gig>`, and the artist's own night folders sit beside `setup/` rather than inside
+ * it. So this cannot reach a poster, a contract or a stage plan, and it never touches a song file:
+ * a setlist stores ids, not copies.
+ *
+ * **The Trash, and not out of existence**, on the rule already settled for a song file. A running
+ * order is authored work, and this project has already lost six irreplaceable backups to a delete
+ * that was described as a move.
+ */
+export async function deleteGigFolder(
+  folderPath: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.deleteGigFolder !== 'function') {
+    return { ok: false, error: 'A gig can only be deleted from the desktop app.' }
+  }
+  try {
+    return await a.deleteGigFolder(folderPath)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
  * **Replaces a song file with the candidate an edit produced**, backing the original up beside
  * itself first and writing atomically.
  *
