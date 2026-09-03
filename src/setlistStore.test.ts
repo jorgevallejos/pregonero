@@ -24,6 +24,7 @@ import {
   getLibraryEntries,
   getCatalogueEntries,
   getUnreadableCatalogueEntries,
+  forgetDeletedSong,
   getEntriesNotInCatalogue,
   getLibrarySongById,
   getOrderedSongsForSetlist,
@@ -840,5 +841,97 @@ describe('the catalogue, versus what the app is holding', () => {
     expect(getUnreadableCatalogueEntries().map((e) => e.ref.id)).toEqual(['libertad'])
     expect(getUnreadableCatalogueEntries()[0]!.error).toContain('24 lines')
     expect(getEntriesNotInCatalogue().map((e) => e.ref.id)).toEqual(['vidas'])
+  })
+})
+
+/**
+ * **A song this app deleted is forgotten, not remembered as missing.**
+ *
+ * Walked on `v0.35.0`, 2026-09-02: deleting `libertad` through the bin, with its confirmation, and
+ * returning to Backstage announced it as no longer in the catalogue. Hydration never drops a
+ * reference because an unmounted drive looks exactly like a deletion — but a deletion the app
+ * performed does not look like anything, and holding a reference to a file it removed itself is
+ * remembering something it knows is not true.
+ */
+describe('forgetting a song this app deleted', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setLibraryEntries([])
+    dropLibraryCache()
+  })
+
+  const read = async (path: string) =>
+    JSON.stringify({ title: path.replace(/.*\//, '').replace('.json', ''), lyrics: [{ es: 'a' }] })
+  const listing = (files: string[]) => ({ files, problem: null, answered: true })
+
+  it('drops the reference, so nothing is left to rediscover as absent', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+
+    forgetDeletedSong('duelo')
+
+    expect(loadSetlistStore()!.library.map((r) => r.id)).toEqual(['vidas'])
+    // The row goes now, without waiting for the folder to be listed again.
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['vidas'])
+    // And it is not absent, which is the whole point: it is not held at all.
+    expect(getEntriesNotInCatalogue()).toEqual([])
+  })
+
+  it('is still not announced after the folder is read again', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    forgetDeletedSong('duelo')
+
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['vidas.json']),
+    })
+    expect(getEntriesNotInCatalogue()).toEqual([])
+  })
+
+  it('leaves every other reference where it was', async () => {
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json', 'vidas.json']),
+    })
+    forgetDeletedSong('duelo')
+    expect(getCatalogueEntries()[0]!.song).toBeTruthy()
+    expect(getLibraryEntries().map((e) => e.ref.id)).toEqual(['vidas'])
+  })
+
+  it('comes back if the file does, because the folder is the truth', async () => {
+    // Restored from the Trash. Nothing about forgetting is a tombstone, so the next read simply
+    // finds a song — and if it is really lost later, that is a genuine event and is announced.
+    localStorage.setItem(SONGS_FOLDER_KEY, '/songs')
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    forgetDeletedSong('duelo')
+    expect(getCatalogueEntries()).toEqual([])
+
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing(['duelo.json']),
+    })
+    expect(getCatalogueEntries().map((e) => e.ref.id)).toEqual(['duelo'])
+
+    await ensureSongLibraryHydrated({
+      readSongFile: read,
+      listFolder: async () => listing([]),
+    })
+    expect(getEntriesNotInCatalogue().map((e) => e.ref.id)).toEqual(['duelo'])
+  })
+
+  it('says nothing about an id it does not hold', () => {
+    expect(() => forgetDeletedSong('never-existed')).not.toThrow()
+    expect(() => forgetDeletedSong('')).not.toThrow()
   })
 })

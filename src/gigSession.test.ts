@@ -37,7 +37,6 @@ vi.mock('./platform', async (importOriginal) => ({
 }))
 
 const {
-  chooseGigFolder,
   closeGig,
   createGig,
   saveGigIdentity,
@@ -103,11 +102,12 @@ beforeEach(() => {
 })
 
 /**
- * **A gig is made by naming it, and the folder question is gone.** R4 item 9, pulled into this
- * round because `journey-setup.md` step 8 opens with `New gig` and the old one opened a directory
- * picker — a filesystem decision asked before the gig had a venue or a date.
+ * **A gig is made by saying what it is, and there is no name to type either.** The folder question
+ * went first; the `Name it` field that replaced it went on 2026-09-02, because its answer was still
+ * a folder name. **The identity is derived from the date and the venue** —
+ * `2026-05-16-bom-festival`, the shape of the night folders Jorge already keeps.
  */
-describe('making a gig by naming it', () => {
+describe('making a gig by saying what it is', () => {
   const GIGS_ROOT = '/vault/gigs'
 
   beforeEach(() => {
@@ -130,19 +130,21 @@ describe('making a gig by naming it', () => {
     )
   })
 
-  it('creates the folder under the gigs root that first run recorded', async () => {
-    const r = await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+  it('names the folder from the date and the venue, in the gigs root first run recorded', async () => {
+    const r = await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
     expect(r.ok).toBe(true)
+    // The gigs root goes in; `platform.createGigFolder` is what joins `setup/` on to it, at the one
+    // boundary that talks to the main process.
     expect(createGigFolder).toHaveBeenCalledWith(GIGS_ROOT, GIG_ID)
   })
 
   it('opens it, so the flow continues on the gig it just made', async () => {
-    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
     expect(getRememberedGigFolder()).toBe(`${GIGS_ROOT}/${GIG_ID}`)
   })
 
   it('writes the date and the venue into gig.json', async () => {
-    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
+    await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard', city: 'Ghent' } })
     const calls = writeGigFile.mock.calls as [string, string][]
     const written = JSON.parse(calls[calls.length - 1]![1]) as {
       id: string
@@ -155,23 +157,43 @@ describe('making a gig by naming it', () => {
   })
 
   it('never opens a folder picker', async () => {
-    await createGig(GIG_ID, { date: '2026-09-12', venue: { name: 'Bar Eduard' } })
+    await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
     expect(chooseGigFolderPath).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **Nothing reaches disk until the gig can be named** (2026-09-02). This is the gate that makes
+   * *no half-made thing is ever on disk without being in a list* true rather than usually true: a
+   * folder created before the identity is complete would be a gig nothing lists.
+   */
+  it('creates nothing at all when there is no venue to name it by', async () => {
+    const r = await createGig({ date: '2026-09-12', venue: {} })
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.error).toMatch(/date and its venue/)
+    expect(createGigFolder).not.toHaveBeenCalled()
+    expect(writeGigFile).not.toHaveBeenCalled()
+  })
+
+  it('creates nothing at all when there is no date to name it by', async () => {
+    const r = await createGig({ date: '', venue: { name: 'Bar Eduard' } })
+    expect(r.ok).toBe(false)
+    expect(createGigFolder).not.toHaveBeenCalled()
+    expect(writeGigFile).not.toHaveBeenCalled()
   })
 
   it('refuses with the reason when there is no gigs folder, rather than picking one', async () => {
     localStorage.removeItem('pregoneroGigsFolder')
-    const r = await createGig(GIG_ID, { date: '', venue: {} })
+    const r = await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
     expect(r.ok).toBe(false)
     expect(!r.ok && r.error).toMatch(/no gigs folder/)
     expect(createGigFolder).not.toHaveBeenCalled()
   })
 
   it('carries the main process’s refusal through rather than opening a gig that is not there', async () => {
-    createGigFolder.mockResolvedValue({ ok: false, error: 'There is already something called "x".' })
-    const r = await createGig('x', { date: '', venue: {} })
+    createGigFolder.mockResolvedValue({ ok: false, error: 'There is already a gig called "x".' })
+    const r = await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
     expect(r.ok).toBe(false)
-    expect(!r.ok && r.error).toMatch(/already something called/)
+    expect(!r.ok && r.error).toMatch(/already a gig called/)
     expect(getRememberedGigFolder()).toBeNull()
   })
 })
@@ -545,23 +567,6 @@ describe('subscribers', () => {
     unsubscribe()
     await refreshGigReadiness()
     expect(heard).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('chooseGigFolder', () => {
-  it('remembers what was picked and reports the delta', async () => {
-    chooseGigFolderPath.mockResolvedValue(FOLDER)
-    readGigFolder.mockResolvedValue(emptyRead())
-    const r = await chooseGigFolder()
-    expect(getRememberedGigFolder()).toBe(FOLDER)
-    expect(r.gate).toBe('on')
-  })
-
-  it('changes nothing when the picker is cancelled', async () => {
-    chooseGigFolderPath.mockResolvedValue(null)
-    await chooseGigFolder()
-    expect(getRememberedGigFolder()).toBeNull()
-    expect(readGigFolder).not.toHaveBeenCalled()
   })
 })
 

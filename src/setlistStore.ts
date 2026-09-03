@@ -385,6 +385,18 @@ export function noteCatalogueAdoption(ref: SongRef): void {
   catalogue = [...catalogue, ref.id].sort((a, b) => a.localeCompare(b))
 }
 
+/**
+ * **A song this app just removed from the catalogue's folder leaves it now**, without waiting for
+ * the folder to be listed again.
+ *
+ * The mirror of `noteCatalogueAdoption`, and not the cache overruling the folder: the file was
+ * just moved out of that folder, so the next read says the same thing.
+ */
+function noteCatalogueRemoval(songId: string): void {
+  if (catalogue === null) return
+  catalogue = catalogue.filter((id) => id !== songId)
+}
+
 /** The songs the app can actually use: references whose file was read successfully. */
 export function getLibrarySongs(): LibrarySong[] {
   return getLibraryEntries()
@@ -1035,6 +1047,37 @@ export function getOrderedSongsForActiveSetlist(): LibrarySong[] {
  * A file adopted from anywhere else does not join it, because it genuinely is not in it — it is
  * listed nowhere and named by the notice, which is the truth about where it is.
  */
+/**
+ * **A song this app deleted is forgotten, not remembered as missing.**
+ *
+ * The counterpart to `adoptSongFile`, and the reason it has to exist (Jorge, 2026-09-02, walking
+ * `v0.35.0`). Deleting `libertad` through the bin, with its confirmation, and then returning to
+ * Backstage produced *One song is no longer in your catalogue: libertad.json*. **A deletion the
+ * app performed with consent is not a disappearance.**
+ *
+ * **Why the reference goes rather than the announcement being suppressed.** Hydration never drops
+ * a reference, and that rule is right for the case it was written for: *an unmounted drive looks
+ * exactly like a deletion, so the app tells you rather than acting.* **Here it does not look like
+ * anything — the app did it**, five seconds ago, and holding a reference to a file it removed
+ * itself is remembering something it knows is not true. Recording the id as *already announced*
+ * would have suppressed the popup and left that lie in storage, and it would also have suppressed
+ * the genuine announcement later, if the file were restored from the Trash and then really lost.
+ *
+ * **What it does not touch is what was recorded.** A gig's `gig.json` keeps its setlist ids and
+ * reports what it cannot resolve, which is what the delete dialog promises. Pregonero's own
+ * setlists are working state rather than a record, and `repairSnapshot` drops the id from them for
+ * the same reason it drops any id with no reference behind it.
+ */
+export function forgetDeletedSong(songId: string): void {
+  if (!songId) return
+  const snap = loadSetlistStore()
+  if (snap !== null) {
+    saveSetlistStore({ ...snap, library: snap.library.filter((ref) => ref.id !== songId) })
+  }
+  noteCatalogueRemoval(songId)
+  setLibraryEntries(getLibraryEntries().filter((entry) => entry.ref.id !== songId))
+}
+
 export async function adoptSongFile(
   absolutePath: string,
   read: ReadSongFile = defaultReadSongFile

@@ -3524,6 +3524,30 @@ html, body, #root {
   color: var(--text-muted);
 }
 
+/* `BACK` ASKS, AND IT IS THE DELETE DIALOG'S SHAPE (2026-09-02). Same overlay, same box, same two
+   buttons — because it is the same kind of popup: a destructive action needing consent. Nothing new
+   is introduced here; only the two lines of copy differ, so only the two lines have rules. One set
+   of rules, because one component draws it in both flows. */
+.leave-without-saving-what {
+  margin: 0;
+  align-self: stretch;
+  text-align: left;
+  font-size: 0.9375em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* The destructive half, in the app's fail colour — the same mark `Delete` carries, so the two
+   dialogs cannot drift into meaning different things by looking different. */
+.leave-without-saving-confirm:not(:disabled) {
+  color: var(--state-fail);
+  border-color: var(--state-fail);
+}
+
+.leave-without-saving-confirm:not(:disabled):hover {
+  border-color: var(--state-fail);
+}
+
 .song-flow-frame {
   flex: 1;
   width: 100%;
@@ -3810,4 +3834,353 @@ html, body, #root {
   margin-top: 1.5em;
   padding-top: 1.25em;
   border-top: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+}
+
+/* ================================================================================================
+   THE GIG FLOW — four screens, a step bar, and one thing asked per screen (2026-09-02, step 9)
+   ================================================================================================
+   Shaped like Bombista's flow on purpose: the two flows in this app should read as the same kind of
+   thing, so the handoff to Muralista at step 3 stops feeling like a departure. */
+
+.songs-screen.gig-flow-screen .songs-body.gig-flow-body {
+  /* Two classes for the same reason Backstage and the song flow need them:
+     `.songs-screen:not(.languages-screen) .songs-body` declares the song-button grid and outranks
+     a single class. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-items: stretch;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 3em;
+  min-height: 0;
+}
+
+/* THE PINNED BAND, AND WHY IT IS A BAND (2026-09-02).
+   In an embedded subflow the step bar is fixed and everything else scrolls — the rule is in
+   `tramoya-integration/project-context.md`, and it came out of a walk that lost its place when the
+   bar scrolled off a long page. **The setlist screen is where it bites**: two long lists, and
+   *where am I* would otherwise depend on scroll position.
+
+   **The BAND is what sticks, not the bar.** `.gig-steps` is `width: max-content`, so pinning it
+   directly would leave the page scrolling through the gap beside it — which half-works, and
+   half-working is worse than not doing it at all. The band is full width and opaque, and the
+   screen's own 1.5rem inline padding is cancelled and re-added so it reaches both edges.
+
+   **Nothing else is pinned.** Not the top bar: the rule is the bar and only the bar, and a second
+   permanent band would leave this screen with two where Bombista's has one. */
+.gig-flow-screen {
+  /* THE BAND'S HEIGHT, DERIVED FROM THE BAND'S OWN DECLARATIONS — never measured off a screenshot.
+     A guess here was nine pixels out in the round that taught this, and invisible except on a
+     scrolled page. Every term below is used verbatim by a rule further down, so changing any of
+     them moves this with it; a copied number would not.
+
+     `rem` and `--control-ui-scale` rather than `em`, deliberately: a custom property substitutes
+     its text at the point of USE, so an `em` in here would resolve against whichever element reads
+     it — and the element that reads it is a heading with its own font size. */
+  --gig-band-pad-top: calc(1.1rem * var(--control-ui-scale));
+  --gig-band-pad-bottom: calc(0.6rem * var(--control-ui-scale));
+  --gig-seg-pad-block: calc(0.55rem * var(--control-ui-scale));
+  --gig-seg-text: calc(0.72rem * var(--control-ui-scale));
+  --gig-stepband: calc(
+    var(--gig-band-pad-top) + var(--gig-band-pad-bottom) + var(--gig-seg-pad-block) +
+      var(--gig-seg-pad-block) + var(--gig-seg-text) + 2px
+  );
+}
+
+.gig-stepband {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--app-bg);
+  margin-inline: -1.5rem;
+  padding: var(--gig-band-pad-top) 1.5rem var(--gig-band-pad-bottom);
+}
+
+/* One hard-bordered strip divided by rules — not free-floating pills, which is the friendly-wizard
+   shape this design is not. Bombista's `.steps`, in Pregonero's palette. */
+.gig-steps {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--rule);
+  width: max-content;
+  max-width: 100%;
+}
+
+.gig-step-seg,
+.gig-step-later {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  border-radius: 0;
+  padding: var(--gig-seg-pad-block) 0.85em;
+  font-family: var(--font-label);
+  font-size: var(--gig-seg-text);
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.gig-steps > *:last-child {
+  border-right: none;
+}
+
+.gig-step-seg {
+  cursor: pointer;
+}
+
+.gig-step-seg:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* The current segment, in the app's accent — findable, not announced. */
+.gig-step-seg.on,
+.gig-step-seg.on:hover {
+  color: var(--accent);
+  background: var(--control-bg-raised);
+}
+
+.gig-step-seg .n,
+.gig-step-later .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.gig-step-seg.on .n {
+  color: var(--accent);
+}
+
+.gig-step-seg:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+/* A STEP THAT IS NOT BUILT YET: present, so the flow still reads as four, and not a control.
+   Bombista renders a step that did not happen the same way and for the same reason — a bar that
+   still offered it would say it is available. */
+.gig-step-later {
+  color: var(--text-disabled);
+  text-decoration: line-through;
+  text-decoration-color: var(--rule);
+}
+
+.gig-step-later .why {
+  text-decoration: none;
+  color: var(--accent-dim);
+  letter-spacing: 0.1em;
+}
+
+.gig-flow-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25em;
+  padding-top: 1.5em;
+  min-height: 0;
+}
+
+/* The setlist screen takes the slack, so the two frames are as tall as the screen even when both
+   lists are empty — Backstage's rule, and for the same reason: a frame that only fills once it has
+   something in it makes the screen reflow the first time it is used. */
+.gig-flow-setlist {
+  flex: 1;
+}
+
+.gig-flow-lede {
+  margin: 0;
+  max-width: 34em;
+  font-size: 0.9375em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.gig-flow-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  max-width: 28em;
+}
+
+/* THE IDENTITY, SHOWN AS IT IS DERIVED. It is what appears on Backstage and what names the folder,
+   so meeting it for the first time in Finder is the failure this line prevents. */
+.gig-flow-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.9em 0 0;
+  border-top: 1px solid var(--rule-faint);
+  max-width: 34em;
+}
+
+.gig-flow-identity-label {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.gig-flow-identity-name {
+  font-family: var(--font-control);
+  font-size: 1.125em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.gig-flow-identity-pending {
+  font-size: 0.9375em;
+  color: var(--text-dim);
+}
+
+.gig-flow-note {
+  margin: 0;
+  max-width: 40em;
+  font-size: 0.8125em;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.gig-flow-unbuilt {
+  padding-top: 0.9em;
+  border-top: 1px solid var(--rule-faint);
+}
+
+/* A pointer inside a sentence, not a button pretending to be one. */
+.gig-flow-inline-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* THE TWO LISTS, SIDE BY SIDE. The catalogue on the left, tonight's running order on the right —
+   the direction the songs travel, which is what the `Add →` and `←` marks read against. Same
+   device as Backstage's two halves: equal columns, a hard rule between them, `subgrid` so the two
+   names and the tops of the two frames line up however unevenly either wraps. */
+.gig-flow-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  column-gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+/* NOT SUBGRID, AND THE REASON IS THE STICKY HEADING. Backstage's two halves use `subgrid` so the
+   name, the buttons and the top of the frame line up ACROSS the columns however unevenly either
+   wraps, and that is the right device there. **It cannot be used here**: a grid item's containing
+   block is its grid area, so a heading in an `auto` subgrid row is constrained to that row's own
+   height and `position: sticky` on it does nothing at all — silently, which is the worst kind.
+
+   A flex column gives the heading a containing block as tall as the column, which is what lets it
+   stick. **The price:** the two frames line up because both headings are one line at the same size,
+   rather than because the grid guarantees it. Two fixed strings written a few lines above; if a
+   heading ever grows to two lines, this is where the columns will part. */
+.gig-flow-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding-inline: 2em;
+  border-left: 1px solid var(--rule-strong);
+}
+
+.gig-flow-list:first-of-type {
+  border-left: none;
+  padding-left: 0;
+}
+
+/* THE SECOND STICKY SURFACE, OFFSET BELOW THE BAND RATHER THAN REFUSED (2026-09-02). Two lists
+   long enough to scroll are two lists whose headings are worth keeping; two sticky things at
+   `top: 0` overlap, and the one that loses is the one that says where you are. The offset is
+   `--gig-stepband`, which is derived from the band's own declarations. */
+.gig-flow-list-name {
+  position: sticky;
+  top: var(--gig-stepband);
+  z-index: 20;
+  margin: 0;
+  padding: 0.6em 0;
+  background: var(--app-bg);
+  font-family: var(--font-label);
+  font-size: 1.25em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.gig-flow-list-frame {
+  border: 1px solid var(--rule-strong);
+  padding: 0.5em 1em;
+  min-width: 0;
+  min-height: 0;
+  /* The frame takes the slack, so it spans the screen whether the list is empty or long — the same
+     rule Backstage's frames follow, and for the same reason: a list that only appears once it has
+     something in it makes the screen reflow into a different shape the first time it is used. */
+  flex: 1;
+}
+
+.gig-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.4em 0;
+}
+
+.gig-flow-row .setup-song-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* `.ctrl-btn`'S 7.5em FLOOR IS A CONTROL-VIEW SIZE, AND IT IS WRONG IN A LIST ROW. It exists so the
+   stage's buttons are hittable at arm's length on an iPad in the dark; in a two-column list of
+   songs it ate the whole row and squeezed the title to nothing — the title, which is the only thing
+   on the row that says which song this is. **Setup is desk work**, the same argument Backstage's
+   two-columns-at-full-width makes for itself, so the row's marks are sized to the row.
+
+   `flex: 0 0 auto` as well as the floor: without it the button still grows into whatever the title
+   does not use. */
+.gig-flow-row .ctrl-btn,
+.gig-flow-primary {
+  min-width: 0;
+  font-size: 0.8125em;
+  padding: 0.4em 0.9em;
+  min-height: 0;
+}
+
+.gig-flow-row .ctrl-btn {
+  flex: 0 0 auto;
+}
+
+/* **`ctrl-setup-link` is not used on this screen, and its absence is the fix.** That class is
+   `width: 100%` — a full-width button, which is right where it was written and wrong on a list row:
+   it took the whole row and squeezed the song's title, the one thing on the row that says which
+   song this is. Naming the marks `gig-flow-mark` rather than overriding the width is what keeps
+   that from being rediscovered the next time somebody copies a row. */
+.gig-flow-primary {
+  align-self: flex-start;
+  font-size: 0.9375em;
+  padding: 0.5em 1.2em;
+}
+
+.gig-flow-ordered {
+  counter-reset: none;
+  list-style: none;
+}
+
+/* The position is the running order, so it is numeric and it is not decoration. */
+.gig-flow-position {
+  font-family: var(--font-numeric);
+  font-size: 0.875em;
+  color: var(--text-dim);
+  min-width: 1.5em;
+  text-align: right;
 }

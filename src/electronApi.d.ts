@@ -110,12 +110,13 @@ declare global {
         visualsPointer?: string
       ) => Promise<GigFolderRead>
       /**
-       * Makes a gig's folder under the gigs root. **A name, never a path** — picking a folder is
-       * the import path now. Refuses a name that is not one folder segment, and refuses to create
-       * over something that is already there.
+       * Makes a gig's folder inside `<gigs>/setup`, which the renderer joins and hands over.
+       * **A name, never a path.** Refuses a name that is not one folder segment, and refuses to
+       * create over something that is already there. **It creates nothing else anywhere** — the
+       * one folder the tools own in the gigs root, and a directory per gig inside it.
        */
       createGigFolder: (
-        gigsRoot: string,
+        setupRoot: string,
         name: string
       ) => Promise<{ ok: true; folderPath: string } | { ok: false; error: string }>
       /**
@@ -182,6 +183,14 @@ declare global {
       deleteSongFile: (
         filePath: string
       ) => Promise<{ ok: true } | { ok: false; error: string }>
+      /**
+       * Replaces a song file with the candidate an edit produced: a timestamped copy beside the
+       * original first, then an atomic write. `backup` is null when nothing was there.
+       */
+      replaceSongFile: (
+        candidatePath: string,
+        targetPath: string
+      ) => Promise<{ ok: true; backup: string | null } | { ok: false; error: string }>
       /** Opens a tool's page in a window of its own, over localhost. */
       openTool: (
         key: string,

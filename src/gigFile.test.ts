@@ -3,6 +3,7 @@ import {
   GIG_VERSION,
   createGigFile,
   gigDateFromFolderPath,
+  gigIdFrom,
   gigIdFromFolderPath,
   hasAuthoredSetlist,
   parseGigFile,
@@ -12,6 +13,7 @@ import {
   withIdentity,
   withSetlist,
   withSetup,
+  venueSlug,
 } from './gigFile'
 
 describe('gigIdFromFolderPath', () => {
@@ -183,7 +185,10 @@ describe('withIdentity', () => {
 
 describe('withSetlist', () => {
   const gig = { gigVersion: GIG_VERSION, id: 'g' }
-  const folder = '/vault/concerts/g'
+  // **A gig's folder is `<gigs>/setup/<gig>`** (2026-09-02): the tools own one `setup/` inside the
+  // gigs folder and touch nothing else, so this is both the gig's folder and where its two files
+  // are. `gig.json` sits in it directly.
+  const folder = '/vault/gigs/setup/2026-09-04-de-poel'
   const songs = [
     { id: 'a', title: 'A', path: '/vault/songs/song-performance/a.json' },
     { id: 'b', title: 'B', path: '/vault/songs/song-performance/b.json' },
@@ -198,21 +203,14 @@ describe('withSetlist', () => {
     expect(next.setlist).toEqual(['a', 'b'])
   })
 
-  // **The reference shifted one level with `gig.json`** (2026-09-01). It is written relative to the
-  // file itself, and the file is in `<gig>/setup/` now — so `../../songs/a.json` became
-  // `../../../songs/song-performance/a.json`. Nothing on disk carries the old form: this is about
-  // writing the new one, not about reading both.
-  it('writes `file` from where gig.json sits, not from the gig folder', () => {
-    const inside = [{ id: 'c', title: 'C', path: '/vault/concerts/g/songs/c.json' }]
-    expect(withSetlist(gig, inside, folder).songs?.[0]?.file).toBe('../songs/c.json')
-  })
-
-  it('takes the gig folder and never the setup folder — the caller holds the gig', () => {
-    // Handed `<gig>/setup` this would write one `..` too few and the paths would resolve into the
-    // author's half of the folder. Every caller holds the gig folder; the join lives in one place.
-    expect(withSetlist(gig, songs, folder).songs?.[0]?.file).toBe(
-      '../../../songs/song-performance/a.json'
-    )
+  // **The reference is relative to `gig.json` itself**, which is what lets the folder travel on a
+  // stick: an absolute path is a fact about one machine, and the two-file split exists so the pair
+  // can be handed over. Nothing on disk carries an older form.
+  it('writes `file` from where gig.json sits', () => {
+    const inside = [
+      { id: 'c', title: 'C', path: '/vault/gigs/setup/2026-09-04-de-poel/songs/c.json' },
+    ]
+    expect(withSetlist(gig, inside, folder).songs?.[0]?.file).toBe('songs/c.json')
   })
 
   it('carries the title Muralista names the song by', () => {
@@ -236,10 +234,10 @@ describe('withSetlist', () => {
 })
 
 describe('readGigSetlist — the file is the source', () => {
-  const folder = '/vault/concerts/g'
+  const folder = '/vault/gigs/setup/2026-09-04-de-poel'
 
-  it('reads the order the file states, resolving each file against <gig>/setup', () => {
-    // `gig.json`'s relative paths are relative to `gig.json`, which is one level in.
+  it('reads the order the file states, resolving each file against the gig’s own folder', () => {
+    // `gig.json`'s relative paths are relative to `gig.json`, which sits in that folder.
     const gig = parseGigFile(
       JSON.stringify({
         gigVersion: GIG_VERSION,
@@ -344,5 +342,63 @@ describe('the setup confirmation in the file', () => {
     for (const forbidden of ['matrix3d', 'corners', 'outline', 'fontSize']) {
       expect(text).not.toContain(forbidden)
     }
+  })
+})
+
+/**
+ * **The identity is derived, not typed** (2026-09-02, journey step 9.1).
+ *
+ * `New gig` asked for a name whose answer was a folder name — the folder question in different
+ * clothes. A gig is named by its date and its venue now, in the shape of the night folders Jorge
+ * already keeps, so a gig row and its night read as the same thing even though they sit apart.
+ */
+describe('gigIdFrom — the gig names itself', () => {
+  it('is the date, then the venue', () => {
+    expect(gigIdFrom({ date: '2026-05-16', venue: 'BOM Festival' })).toBe('2026-05-16-bom-festival')
+  })
+
+  it('matches the folders Jorge already keeps', () => {
+    // `context/concerts/` holds exactly these two. The shape is not invented here; it is read off
+    // what is already on his disk.
+    expect(gigIdFrom({ date: '2026-05-29', venue: 'PC Hoegaarden' })).toBe('2026-05-29-pc-hoegaarden')
+  })
+
+  /**
+   * **Null is the gate on writing anything at all.** Nothing reaches disk until a gig can be
+   * named, so there is never a half-made folder in a list nothing shows.
+   */
+  it('is null until both halves are there', () => {
+    expect(gigIdFrom({ date: '', venue: 'BOM Festival' })).toBeNull()
+    expect(gigIdFrom({ date: '2026-05-16', venue: '' })).toBeNull()
+    expect(gigIdFrom({ date: '2026-05-16', venue: '   ' })).toBeNull()
+  })
+
+  it('is null for a date that is not a date', () => {
+    expect(gigIdFrom({ date: '16/05/2026', venue: 'BOM Festival' })).toBeNull()
+    expect(gigIdFrom({ date: '2026-5-16', venue: 'BOM Festival' })).toBeNull()
+  })
+
+  it('is null for a venue with no letters or digits in it', () => {
+    // It would otherwise name the folder after the date alone, and two nights would collide.
+    expect(gigIdFrom({ date: '2026-05-16', venue: '—' })).toBeNull()
+  })
+})
+
+describe('venueSlug', () => {
+  /**
+   * **Accents are folded, never dropped.** Jorge's venues are Spanish, French and Dutch, and a name
+   * that loses its letters is a folder nobody recognises in Finder.
+   */
+  it('folds accents rather than eating the letters', () => {
+    expect(venueSlug('Café Central')).toBe('cafe-central')
+    expect(venueSlug('Écurie Saint-Éloi')).toBe('ecurie-saint-eloi')
+  })
+
+  it('collapses everything that is not a letter or a digit into one hyphen', () => {
+    expect(venueSlug('  De  Poel / zaal 2 ')).toBe('de-poel-zaal-2')
+  })
+
+  it('never leads or trails with a hyphen', () => {
+    expect(venueSlug("'t Ey!")).toBe('t-ey')
   })
 })

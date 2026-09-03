@@ -62,7 +62,9 @@ const gig: GigFile = {
 
 function input(overrides: Partial<GigReadinessInput> = {}): GigReadinessInput {
   return {
-    folderPath: `/gigs/${GIG_ID}`,
+    // **A gig's folder is `<gigs>/setup/<gig>`** (2026-09-02): the tools own one `setup/` inside
+    // the gigs folder and touch nothing else.
+    folderPath: `/gigs/setup/${GIG_ID}`,
     gig,
     gigProblem: null,
     visualsPresent: true,
@@ -561,5 +563,53 @@ describe('step 4: the setup confirmation, a milestone and not a lock', () => {
     it('is silent with no gig at all, because there is nothing to confirm', () => {
       expect(armWarnings(computeGigReadiness(input({ folderPath: null })))).toEqual([])
     })
+  })
+})
+
+/**
+ * **Valid is not ready, and step 9's whole shape rests on that split.**
+ *
+ * `gig.json` is written the moment identity is complete, before there is a setlist — so the file
+ * has to *parse* while the gig is plainly not finished, and the finishing is readiness's question
+ * and only readiness's. `journey-setup.md` recorded the parser half as checked and this half as
+ * unverified; this is that half, checked.
+ *
+ * **`parseGigFile` throws on three things only** — not valid JSON, no `gigVersion`, no `id` — and
+ * `setlist` is optional. **`computeGigReadiness` is what says the gig is not done**, at step 2, in
+ * the words the screen shows.
+ */
+describe('a gig with identity and no setlist: valid, and not ready', () => {
+  const noSetlist: GigFile = {
+    gigVersion: GIG_VERSION,
+    id: GIG_ID,
+    date: '2026-09-12',
+    venue: { name: 'Bar Eduard', city: 'Ghent' },
+    visuals: './visuals.json',
+  }
+
+  it('passes step 1: the gig knows what it is', () => {
+    const r = computeGigReadiness(input({ gig: noSetlist, setlist: [] }))
+    const step1 = r.steps.find((s) => s.step === 1)!
+    expect(step1.status).toBe('complete')
+    expect(step1.missing).toEqual([])
+  })
+
+  it('fails step 2, and says a gig with no setlist is not a gig', () => {
+    const r = computeGigReadiness(input({ gig: noSetlist, setlist: [] }))
+    const step2 = r.steps.find((s) => s.step === 2)!
+    expect(step2.status).toBe('not-yet')
+    expect(step2.missing).toContain('The gig has no setlist.')
+  })
+
+  /**
+   * **Not yet is not broken.** The file exists from the end of step 1 and is incomplete for most of
+   * its life; `broken` is for the loud refusals, and a gig that could not be opened because it was
+   * unfinished would be a gig that could never be finished.
+   */
+  it('is a gap and never a refusal', () => {
+    const r = computeGigReadiness(input({ gig: noSetlist, setlist: [] }))
+    expect(r.refusals).toEqual([])
+    expect(r.steps.map((s) => s.status)).not.toContain('broken')
+    expect(r.gate).toBe('on')
   })
 })

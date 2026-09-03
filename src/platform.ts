@@ -20,7 +20,7 @@ import type {
   SongValidationResult,
 } from './electronApi'
 import { getBombistaPath } from './contentFolders'
-import { gigSetupFolder, songFilesFolder } from './fileLayout'
+import { gigsSetupFolder, songFilesFolder } from './fileLayout'
 import { lastPickerFolder, rememberPickerFolder, type PickerName } from './pickerMemory'
 
 function api() {
@@ -84,10 +84,12 @@ const ABSENT: Omit<GigFolderRead, 'folderPath'> = {
  * `<gig>/setup`, which is where they live: the gig folder is the author's, and `gig.json` and
  * `visuals.json` are guests in it.
  *
- * **The gig folder is what goes in and what comes back.** Joining `setup/` here, at the one boundary
- * that talks to the main process, is what keeps every other module holding the gig folder itself —
- * including `gigIdFromFolderPath`, which takes a gig's id from its folder's name and would name
- * every gig `setup` if it were ever handed the other one.
+ * **A gig's folder is `<gigs>/setup/<gig>`, and it is the whole of its footprint** (2026-09-02).
+ * `gig.json` and `visuals.json` sit in it directly, so there is nothing left to join here: what
+ * goes in is what comes back, and `gigIdFromFolderPath` still takes the id off the last segment.
+ * The join that used to happen at this boundary now happens once, when the folder is made —
+ * `createGigFolder` below is handed `<gigs>/setup` and the main process stays as ignorant of the
+ * suite's conventions as it was.
  *
  * Outside Electron it reports an empty folder, not a failure.
  */
@@ -98,7 +100,7 @@ export async function readGigFolder(
   const a = api()
   if (!a || typeof a.readGigFolder !== 'function') return { folderPath, ...ABSENT }
   try {
-    const read = await a.readGigFolder(gigSetupFolder(folderPath), visualsPointer)
+    const read = await a.readGigFolder(folderPath, visualsPointer)
     return { ...read, folderPath }
   } catch (e) {
     return {
@@ -110,7 +112,9 @@ export async function readGigFolder(
 }
 
 /**
- * **Makes a gig's folder under the gigs root.** A name, never a path.
+ * **Makes a gig's folder inside `<gigs>/setup`.** A name, never a path — and never a folder in the
+ * artist's own territory, which is the whole of the 2026-09-02 ruling. The main process is handed
+ * `<gigs>/setup` already joined, exactly as it is handed every other folder in this file.
  *
  * Outside Electron there is no filesystem to make one in, and that is said rather than guessed at:
  * the button stays, disabled, with the reason beside it.
@@ -124,13 +128,13 @@ export async function createGigFolder(
     return { ok: false, error: 'A gig folder can only be created from the desktop app.' }
   }
   try {
-    return await a.createGigFolder(gigsRoot, name)
+    return await a.createGigFolder(gigsSetupFolder(gigsRoot), name)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
-/** Writes `gig.json` into `<gig>/setup`. Takes the **gig folder**, like every other call here. */
+/** Writes `gig.json` into the gig's own folder, `<gigs>/setup/<gig>`. */
 export async function writeGigFile(
   folderPath: string,
   text: string
@@ -140,7 +144,7 @@ export async function writeGigFile(
     return { ok: false, error: 'The gig folder can only be written from the desktop app.' }
   }
   try {
-    return await a.writeGigFile(gigSetupFolder(folderPath), text)
+    return await a.writeGigFile(folderPath, text)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
@@ -509,6 +513,31 @@ export async function deleteSongFile(
   }
   try {
     return await a.deleteSongFile(filePath)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * **Replaces a song file with the candidate an edit produced**, backing the original up beside
+ * itself first and writing atomically.
+ *
+ * **An edit replaces rather than merges** (2026-09-02). `promote` writes only the timeline
+ * envelope, and page 1 — the edit surface since Bombista `v1.4.0` — collects the title, the
+ * artist, the notes and the tempo, all of which were silently discarded when the target already
+ * existed. The candidate is the original file plus the person's changes, because page 1 prefills
+ * from it and Bombista passes a file's own keys through untouched.
+ */
+export async function replaceSongFile(
+  candidatePath: string,
+  targetPath: string
+): Promise<{ ok: true; backup: string | null } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.replaceSongFile !== 'function') {
+    return { ok: false, error: 'A song can only be written from the desktop app.' }
+  }
+  try {
+    return await a.replaceSongFile(candidatePath, targetPath)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

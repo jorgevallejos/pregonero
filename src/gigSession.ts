@@ -11,6 +11,7 @@
 
 import {
   createGigFile,
+  gigIdFrom,
   hasAuthoredSetlist,
   parseGigFile,
   readGigSetlist,
@@ -414,20 +415,25 @@ export async function saveGigIdentity(identity: {
 }
 
 /**
- * **A gig is made by naming it.** The folder is created under the gigs root that first run
- * recorded, and the gig is opened.
+ * **A gig is made by saying what it is.** Its date and its venue name it; the folder is created
+ * inside `<gigs>/setup`, and the gig is opened.
  *
- * **There is no folder question**, and removing it is the point rather than a convenience. `New
- * gig` used to open a directory picker, so the first thing asked of somebody making their first
- * gig was a filesystem decision — before the gig had a venue or a date, and on the screen the
- * setup redesign exists to unblock. Choosing a folder survives as **Import**, for a gig that
- * already exists somewhere else: a stick, a shared drive. That is the portability case the
- * two-file split protects, and it is a different act from making one.
+ * **Nothing is asked about where it goes, and nothing is typed that is not a fact about the
+ * night.** `New gig` used to open a directory picker, and then — briefly — a `Name it` field whose
+ * answer was a folder name. Both were the same mistake in different clothes: a filesystem decision
+ * standing in front of a gig that did not yet have a venue or a date. **The identity is derived
+ * from the two things a person actually knows**, which is also what makes the folder's name match
+ * the night folders Jorge already keeps.
+ *
+ * **Nothing reaches disk until the gig can be named** (2026-09-02). `gigIdFrom` returning null is
+ * the gate: leaving before that discards fields and no folder was ever made, so there is never a
+ * half-made thing on disk that is in no list. That shape is what produced a phantom popup earlier
+ * the same day.
  */
-export async function createGig(
-  name: string,
-  identity: { date: string; venue: GigVenue }
-): Promise<{ ok: true; folderPath: string } | { ok: false; error: string }> {
+export async function createGig(identity: {
+  date: string
+  venue: GigVenue
+}): Promise<{ ok: true; folderPath: string } | { ok: false; error: string }> {
   const gigsRoot = getGigsFolder()
   if (gigsRoot === null) {
     return {
@@ -436,20 +442,23 @@ export async function createGig(
     }
   }
 
-  const made = await platform.createGigFolder(gigsRoot, name)
+  const id = gigIdFrom({ date: identity.date, venue: identity.venue.name ?? '' })
+  if (id === null) {
+    return {
+      ok: false,
+      error: 'A gig is named by its date and its venue, and one of them is missing.',
+    }
+  }
+
+  const made = await platform.createGigFolder(gigsRoot, id)
   if (!made.ok) return made
 
   // **Written whole, once, before it is opened.** Creating the folder and then letting the on-open
   // path write an identity-only file — and writing the venue over it afterwards — would be three
-  // writes and one read-back, and would leave a gig that briefly exists without the venue that was
-  // typed in the same breath as its name.
+  // writes and one read-back, and would leave a gig that briefly exists without the venue that
+  // named it.
   const base = createGigFile(made.folderPath, new Date().toISOString().slice(0, 10))
-  const gig = withIdentity(base, {
-    // A blank date keeps the one the folder's name implies, or today. Clearing a default nobody
-    // was shown is not what an empty field means here; it means *I did not say*.
-    date: identity.date.trim() === '' ? (base.date ?? '') : identity.date,
-    venue: identity.venue,
-  })
+  const gig = withIdentity(base, { date: identity.date, venue: identity.venue })
   const written = await platform.writeGigFile(made.folderPath, serializeGigFile(gig))
   if (!written.ok) return { ok: false, error: written.error }
 
@@ -585,13 +594,6 @@ export async function confirmSetup(): Promise<GigReadiness> {
   if (!written.ok) return publishFromFolder(folderPath, gig, written.error, read)
 
   return publishFromFolder(folderPath, next, gigProblem, read)
-}
-
-/** Opens the picker, remembers what was chosen, and reports the delta. */
-export async function chooseGigFolder(): Promise<GigReadiness> {
-  const chosen = await platform.chooseGigFolderPath()
-  if (chosen === null) return getGigReadiness()
-  return openGigFolder(chosen)
 }
 
 /**

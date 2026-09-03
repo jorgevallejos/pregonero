@@ -8,6 +8,7 @@ import {
   hasGigFolderAccess,
   listSongsFolder,
   folderReadable,
+  createGigFolder,
   readGigFolder,
   validateSongForPerformance,
   writeGigFile,
@@ -65,22 +66,35 @@ describe('outside Electron', () => {
 })
 
 describe('inside Electron', () => {
-  it('passes the visuals pointer through, and looks in <gig>/setup', async () => {
-    // **The gig folder goes in and the gig folder comes back.** The `setup/` join happens here, at
-    // the one boundary that talks to the main process, so every module above holds the gig folder
-    // itself — `gigIdFromFolderPath` included, which would name every gig `setup` otherwise.
-    const readGig = vi.fn().mockResolvedValue({ folderPath: '/gigs/x/setup' })
+  it('passes the visuals pointer through, and reads the gig’s own folder', async () => {
+    // **A gig's folder IS where its two files are** (2026-09-02): `<gigs>/setup/<gig>`. There is no
+    // second join left at this boundary, and `gigIdFromFolderPath` still takes the id off the last
+    // segment — which is the gig's name, never `setup`.
+    const readGig = vi.fn().mockResolvedValue({ folderPath: '/gigs/setup/x' })
     setApi({ readGigFolder: readGig })
-    const read = await readGigFolder('/gigs/x', './room/v.json')
-    expect(readGig).toHaveBeenCalledWith('/gigs/x/setup', './room/v.json')
-    expect(read.folderPath).toBe('/gigs/x')
+    const read = await readGigFolder('/gigs/setup/x', './room/v.json')
+    expect(readGig).toHaveBeenCalledWith('/gigs/setup/x', './room/v.json')
+    expect(read.folderPath).toBe('/gigs/setup/x')
   })
 
-  it('writes gig.json into <gig>/setup, from the gig folder', async () => {
+  it('writes gig.json into the gig’s own folder', async () => {
     const write = vi.fn().mockResolvedValue({ ok: true })
     setApi({ writeGigFile: write })
-    await writeGigFile('/gigs/x', '{}')
-    expect(write).toHaveBeenCalledWith('/gigs/x/setup', '{}')
+    await writeGigFile('/gigs/setup/x', '{}')
+    expect(write).toHaveBeenCalledWith('/gigs/setup/x', '{}')
+  })
+
+  /**
+   * **The one folder the tools own, joined here and nowhere else** (Jorge, 2026-09-02). The main
+   * process is handed `<gigs>/setup` already joined, exactly as it is handed every other folder in
+   * this file: it stays ignorant of the suite's conventions, and there is one definition to drift
+   * from. **Nothing is ever created in the artist's own territory**, which is what this asserts.
+   */
+  it('makes a gig folder inside <gigs>/setup, never beside it', async () => {
+    const create = vi.fn().mockResolvedValue({ ok: true, folderPath: '/gigs/setup/x' })
+    setApi({ createGigFolder: create })
+    await createGigFolder('/gigs', '2026-05-16-bom-festival')
+    expect(create).toHaveBeenCalledWith('/gigs/setup', '2026-05-16-bom-festival')
   })
 
   it('lists <songs>/song-performance, from the songs root', async () => {

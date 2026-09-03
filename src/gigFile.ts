@@ -12,7 +12,6 @@
  * `gigReadiness.ts`'s question, and only its question.
  */
 
-import { gigSetupFolder } from './fileLayout'
 import { isAbsolutePath, relativePath, resolveFrom } from './paths'
 
 export const GIG_VERSION = 1
@@ -87,6 +86,46 @@ export const DEFAULT_VISUALS_POINTER = './visuals.json'
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
+}
+
+/**
+ * **The gig's identity, derived from what it is rather than typed.**
+ *
+ * `2026-05-16` and `BOM Festival` become `2026-05-16-bom-festival` — date then venue, the shape of
+ * the night folders Jorge already keeps, so a gig row and its night read as the same thing even
+ * though they sit apart (2026-09-02). It is shown on the screen that derives it, because it is what
+ * appears on Backstage and what the folder under `setup/` is called.
+ *
+ * **The city is deliberately not in it.** It is asked for because a gig has one and the file should
+ * say so; putting it in the name would make two gigs at the same venue in the same city read as
+ * near-duplicates of each other's folder name, and it is the venue that identifies the night.
+ *
+ * Null when either half is missing or unusable — a date that is not `YYYY-MM-DD`, a venue that
+ * slugs to nothing. **That null is the gate on writing anything at all**: nothing reaches disk
+ * until a gig can be named, so there is never a half-made folder to find.
+ */
+export function gigIdFrom(identity: { date: string; venue: string }): string | null {
+  const date = identity.date.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  const slug = venueSlug(identity.venue)
+  return slug === '' ? null : `${date}-${slug}`
+}
+
+/**
+ * A venue as a folder name: lowercase, accents folded, everything that is not a letter or a digit
+ * becoming a single hyphen.
+ *
+ * **Accents are folded rather than dropped**, so `Café Central` is `cafe-central` and not
+ * `caf-central`. Jorge's venues are Spanish, French and Dutch, and a name that loses its letters is
+ * a folder nobody recognises in Finder.
+ */
+export function venueSlug(venue: string): string {
+  return venue
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 /**
@@ -250,9 +289,10 @@ export function withSetup(gig: GigFile, setup: GigSetup): GigFile {
 /**
  * The file a folder with no `gig.json` gets: identity and nothing else.
  *
- * `venue` is deliberately absent — naming it is setup step 2's own screen, which round G builds,
- * and an invented venue would read as a fact. Readiness reports it as missing, which is the
- * honest state.
+ * `venue` is deliberately absent — a folder found with no gig file in it says nothing about where
+ * the night was, and an invented venue would read as a fact. Readiness reports it as missing, which
+ * is the honest state. **A gig made by the flow never goes through this alone**: step 1 knows the
+ * venue, because the venue is half of what named the folder.
  */
 export function createGigFile(folderPath: string, today: string): GigFile {
   const gig: GigFile = {
@@ -270,16 +310,14 @@ export type SetlistProjection = { id: string; title: string; path: string }
 /**
  * Writes Pregonero's setlist into the gig file's `songs` and `setlist`.
  *
- * **`file` is written relative to `gig.json` itself, which is one level further down than it used
- * to be** — `../../../songs/song-performance/libertad.json` from `<gig>/setup/`, where it was
- * `../../songs/libertad.json` from `<gig>/`. That is what lets the folder be handed over on a
- * stick: an absolute path is a fact about one machine, and the two-file split exists precisely so
- * the pair can travel. An absolute path is still *read* without complaint; this is only the form
- * written out. **Nothing on disk carries the old form**, so this is about writing the new one and
- * not about reading both.
+ * **`file` is written relative to `gig.json` itself** — from `<gigs>/setup/<gig>/`, which is where
+ * the file sits. That is what lets the folder be handed over on a stick: an absolute path is a fact
+ * about one machine, and the two-file split exists precisely so the pair can travel. An absolute
+ * path is still *read* without complaint; this is only the form written out. **Nothing on disk
+ * carries an older form**, so this is about writing this one and not about reading several.
  *
- * `gigFolderPath` is the **gig folder** — every caller holds that and never `setup/`, and the join
- * is here so there is one place it happens.
+ * `gigFolderPath` **is** `<gigs>/setup/<gig>`, so there is nothing to join: since 2026-09-02 a gig's
+ * folder is the folder its two files are in.
  *
  * A song path that is not absolute is already a reference to somewhere and is written through
  * untouched — there is nothing to make relative, and rewriting one would invent a location.
@@ -289,7 +327,7 @@ export function withSetlist(
   songs: readonly SetlistProjection[],
   gigFolderPath: string
 ): GigFile {
-  const from = gigSetupFolder(gigFolderPath)
+  const from = gigFolderPath
   return {
     ...gig,
     songs: songs.map((s) => ({
@@ -311,8 +349,8 @@ export function setlistMatches(
 }
 
 /**
- * **The setlist the file states**, in order, with each `file` resolved against `<gig>/setup`, which
- * is where `gig.json` sits and therefore what its relative paths are relative to.
+ * **The setlist the file states**, in order, with each `file` resolved against the gig's own folder,
+ * which is where `gig.json` sits and therefore what its relative paths are relative to.
  *
  * This is the direction that changed in round G. `setlist` used to be a dump of whatever the app
  * held, written one way, so a running order edited by hand in the file was overwritten on the next
@@ -325,7 +363,7 @@ export function setlistMatches(
 export type GigSetlistEntry = { id: string; title: string | null; path: string | null }
 
 export function readGigSetlist(gig: GigFile, gigFolderPath: string): GigSetlistEntry[] {
-  const from = gigSetupFolder(gigFolderPath)
+  const from = gigFolderPath
   const byId = new Map((gig.songs ?? []).map((song) => [song.id, song]))
   return (gig.setlist ?? []).map((id) => {
     const song = byId.get(id)
