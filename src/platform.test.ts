@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeAll, vi } from 'vitest'
 import { ensureStorage } from './testSupport/storage'
+import * as platform from './platform'
 import {
-  chooseGigFolderPath,
   fileExists,
   chooseFilePath,
   chooseFolderPath,
@@ -57,7 +57,19 @@ describe('outside Electron', () => {
   })
 
   it('cancels the picker', async () => {
-    expect(await chooseGigFolderPath()).toBeNull()
+    expect(await chooseFilePath('json')).toBeNull()
+  })
+
+  /**
+   * **There is no gig-folder picker and no multi-file song picker**, and the absence is asserted
+   * because an absence with no test is an invitation. The first served `Locate…`, which has no
+   * destination under the single-`setup/` ruling; the second served the manage-setlists screen,
+   * which is gone. A song arrives by being in `<songs>/song-performance`, and a gig by being made.
+   */
+  it('offers neither picker the deleted screens used', () => {
+    const module = platform as Record<string, unknown>
+    expect(module.chooseGigFolderPath).toBeUndefined()
+    expect(module.chooseSongFilePaths).toBeUndefined()
   })
 
   it('cannot see a file', async () => {
@@ -93,8 +105,8 @@ describe('inside Electron', () => {
   it('makes a gig folder inside <gigs>/setup, never beside it', async () => {
     const create = vi.fn().mockResolvedValue({ ok: true, folderPath: '/gigs/setup/x' })
     setApi({ createGigFolder: create })
-    await createGigFolder('/gigs', '2026-05-16-bom-festival')
-    expect(create).toHaveBeenCalledWith('/gigs/setup', '2026-05-16-bom-festival')
+    await createGigFolder('/gigs', 'w7q4hbz1nm')
+    expect(create).toHaveBeenCalledWith('/gigs/setup', 'w7q4hbz1nm')
   })
 
   it('lists <songs>/song-performance, from the songs root', async () => {

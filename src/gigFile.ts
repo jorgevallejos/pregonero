@@ -89,48 +89,70 @@ function isNonEmptyString(v: unknown): v is string {
 }
 
 /**
- * **The gig's identity, derived from what it is rather than typed.**
+ * **A gig's identity: ten characters that mean nothing** (Jorge, 2026-09-03).
  *
- * `2026-05-16` and `BOM Festival` become `2026-05-16-bom-festival` — date then venue, the shape of
- * the night folders Jorge already keeps, so a gig row and its night read as the same thing even
- * though they sit apart (2026-09-02). It is shown on the screen that derives it, because it is what
- * appears on Backstage and what the folder under `setup/` is called.
+ * **This supersedes the 02/09 shape `2026-05-16-bom-festival`.** That name was derived from the
+ * date and the venue, and both of them change — a venue is typed wrong, a date moves.
+ * **Identity derived from data that can change is not identity**, and a folder built on it is
+ * fragile for nothing.
  *
- * **The city is deliberately not in it.** It is asked for because a gig has one and the file should
- * say so; putting it in the name would make two gigs at the same venue in the same city read as
- * near-duplicates of each other's folder name, and it is the venue that identifies the night.
+ * **Ten characters rather than a full UUID**, because the uniqueness this needs is dozens of gigs
+ * on one machine, and short paths stay workable in a terminal and in Finder. Fifty bits of
+ * randomness, over Crockford's base32 — the 32 symbols with `i`, `l`, `o` and `u` taken out, so an
+ * id read off a screen and typed into a terminal cannot be confused with `1` or `0`.
  *
- * Null when either half is missing or unusable — a date that is not `YYYY-MM-DD`, a venue that
- * slugs to nothing. **That null is the gate on writing anything at all**: nothing reaches disk
- * until a gig can be named, so there is never a half-made folder to find.
+ * **Nothing is derived from it and it never changes.** `visuals.json` records the `gigId` it maps
+ * and is checked against this, so an id that could be rewritten is a room mapping that can quietly
+ * stop belonging to its gig. **Renaming the folder on an edit was considered and rejected** — the
+ * path is held in the bookmark list, in the open-gig session and, during the visuals step, in a
+ * live HTTP mount serving that folder to Muralista, so a rename mid-session pulls the floor out
+ * from a running tool. The reasoning is in `tramoya-integration/project-context.md` and is settled.
+ *
+ * **The opacity is paid for by `gig.json` itself**, which carries the date and the venue: opening
+ * any folder answers *which gig is this* at a glance, and the row on Backstage never shows this
+ * at all — see `gigLabel`.
  */
-export function gigIdFrom(identity: { date: string; venue: string }): string | null {
-  const date = identity.date.trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
-  const slug = venueSlug(identity.venue)
-  return slug === '' ? null : `${date}-${slug}`
+export const GIG_ID_LENGTH = 10
+
+/** Crockford base32: no `i`, `l`, `o` or `u`. Exactly 32 symbols, so a byte maps on without bias. */
+const GIG_ID_ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'
+
+export function newGigId(): string {
+  const bytes = new Uint8Array(GIG_ID_LENGTH)
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes)
+  } else {
+    // No `crypto` is a test environment or a very old runtime. Weaker randomness is the right
+    // failure here: an id that is merely unlikely to collide beats refusing to make a gig.
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  let id = ''
+  // 256 is a whole multiple of 32, so the remainder is uniform and there is no modulo bias.
+  for (const byte of bytes) id += GIG_ID_ALPHABET[byte % GIG_ID_ALPHABET.length]
+  return id
 }
 
 /**
- * A venue as a folder name: lowercase, accents folded, everything that is not a letter or a digit
- * becoming a single hyphen.
+ * **Nothing is written until the date and the venue are both answered** (Jorge, 2026-09-03).
  *
- * **Accents are folded rather than dropped**, so `Café Central` is `cafe-central` and not
- * `caf-central`. Jorge's venues are Spanish, French and Dutch, and a name that loses its letters is
- * a folder nobody recognises in Finder.
+ * **This is the gate, stated.** It used to be emergent: a gig was named by its date and its venue,
+ * so a missing half meant no name, no folder, and nothing on disk. **With an opaque id, identity
+ * exists from the first instant and that protection evaporates for free** — every gig can be named
+ * before it is anything, so the rule has to be written down and tested instead of falling out of
+ * the naming scheme. Without it the next walk finds empty gigs on disk, which is the half-made
+ * shape that produced a phantom popup on 2026-09-02.
+ *
+ * **The date must be a real `YYYY-MM-DD`** — the field is a date input, so anything else is a
+ * hand-edit or a bug. **The venue must be something rather than blank**, and that is the whole
+ * test: `—` used to be refused because it slugged to an empty folder name, and under an opaque
+ * folder a strange venue is still an answer.
  */
-export function venueSlug(venue: string): string {
-  return venue
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+export function gigIdentityIsAnswered(identity: { date: string; venue: string }): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(identity.date.trim()) && identity.venue.trim() !== ''
 }
 
 /**
- * The gig's id is its folder's name — the convention `concerts/2026-05-16-bom-festival` already
- * uses.
+ * The gig's id is its folder's name, which since 2026-09-03 is the opaque id `newGigId` minted.
  *
  * **`folderPath` is the gig folder, and never `<gig>/setup`.** Handed the setup folder this names
  * every gig `setup`, which passes every test and only shows up the day two gigs collide. It cannot
@@ -140,13 +162,6 @@ export function venueSlug(venue: string): string {
 export function gigIdFromFolderPath(folderPath: string): string {
   const parts = folderPath.split('/').filter((p) => p.length > 0)
   return parts[parts.length - 1] ?? ''
-}
-
-/** `2026-09-12-bar-eduard` → `2026-09-12`. Null when the name does not lead with a date. */
-export function gigDateFromFolderPath(folderPath: string): string | null {
-  const name = gigIdFromFolderPath(folderPath)
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(name)
-  return match ? match[1]! : null
 }
 
 /**
@@ -291,14 +306,18 @@ export function withSetup(gig: GigFile, setup: GigSetup): GigFile {
  *
  * `venue` is deliberately absent — a folder found with no gig file in it says nothing about where
  * the night was, and an invented venue would read as a fact. Readiness reports it as missing, which
- * is the honest state. **A gig made by the flow never goes through this alone**: step 1 knows the
- * venue, because the venue is half of what named the folder.
+ * is the honest state.
+ *
+ * **The date is today's, because the folder no longer carries one.** It used to be read off a name
+ * shaped `2026-09-12-bar-eduard`, with today as the fallback; the folder is an opaque id now and
+ * that reading is gone. **A gig made by the flow never keeps this date**: `createGig` writes the
+ * real one in the same breath, and this only ever stands for a folder found without a file in it.
  */
 export function createGigFile(folderPath: string, today: string): GigFile {
   const gig: GigFile = {
     gigVersion: GIG_VERSION,
     id: gigIdFromFolderPath(folderPath),
-    date: gigDateFromFolderPath(folderPath) ?? today,
+    date: today,
     visuals: DEFAULT_VISUALS_POINTER,
   }
   return gig
@@ -378,4 +397,39 @@ export function readGigSetlist(gig: GigFile, gigFolderPath: string): GigSetlistE
 /** Whether the file has reached the step where it carries a running order at all. */
 export function hasAuthoredSetlist(gig: GigFile): boolean {
   return gig.setlist !== undefined
+}
+
+/**
+ * **What a gig is called on a list: its date and its venue, read out of the file.**
+ *
+ * **The row and the folder are allowed to disagree** (Jorge, 2026-09-03). The folder is machinery —
+ * an opaque id that never changes — and this is a label, so editing a venue moves the row and
+ * leaves the folder alone. Backstage used to render `basename(path)`, which meant a corrected venue
+ * left the old string on screen; Jorge hit that by walking. Screen 1 of the gig flow is where the
+ * true identity is still shown, under `THIS GIG IS CALLED`.
+ *
+ * **The folder is the fallback and nothing else is**, which closes a 02/09 ruling the code never
+ * honoured: a gig is named by its venue where the file has one, and by its folder otherwise. A file
+ * that will not parse, or is not there at all, is `null` here and the id stands in — an opaque
+ * string is a poor label and a truthful one, and inventing a night would be worse.
+ */
+export function gigLabel(gig: GigFile | null, folderPath: string): string {
+  return gigLabelFrom(gig?.date ?? null, gig?.venue?.name ?? null, folderPath)
+}
+
+/**
+ * The same rule, for a caller that already has the two fields and should not read the file again —
+ * `GigReadiness` carries them. **One rule, two doors**: a second rendering of *what a gig is
+ * called* is how the row and the flow header start disagreeing.
+ */
+export function gigLabelFrom(
+  date: string | null,
+  venueName: string | null,
+  folderPath: string
+): string {
+  const id = gigIdFromFolderPath(folderPath)
+  const d = date?.trim() ?? ''
+  const v = venueName?.trim() ?? ''
+  if (d !== '' && v !== '') return `${d} · ${v}`
+  return v !== '' ? v : d !== '' ? d : id
 }

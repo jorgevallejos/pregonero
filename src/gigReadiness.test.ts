@@ -12,7 +12,7 @@ import { GIG_VERSION, type GigFile } from './gigFile'
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
 import type { LibrarySong } from './setlistStore'
 
-const GIG_ID = '2026-09-12-bar-eduard'
+const GIG_ID = 'k3f9x2abcd'
 
 function song(id: string, extra: Partial<LibrarySong> = {}): LibrarySong {
   return {
@@ -363,7 +363,7 @@ describe('the per-step verdict', () => {
   })
 
   it('a refused visuals.json is broken, and the refusal is carried verbatim', () => {
-    const refusal = 'visuals.json belongs to gig "last-month", not "2026-09-12-bar-eduard".'
+    const refusal = 'visuals.json belongs to gig "last-month", not "k3f9x2abcd".'
     const r = computeGigReadiness(input({ visuals: null, visualsProblem: refusal }))
     expect(r.steps.find((s) => s.step === 3)!.status).toBe('broken')
     expect(r.refusals).toEqual([refusal])

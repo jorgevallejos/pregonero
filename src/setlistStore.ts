@@ -1,5 +1,4 @@
 import {
-  getCurrentSongId,
   parseSongFile,
   setLoadedSong,
   resetLoadedSongState,
@@ -197,23 +196,6 @@ export function createEmptySnapshot(): SetlistStoreSnapshot {
   }
 }
 
-/** References for `songs`, all in one default setlist. The songs themselves are not persisted. */
-export function createInitialSnapshot(seed: readonly LibrarySong[]): SetlistStoreSnapshot {
-  const library = seed.map((s) => ({ id: s.id, path: `${s.id}.json` }))
-  return {
-    version: SETLIST_STORE_VERSION,
-    library,
-    setlists: [
-      {
-        id: DEFAULT_SETLIST_ID,
-        name: 'Default',
-        songIds: library.map((r) => r.id),
-      },
-    ],
-    activeSetlistId: DEFAULT_SETLIST_ID,
-  }
-}
-
 export function loadSetlistStore(): SetlistStoreSnapshot | null {
   const parsed = parseSnapshot(readRaw())
   if (!parsed) return null
@@ -223,19 +205,6 @@ export function loadSetlistStore(): SetlistStoreSnapshot | null {
 export function saveSetlistStore(snapshot: SetlistStoreSnapshot): void {
   if (snapshot.version !== SETLIST_STORE_VERSION) return
   writeRaw(repairSnapshot(snapshot))
-}
-
-/** Deep clone for draft editing sessions (JSON-serializable snapshot). */
-export function cloneSetlistStoreSnapshot(snap: SetlistStoreSnapshot): SetlistStoreSnapshot {
-  return JSON.parse(JSON.stringify(snap)) as SetlistStoreSnapshot
-}
-
-/** Structural equality for draft vs entry snapshot (JSON-serializable). */
-export function areSetlistStoreSnapshotsEqual(
-  a: SetlistStoreSnapshot,
-  b: SetlistStoreSnapshot
-): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 // ── The resolved library: a cache, never a source of truth ──────────────────────────────────
@@ -644,30 +613,6 @@ export function getOrderedSongsForSetlist(setlistId: string): LibrarySong[] {
   return orderedSongsForSetlistId(getSnapshot(), setlistId)
 }
 
-/** Same as `getOrderedSongsForSetlist` but reads from an arbitrary snapshot rather than the store. */
-export function getOrderedSongsForSetlistFromSnapshot(
-  snap: SetlistStoreSnapshot,
-  setlistId: string
-): LibrarySong[] {
-  return orderedSongsForSetlistId(snap, setlistId)
-}
-
-/**
- * Setlist rows for the manage screen, in list order, **including references whose file could
- * not be read** — those are exactly the rows the performer needs to see and fix.
- */
-export function getOrderedEntriesForSetlistFromSnapshot(
-  snap: SetlistStoreSnapshot,
-  setlistId: string
-): LibraryEntry[] {
-  return orderedEntriesForSetlistId(snap, setlistId)
-}
-
-/** Library rows for a snapshot's references, in reference order, resolved where possible. */
-export function getLibraryEntriesForSnapshot(snap: SetlistStoreSnapshot): LibraryEntry[] {
-  return snap.library.map((ref) => libraryCache.get(ref.id) ?? { ref, error: 'Not read yet.' })
-}
-
 export function hasValidActiveSetlist(): boolean {
   const snap = getSnapshot()
   const id = snap.activeSetlistId
@@ -681,15 +626,6 @@ export function setActiveSetlistId(id: string): boolean {
   if (snap.activeSetlistId === id) return true
   writeRaw({ ...snap, activeSetlistId: id })
   return true
-}
-
-const NEW_SETLIST_DEFAULT_NAME = 'New setlist'
-
-function newSetlistId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return `setlist-${Date.now()}-${Math.floor(Math.random() * 1e9)}`
 }
 
 /** Returns the media file the song's own file declares (single file per song). */
@@ -708,32 +644,6 @@ export function addSongRefToSnapshot(
     ...snap,
     library: [...snap.library, { id: ref.id, path: ref.path }],
   })
-}
-
-/** Pure snapshot update: rename a setlist. Returns null if id unknown or empty name. */
-export function renameSetlistInSnapshot(
-  snap: SetlistStoreSnapshot,
-  id: string,
-  name: string
-): SetlistStoreSnapshot | null {
-  const trimmed = typeof name === 'string' ? name.trim() : ''
-  if (!trimmed) return null
-  if (!snap.setlists.some((s) => s.id === id)) return null
-  return repairSnapshot({
-    ...snap,
-    setlists: snap.setlists.map((s) => (s.id === id ? { ...s, name: trimmed } : s)),
-  })
-}
-
-/** Pure snapshot update: remove a setlist; clears `activeSetlistId` when it pointed at that list. */
-export function deleteSetlistInSnapshot(
-  snap: SetlistStoreSnapshot,
-  id: string
-): SetlistStoreSnapshot | null {
-  if (!snap.setlists.some((s) => s.id === id)) return null
-  const nextSetlists = snap.setlists.filter((s) => s.id !== id)
-  const activeSetlistId = snap.activeSetlistId === id ? '' : snap.activeSetlistId
-  return repairSnapshot({ ...snap, setlists: nextSetlists, activeSetlistId })
 }
 
 /**
@@ -787,19 +697,6 @@ export function adoptSetlistInSnapshot(
     adopted,
     unresolved,
   }
-}
-
-/** Pure snapshot update: append an empty setlist and set it active. */
-export function appendEmptySetlistInSnapshot(
-  snap: SetlistStoreSnapshot
-): { snapshot: SetlistStoreSnapshot; id: string } {
-  const id = newSetlistId()
-  const next = repairSnapshot({
-    ...snap,
-    setlists: [...snap.setlists, { id, name: NEW_SETLIST_DEFAULT_NAME, songIds: [] }],
-    activeSetlistId: id,
-  })
-  return { snapshot: next, id }
 }
 
 /** Pure snapshot update: add a library reference to a setlist by id. */
@@ -865,7 +762,7 @@ export function removeSongFromSetlistInSnapshot(
  */
 
 /**
- * Pure snapshot update: reorder within one setlist (`fromIndex` → `toIndex`, @dnd-kit arrayMove semantics).
+ * Pure snapshot update: reorder within one setlist (`fromIndex` → `toIndex`).
  * Returns null on invalid args; returns `snap` unchanged when indices are equal.
  */
 export function reorderSongsInSetlistInSnapshot(
@@ -892,29 +789,6 @@ export function reorderSongsInSetlistInSnapshot(
 }
 
 /**
- * After persisting a setlist snapshot, clears loaded song session when the current song is gone from the
- * library or no longer appears in the active setlist (including when there is no active setlist).
- */
-export function syncLoadedSongSessionWithSnapshot(snap: SetlistStoreSnapshot): void {
-  const songId = getCurrentSongId()
-  if (!songId) return
-  const inLib = snap.library.some((r) => r.id === songId)
-  if (!inLib) {
-    resetLoadedSongState()
-    return
-  }
-  const active = snap.activeSetlistId
-  if (!active) {
-    resetLoadedSongState()
-    return
-  }
-  const sl = snap.setlists.find((s) => s.id === active)
-  if (!sl || !sl.songIds.includes(songId)) {
-    resetLoadedSongState()
-  }
-}
-
-/**
  * Loads the first song from the active setlist into setup state.
  * When there is no active setlist or it has no readable song, clears the loaded song.
  */
@@ -930,29 +804,6 @@ export function autoSelectFirstSongForActiveSetlist(snap: SetlistStoreSnapshot):
     return
   }
   setLoadedSong(firstSong)
-}
-
-/** Appends an empty setlist, sets it active, and persists. */
-export function createEmptySetlist(): { id: string } {
-  const { snapshot, id } = appendEmptySetlistInSnapshot(getSnapshot())
-  writeRaw(snapshot)
-  return { id }
-}
-
-/** Updates a setlist display name (trimmed). Returns false if id is unknown or name is empty after trim. */
-export function renameSetlist(id: string, name: string): boolean {
-  const next = renameSetlistInSnapshot(getSnapshot(), id, name)
-  if (!next) return false
-  writeRaw(next)
-  return true
-}
-
-/** Removes a setlist. Clears activeSetlistId when the active setlist is deleted. Returns false if id is unknown. */
-export function deleteSetlist(id: string): boolean {
-  const next = deleteSetlistInSnapshot(getSnapshot(), id)
-  if (!next) return false
-  writeRaw(next)
-  return true
 }
 
 export function addSongToSetlist(setlistId: string, songId: string): boolean {
@@ -973,8 +824,8 @@ export function removeSongFromSetlist(setlistId: string, songId: string): boolea
 export type MoveSongDirection = 'up' | 'down'
 
 /**
- * Moves the song at `fromIndex` to `toIndex` in the setlist's `songIds` (same semantics as
- * @dnd-kit arrayMove: remove at `fromIndex`, then insert at `toIndex` in the shortened array).
+ * Moves the song at `fromIndex` to `toIndex` in the setlist's `songIds`: remove at `fromIndex`,
+ * then insert at `toIndex` in the shortened array.
  * Returns false when the setlist is missing or indices are invalid.
  */
 export function reorderSongsInSetlist(

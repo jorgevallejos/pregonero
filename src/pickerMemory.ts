@@ -29,7 +29,6 @@ export type PickerName =
   | 'songs-folder'
   | 'gigs-folder'
   | 'media-folder'
-  | 'gig-folder'
 
 function readMap(): Record<string, string> {
   try {

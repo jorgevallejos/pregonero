@@ -40,18 +40,6 @@ export function hasGigFolderAccess(): boolean {
 }
 
 /**
- * Opens the native directory picker for a gig folder somewhere else — the import path. Null when
- * cancelled, or when there is no Electron.
- */
-export async function chooseGigFolderPath(): Promise<string | null> {
-  const a = api()
-  if (!a || typeof a.openGigFolderDialog !== 'function') return null
-  const chosen = await a.openGigFolderDialog(lastPickerFolder('gig-folder') ?? undefined)
-  rememberPickerFolder('gig-folder', chosen)
-  return chosen
-}
-
-/**
  * Opens the native directory picker for a folder this machine remembers — the songs root, the gigs
  * root, the media folder. Null when cancelled, or when there is no Electron.
  *
@@ -422,19 +410,6 @@ export async function chooseFilePath(
   if (!a || typeof a.openFileDialog !== 'function') return null
   const chosen = await a.openFileDialog(kind, lastPickerFolder(kind) ?? undefined)
   rememberPickerFolder(kind, chosen)
-  return chosen
-}
-
-/**
- * The multi-select picker for song files. Its own memory, like every other picker.
- *
- * Outside Electron there is no dialog to open, which is an empty selection rather than a failure.
- */
-export async function chooseSongFilePaths(): Promise<string[]> {
-  const a = api()
-  if (!a || typeof a.openSongFileDialog !== 'function') return []
-  const chosen = await a.openSongFileDialog(lastPickerFolder('json') ?? undefined)
-  rememberPickerFolder('json', chosen[0] ?? null)
   return chosen
 }
 

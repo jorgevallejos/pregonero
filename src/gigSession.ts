@@ -11,7 +11,8 @@
 
 import {
   createGigFile,
-  gigIdFrom,
+  gigIdentityIsAnswered,
+  newGigId,
   hasAuthoredSetlist,
   parseGigFile,
   readGigSetlist,
@@ -423,20 +424,26 @@ export async function saveGigIdentity(identity: {
 }
 
 /**
- * **A gig is made by saying what it is.** Its date and its venue name it; the folder is created
- * inside `<gigs>/setup`, and the gig is opened.
+ * **A gig is made by saying what it is.** The folder is created inside `<gigs>/setup` under an
+ * opaque id, `gig.json` is written whole, and the gig is opened.
  *
  * **Nothing is asked about where it goes, and nothing is typed that is not a fact about the
  * night.** `New gig` used to open a directory picker, and then — briefly — a `Name it` field whose
  * answer was a folder name. Both were the same mistake in different clothes: a filesystem decision
- * standing in front of a gig that did not yet have a venue or a date. **The identity is derived
- * from the two things a person actually knows**, which is also what makes the folder's name match
- * the night folders Jorge already keeps.
+ * standing in front of a gig that did not yet have a venue or a date.
  *
- * **Nothing reaches disk until the gig can be named** (2026-09-02). `gigIdFrom` returning null is
- * the gate: leaving before that discards fields and no folder was ever made, so there is never a
- * half-made thing on disk that is in no list. That shape is what produced a phantom popup earlier
- * the same day.
+ * ## The write gate, and why it is a line of code rather than a consequence
+ *
+ * **Nothing reaches disk until the date and the venue are both answered.** Until 2026-09-03 that
+ * was true without anybody writing it: the folder was named `2026-05-16-bom-festival`, so a missing
+ * half meant no name and there was nothing to create. **The opaque id repeals that for free** —
+ * `newGigId` answers at any moment, about a gig that is nothing yet — so the rule is now
+ * `gigIdentityIsAnswered`, checked here, before the folder and before the file. Leaving during
+ * step 1 discards the fields and no folder was ever made, so there is never a half-made thing on
+ * disk that is in no list. That shape is what produced a phantom popup on 2026-09-02.
+ *
+ * **The gate is checked before `createGigFolder`, which is the only ordering that means anything**:
+ * a folder made and then judged is a folder on disk.
  */
 export async function createGig(identity: {
   date: string
@@ -450,15 +457,16 @@ export async function createGig(identity: {
     }
   }
 
-  const id = gigIdFrom({ date: identity.date, venue: identity.venue.name ?? '' })
-  if (id === null) {
+  if (!gigIdentityIsAnswered({ date: identity.date, venue: identity.venue.name ?? '' })) {
     return {
       ok: false,
-      error: 'A gig is named by its date and its venue, and one of them is missing.',
+      error: 'A gig is a date and a place, and one of them is missing. Nothing has been written.',
     }
   }
 
-  const made = await platform.createGigFolder(gigsRoot, id)
+  // Minted here and never again: the folder is this id for the rest of the gig's life, and
+  // `gig.json`'s own `id` is read back off the folder name by `createGigFile`.
+  const made = await platform.createGigFolder(gigsRoot, newGigId())
   if (!made.ok) return made
 
   // **Written whole, once, before it is opened.** Creating the folder and then letting the on-open
