@@ -3933,6 +3933,80 @@ html, body, #root {
   list-style: none;
 }
 
+/* ---- Step 4: the check ----
+   NOT A FORM. One line per thing that has to be true, each passing or failing. Every line is bound
+   to a structured field of `gigReadiness`; the prose under it is shown and never read. */
+
+.gig-flow-check {
+  max-width: 56em;
+}
+
+.gig-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule);
+}
+
+.gig-check-line {
+  padding: 0.75em 1em;
+  border-bottom: 1px solid var(--control-border-soft);
+}
+
+.gig-check-line:last-child {
+  border-bottom: 0;
+}
+
+.gig-check-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+}
+
+.gig-check-claim {
+  color: var(--text-primary);
+}
+
+/* THE VERDICT IS THE WORD, NOT A COLOUR ALONE. A row read at a desk has time to be read; a mark
+   that is only a hue is a mark somebody has to have been told about. Colour is the second signal
+   and never the only one. */
+.gig-check-status {
+  flex: 0 0 auto;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.gig-check-line[data-state='complete'] .gig-check-status {
+  color: var(--state-live);
+}
+
+.gig-check-line[data-state='broken'] .gig-check-status {
+  color: var(--state-fail);
+}
+
+.gig-check-detail,
+.gig-check-notes {
+  margin: 0.5em 0 0;
+  padding-left: 1.2em;
+  line-height: 1.45;
+}
+
+.gig-check-detail {
+  color: var(--state-fail);
+}
+
+/* Reported, never blocking — and it has to LOOK different from what is in the way, or the
+   distinction readiness draws on purpose is lost on the way to the screen. */
+.gig-check-notes {
+  color: var(--text-dim);
+}
+
 /* The position is the running order, so it is numeric and it is not decoration. */
 .gig-flow-position {
   font-family: var(--font-numeric);
