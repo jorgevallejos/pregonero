@@ -3511,19 +3511,6 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
-/* THE TRANSLATION STEP, AND IT IS PREGONERO'S TO NAME (2026-09-02). One line, at the end of the
-   flow, under the page that just made the file. Dim and small because it is a fact about the work
-   rather than something to do here — and it is the only prose on this screen, which is what makes
-   it readable at all. */
-.song-flow-outside {
-  margin: 0;
-  padding: 0.9em 2em;
-  border-top: 1px solid var(--rule-faint);
-  font-size: 0.8125em;
-  line-height: 1.45;
-  color: var(--text-muted);
-}
-
 /* `BACK` ASKS, AND IT IS THE DELETE DIALOG'S SHAPE (2026-09-02). Same overlay, same box, same two
    buttons — because it is the same kind of popup: a destructive action needing consent. Nothing new
    is introduced here; only the two lines of copy differ, so only the two lines have rules. One set
@@ -3539,13 +3526,75 @@ html, body, #root {
    These three rules override the centring `.ctrl-timeline-save-dialog` sets for every other popup
    that uses it, rather than un-centring that box for all of them: the delete-song dialog is the
    same category of thing and should follow, but it was not in this round's findings. */
+/* THE SHAPE HAS DIMENSIONS NOW, AND THAT IS THE WHOLE OF THE 2026-09-03 SECOND PASS.
+   The first pass named alignment and button style and nothing about size. It was implemented
+   exactly and the two dialogs still read as two apps on the walk, because Pregonero's box was
+   770px wide against Bombista's 448, with a 24px title against 15.2 and 56px buttons against 32.
+   **A shape that does not state its dimensions is not a shape.**
+
+   BOMBISTA'S COMPACT BOX IS THE REFERENCE. Every number below is `.ask`'s, measured off a real
+   render at 1280x900 and reproduced here — not approximated, not scaled to taste:
+
+       box      448px wide, border-box, padding 17.6 / 19.2 / 16
+       title    15.2px, weight 700
+       text     13.44px / 1.5
+       buttons  32px high, 104px min-wide, padding 0 17.6, 13.12px
+
+   REM, NOT EM, AND THAT IS THE FIX RATHER THAN A STYLE CHOICE. `.songs-screen` sets
+   `font-size: calc(16px * var(--control-ui-scale))` — 24px — so every `em` in this dialog was
+   1.5x Bombista's, which is exactly and only why the box was 1.7x too wide. `rem` resolves
+   against the root, 16px in both apps, so the same number means the same pixels on both sides of
+   the seam. **The stage scale is right for the control view and wrong for a modal**: this dialog
+   is read at a desk, hours ahead, and it has to match a box drawn by another process that has
+   never heard of `--control-ui-scale`.
+
+   BORDER-BOX, because `max-width` did not mean the same thing on the two sides. Bombista sets it
+   globally; this dialog was `content-box`, so `max-width: 28em` capped the CONTENT at 672 and the
+   padding and border added 98 on top. The two apps agreed on `28` and rendered 448 against 770.
+
+   SCOPED TO THIS DIALOG. `.ctrl-timeline-save-dialog` and `.ctrl-btn` are shared — the
+   delete-song dialog still carries the old centred shape, which is known and is NOT in this
+   round. Every rule here names `leave-without-saving`.
+
+   `src/LeaveWithoutSaving.test.tsx` and Bombista's `tests/test_pages.py` assert the same table,
+   so the two cannot drift apart without one of them going red. */
 .leave-without-saving {
+  box-sizing: border-box;
   align-items: stretch;
   text-align: left;
+  max-width: 28rem;
+  padding: 1.1rem 1.2rem 1rem;
+  /* Bombista's rhythm: 8px title to text, 16px text to the buttons. The second half is the gap
+     plus the row's own margin, because this box has one paragraph where Bombista has two. */
+  gap: 0.5rem;
+}
+
+.leave-without-saving .ctrl-timeline-save-message {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.leave-without-saving .leave-without-saving-what {
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .leave-without-saving-actions {
   justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+}
+
+/* One control drawn twice, and the only difference between the two is which side they are on —
+   plus the fail colour on the one that leaves, which is below and is the suite's own mark. */
+.leave-without-saving-actions .ctrl-btn {
+  box-sizing: border-box;
+  height: 2rem;
+  min-height: 2rem;
+  min-width: 6.5rem;
+  padding: 0 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 400;
 }
 
 .leave-without-saving-what {
