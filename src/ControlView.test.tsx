@@ -31,7 +31,6 @@ import { KEY_CONTACT_LIT_BROADCAST } from './gigContactState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
-  createEmptySetlist,
   DEFAULT_SETLIST_ID,
   dropLibraryCache,
   loadSetlistStore,
@@ -2580,9 +2579,15 @@ describe('ControlView performer state flow', () => {
     it('initial load with empty active setlist keeps song unselected in Setup', async () => {
       clearStorage()
       installProductionLikeLibrary()
-      const emptySetlist = createEmptySetlist()
+      // The empty setlist is written straight into the store: `createEmptySetlist` went with the
+      // manage-setlists screen, and this test is about what the control view does when the active
+      // setlist has nothing in it, not about how one gets made.
       const snapshot = loadSetlistStore()!
-      saveSetlistStore({ ...snapshot, activeSetlistId: emptySetlist.id })
+      saveSetlistStore({
+        ...snapshot,
+        setlists: [...snapshot.setlists, { id: 'empty', name: 'Empty', songIds: [] }],
+        activeSetlistId: 'empty',
+      })
       setCurrentSongId('duelo')
       setCurrentSongTitle('Duelo')
       setSongLines(VALID_LINES)

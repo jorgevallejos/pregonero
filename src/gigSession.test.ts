@@ -7,7 +7,6 @@ const readGigFolder = vi.fn()
 const writeGigFile = vi.fn()
 const validateSongForPerformance = vi.fn()
 const fileExists = vi.fn()
-const chooseGigFolderPath = vi.fn()
 const createGigFolder = vi.fn()
 const readSongFileText = vi.fn()
 
@@ -28,7 +27,6 @@ vi.mock('./platform', async (importOriginal) => ({
   describeDisplays: (...a: unknown[]) => describeDisplays(...a),
   hasGigFolderAccess: () => true,
   readSongFileText: (...a: unknown[]) => readSongFileText(...a),
-  chooseGigFolderPath: (...a: unknown[]) => chooseGigFolderPath(...a),
   createGigFolder: (...a: unknown[]) => createGigFolder(...a),
   readGigFolder: (...a: unknown[]) => readGigFolder(...a),
   writeGigFile: (...a: unknown[]) => writeGigFile(...a),
@@ -154,11 +152,6 @@ describe('making a gig by saying what it is', () => {
     expect(written.id).toBe(GIG_ID)
     expect(written.date).toBe('2026-09-12')
     expect(written.venue).toEqual({ name: 'Bar Eduard', city: 'Ghent' })
-  })
-
-  it('never opens a folder picker', async () => {
-    await createGig({ date: '2026-09-12', venue: { name: 'Bar Eduard' } })
-    expect(chooseGigFolderPath).not.toHaveBeenCalled()
   })
 
   /**

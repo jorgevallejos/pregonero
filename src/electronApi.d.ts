@@ -92,13 +92,11 @@ declare global {
       ) => Promise<string | null>
       getFileStats: (filePath: string) => Promise<{ exists: boolean; size: number }>
       /** Native picker for song files. Resolves to absolute paths, or [] if cancelled. */
-      openSongFileDialog: (defaultPath?: string) => Promise<string[]>
       /** Reads a song file's text. Never throws across the bridge — failures come back as `ok: false`. */
       readSongFile: (
         filePath: string
       ) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
       /** Native directory picker for the gig folder. Resolves to an absolute path, or null if cancelled. */
-      openGigFolderDialog: (defaultPath?: string) => Promise<string | null>
       /** Native directory picker for the songs root, the gigs root and the media folder. */
       openFolderDialog: (title?: string, defaultPath?: string) => Promise<string | null>
       /**

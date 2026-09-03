@@ -7,19 +7,12 @@ import {
   SETLIST_STORE_VERSION,
   DEFAULT_SETLIST_ID,
   createEmptySnapshot,
-  createInitialSnapshot,
   ensureSongLibraryHydrated,
   loadSetlistStore,
   saveSetlistStore,
   getActiveSetlistId,
   setActiveSetlistId,
   getOrderedSongsForActiveSetlist,
-  getOrderedEntriesForSetlistFromSnapshot,
-  getSetlists,
-  hasValidActiveSetlist,
-  createEmptySetlist,
-  renameSetlist,
-  deleteSetlist,
   getLibrarySongs,
   getLibraryEntries,
   getCatalogueEntries,
@@ -33,8 +26,6 @@ import {
   moveSongInSetlist,
   reorderSongsInSetlist,
   addSongRefToSnapshot,
-  areSetlistStoreSnapshotsEqual,
-  cloneSetlistStoreSnapshot,
   getActiveMediaFile,
   dropLibraryCache,
   isLibraryHydrated,
@@ -104,7 +95,13 @@ function song(id: string, extra: Partial<LibrarySong> = {}): LibrarySong {
 
 /** Persist refs for `songs` and put the resolved songs in the cache, as hydration would. */
 function installLibrary(songs: readonly LibrarySong[]): SetlistStoreSnapshot {
-  const snap = createInitialSnapshot(songs)
+  const library = songs.map((s) => ({ id: s.id, path: `${s.id}.json` }))
+  const snap: SetlistStoreSnapshot = {
+    version: SETLIST_STORE_VERSION,
+    library,
+    setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: library.map((r) => r.id) }],
+    activeSetlistId: DEFAULT_SETLIST_ID,
+  }
   saveSetlistStore(snap)
   setLibraryEntries(
     songs.map((s) => ({ ref: { id: s.id, path: `${s.id}.json` }, song: s }))
@@ -443,12 +440,30 @@ describe('the library no longer accepts song data', () => {
   })
 })
 
+/**
+ * **An extra empty setlist, written straight into the store.**
+ *
+ * The app has no way to make one any more: `createEmptySetlist` went with the manage-setlists
+ * screen, and every setlist a person now gets is either the default or the gig's own, adopted from
+ * `gig.json`. The store still has to behave when there is more than one, so the tests build the
+ * second one by hand rather than through a control nobody has.
+ */
+function addEmptySetlist(id: string): string {
+  const snap = loadSetlistStore()!
+  saveSetlistStore({
+    ...snap,
+    setlists: [...snap.setlists, { id, name: id, songIds: [] }],
+    activeSetlistId: id,
+  })
+  return id
+}
+
 describe('setlists over a reference library', () => {
   beforeEach(() => {
     installLibrary([song('a'), song('b'), song('c')])
   })
 
-  it('createInitialSnapshot puts every reference in one default setlist', () => {
+  it('puts every reference in one default setlist', () => {
     const snap = loadSetlistStore() as SetlistStoreSnapshot
     expect(snap.activeSetlistId).toBe(DEFAULT_SETLIST_ID)
     expect(snap.setlists[0]?.songIds).toEqual(['a', 'b', 'c'])
@@ -459,16 +474,16 @@ describe('setlists over a reference library', () => {
   })
 
   it('adds, removes and reorders by id', () => {
-    const list = createEmptySetlist()
-    expect(addSongToSetlist(list.id, 'b')).toBe(true)
-    expect(addSongToSetlist(list.id, 'a')).toBe(true)
-    expect(getOrderedSongsForSetlist(list.id).map((s) => s.id)).toEqual(['b', 'a'])
-    expect(reorderSongsInSetlist(list.id, 0, 1)).toBe(true)
-    expect(getOrderedSongsForSetlist(list.id).map((s) => s.id)).toEqual(['a', 'b'])
-    expect(moveSongInSetlist(list.id, 'b', 'up')).toBe(true)
-    expect(getOrderedSongsForSetlist(list.id).map((s) => s.id)).toEqual(['b', 'a'])
-    expect(removeSongFromSetlist(list.id, 'b')).toBe(true)
-    expect(getOrderedSongsForSetlist(list.id).map((s) => s.id)).toEqual(['a'])
+    const id = addEmptySetlist('tonight')
+    expect(addSongToSetlist(id, 'b')).toBe(true)
+    expect(addSongToSetlist(id, 'a')).toBe(true)
+    expect(getOrderedSongsForSetlist(id).map((s) => s.id)).toEqual(['b', 'a'])
+    expect(reorderSongsInSetlist(id, 0, 1)).toBe(true)
+    expect(getOrderedSongsForSetlist(id).map((s) => s.id)).toEqual(['a', 'b'])
+    expect(moveSongInSetlist(id, 'b', 'up')).toBe(true)
+    expect(getOrderedSongsForSetlist(id).map((s) => s.id)).toEqual(['b', 'a'])
+    expect(removeSongFromSetlist(id, 'b')).toBe(true)
+    expect(getOrderedSongsForSetlist(id).map((s) => s.id)).toEqual(['a'])
   })
 
   it('refuses a song id that is not in the library', () => {
@@ -496,19 +511,21 @@ describe('setlists over a reference library', () => {
     expect(loadSetlistStore()?.library.map((r) => r.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('renames and deletes setlists', () => {
-    expect(renameSetlist(DEFAULT_SETLIST_ID, ' Tonight ')).toBe(true)
-    expect(getSetlists()[0]?.name).toBe('Tonight')
-    expect(deleteSetlist(DEFAULT_SETLIST_ID)).toBe(true)
-    expect(getSetlists()).toEqual([])
-    expect(getActiveSetlistId()).toBe('')
-    expect(hasValidActiveSetlist()).toBe(false)
+  it('offers no way to rename or delete a setlist, and that is the rule', () => {
+    // **Removed 2026-09-03 with the screen that pressed them.** Naming and deleting setlists was
+    // the manage-setlists screen's whole reason to exist; a gig's setlist is now the gig's, named
+    // after it and adopted from `gig.json`. The absence is asserted because an absence with no
+    // test is an invitation.
+    const store = setlistStoreModule as Record<string, unknown>
+    expect(store.renameSetlist).toBeUndefined()
+    expect(store.deleteSetlist).toBeUndefined()
+    expect(store.createEmptySetlist).toBeUndefined()
   })
 
   it('switches the active setlist only to one that exists', () => {
-    const list = createEmptySetlist()
-    expect(setActiveSetlistId(list.id)).toBe(true)
-    expect(getActiveSetlistId()).toBe(list.id)
+    const id = addEmptySetlist('tonight')
+    expect(setActiveSetlistId(id)).toBe(true)
+    expect(getActiveSetlistId()).toBe(id)
     expect(setActiveSetlistId('nope')).toBe(false)
   })
 
@@ -524,44 +541,6 @@ describe('setlists over a reference library', () => {
     expect(loadSetlistStore()?.setlists[0]?.songIds).toEqual(['a', 'c'])
   })
 
-})
-
-describe('setlist entries for the manage screen', () => {
-  it('lists unresolved references in setlist order alongside resolved ones', () => {
-    const snap: SetlistStoreSnapshot = {
-      version: SETLIST_STORE_VERSION,
-      library: [
-        { id: 'a', path: 'a.json' },
-        { id: 'gone', path: 'gone.json' },
-      ],
-      setlists: [{ id: DEFAULT_SETLIST_ID, name: 'Default', songIds: ['gone', 'a'] }],
-      activeSetlistId: DEFAULT_SETLIST_ID,
-    }
-    setLibraryEntries([
-      { ref: { id: 'a', path: 'a.json' }, song: song('a') },
-      { ref: { id: 'gone', path: 'gone.json' }, error: 'ENOENT' },
-    ])
-    const entries = getOrderedEntriesForSetlistFromSnapshot(snap, DEFAULT_SETLIST_ID)
-    expect(entries.map((e) => e.ref.id)).toEqual(['gone', 'a'])
-    expect(entries[0]?.song).toBeUndefined()
-    expect(entries[1]?.song?.id).toBe('a')
-  })
-})
-
-describe('draft snapshots', () => {
-  it('clones deeply', () => {
-    const snap = installLibrary([song('a')])
-    const copy = cloneSetlistStoreSnapshot(snap)
-    copy.library[0]!.path = 'changed.json'
-    expect(snap.library[0]?.path).toBe('a.json')
-  })
-
-  it('compares structurally', () => {
-    const snap = installLibrary([song('a')])
-    expect(areSetlistStoreSnapshotsEqual(snap, cloneSetlistStoreSnapshot(snap))).toBe(true)
-    const other: SetlistStoreSnapshot = { ...snap, activeSetlistId: 'x' }
-    expect(areSetlistStoreSnapshotsEqual(snap, other)).toBe(false)
-  })
 })
 
 describe('getActiveMediaFile', () => {
