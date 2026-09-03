@@ -304,20 +304,19 @@ export function withSetup(gig: GigFile, setup: GigSetup): GigFile {
 /**
  * The file a folder with no `gig.json` gets: identity and nothing else.
  *
- * `venue` is deliberately absent — a folder found with no gig file in it says nothing about where
- * the night was, and an invented venue would read as a fact. Readiness reports it as missing, which
- * is the honest state.
+ * `venue` and `date` are deliberately absent — an invented venue or an invented date would read as
+ * a fact. Readiness reports each as missing, which is the honest state.
  *
- * **The date is today's, because the folder no longer carries one.** It used to be read off a name
- * shaped `2026-09-12-bar-eduard`, with today as the fallback; the folder is an opaque id now and
- * that reading is gone. **A gig made by the flow never keeps this date**: `createGig` writes the
- * real one in the same breath, and this only ever stands for a folder found without a file in it.
+ * **Nothing here invents a date** (2026-09-03). It used to fall back to today's, for the one case
+ * that needed it: a folder found with no gig file, which `refreshGigReadiness` wrote a file into on
+ * open. **That case is gone** — under *the gigs list is the folder*, a folder with no `gig.json` is
+ * not a gig and is not listed, so there is nothing to date and nothing writes into it. The one
+ * caller left is `createGig`, which puts the real date on in the same breath.
  */
-export function createGigFile(folderPath: string, today: string): GigFile {
+export function createGigFile(folderPath: string): GigFile {
   const gig: GigFile = {
     gigVersion: GIG_VERSION,
     id: gigIdFromFolderPath(folderPath),
-    date: today,
     visuals: DEFAULT_VISUALS_POINTER,
   }
   return gig

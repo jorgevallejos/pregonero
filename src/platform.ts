@@ -455,6 +455,59 @@ export async function listSongsFolder(songsRoot: string): Promise<SongsFolderLis
   }
 }
 
+/** What one look at `<gigs>/setup` found, and what it could not read. */
+export type GigsFolderListing = {
+  /**
+   * The gig folders, by name. Empty when there are none, and when the folder will not read.
+   * **Names, not paths, and not gigs**: whether a folder is a gig is decided by reading
+   * `gig.json` in it, which is `gigFolderList.ts`'s job.
+   */
+  folders: string[]
+  /**
+   * Why the folder could not be read, or null. **A folder that is not there yet is not a problem**
+   * — nothing creates `<gigs>/setup/` until the first gig is made — so this is null for a machine
+   * with no gigs and a sentence for a gigs root that refuses.
+   */
+  problem: string | null
+  /** Whether the folder actually answered. A problem always comes with `answered: false`. */
+  answered: boolean
+}
+
+/**
+ * **The gig folders in `<gigs>/setup`.** Takes the **gigs root** and joins the rest, so every
+ * caller holds the gigs folder and this is the one place that knows which folder inside it the
+ * tools own.
+ *
+ * **The sibling of `listSongsFolder`, and deliberately the same shape** (Jorge, 2026-09-03): the
+ * gigs list is the folder, exactly as the songs list is, so the two reads answer alike and neither
+ * can be a bookmark list standing in for a disk.
+ *
+ * Outside Electron there is no folder to read, which reads as an empty list — the same shape as a
+ * machine with no gigs, and not an error.
+ */
+export async function listGigsFolder(gigsRoot: string): Promise<GigsFolderListing> {
+  const a = api()
+  if (!a || typeof a.listGigsFolder !== 'function') {
+    return { folders: [], problem: null, answered: false }
+  }
+  // **The root is asked about first**, for the reason the songs listing asks: `setup/` is absent
+  // on a machine that has never made a gig and that is not a problem, so a gigs folder on a drive
+  // that is not plugged in would otherwise read as *an empty folder inside a folder nobody
+  // checked* — the silent wrong answer this listing exists to prevent.
+  const root = await folderReadable(gigsRoot)
+  if (root.answered && !root.readable) {
+    return { folders: [], problem: root.problem, answered: false }
+  }
+  try {
+    const result = await a.listGigsFolder(gigsSetupFolder(gigsRoot))
+    return result.ok
+      ? { folders: result.folders, problem: null, answered: true }
+      : { folders: [], problem: result.error, answered: false }
+  } catch (e) {
+    return { folders: [], problem: e instanceof Error ? e.message : String(e), answered: false }
+  }
+}
+
 /**
  * **Moves a song file to the Trash.** The one place Pregonero removes a song file, and it removes
  * only that: the lyrics and the recordings are the author's and live in other folders.
