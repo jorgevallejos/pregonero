@@ -41,7 +41,6 @@ import { installLibrary } from './testSupport/library'
 import { APP_VERSION } from './appVersion'
 import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
-import { DISPLAY_PROFILE_STORAGE_KEY } from './displayProfileStore'
 import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
 
@@ -4182,7 +4181,19 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
   })
 
-  it('selecting Small then Big directly activates the matching profile and stores the matching screen size', async () => {
+  /**
+   * **The display-size chain went on 2026-09-03, and this is what replaced three tests of it.**
+   *
+   * A sweep traced it end to end and found nothing at the end: `effectiveScreenSize` never reached
+   * the status text, `setActiveProfileId` was written and never read back, the WebSocket message
+   * was relayed and handled by nobody, and the Projection window discarded the broadcast in its
+   * own destructure. **A knob nobody has ever moved is a decision pretending to be a question**,
+   * and this one could not be moved at all.
+   *
+   * The Videoclip toggle itself stays: `DisplayMode` is a different thing, is also going, and
+   * waits on the drive-mode design.
+   */
+  it('writes no screen size and no display profile when the Videoclip toggle is used', async () => {
     setupWithVideoSong()
     render(<App initialHash="#/" />)
 
@@ -4193,29 +4204,17 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
     })
-    expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('small')
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
     })
 
-    expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
-    expect(sessionStorage.getItem('liveLyricScreenSize')).toBe('big')
+    // The toggle still works, and it is the only thing that still happens.
     expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('default (No video segment active, no click) still activates small-canvas profile via the legacy screen-size default', async () => {
-    setupWithVideoSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
-    }, { timeout: WAIT_TIMEOUT })
+    expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
+    // And nothing writes the two keys that led nowhere.
+    expect(sessionStorage.getItem('liveLyricScreenSize')).toBeNull()
+    expect(localStorage.getItem('liveLyricScreenSizeBroadcast')).toBeNull()
+    expect(localStorage.getItem('liveLyricDisplayProfile')).toBeNull()
   })
 
   it('does not render the old Display profile row (ctrl-display-row) with a video song', async () => {
@@ -4296,23 +4295,16 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('activates small-canvas profile by default when song has a video and no size stored (Videoclip segment still defaults to No video)', async () => {
-    setupWithVideoSong()
-    sessionStorage.removeItem('liveLyricScreenSize')
-    localStorage.removeItem(DISPLAY_PROFILE_STORAGE_KEY)
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
-    }, { timeout: WAIT_TIMEOUT })
-  })
 })
 
-describe('§17 C2 — Projection status text ignores leftover screenSize for non-video songs', () => {
+/**
+ * **A key left over from before the removal reaches nothing** (2026-09-03).
+ *
+ * `liveLyricScreenSize` is on real machines: it was written for months. It is seeded here on
+ * purpose, because the removal is only true if a machine carrying it behaves as though it does
+ * not — and the answer for a non-video song was always `Open`, which is what these still assert.
+ */
+describe('§17 C2 — Projection status text ignores a leftover screenSize key', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearStorage()
@@ -4723,20 +4715,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('none')
   })
 
-  it('default screen-size profile (small-canvas) activates without any click, even though the Videoclip segment defaults to None', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('selecting Small directly stores display mode "small" and activates small-canvas profile', async () => {
+  it('selecting Small directly stores display mode "small"', async () => {
     setupWithVideoSong13()
     render(<App initialHash="#/" />)
 
@@ -4748,10 +4727,9 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
 
     expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('small')
-    expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('small-canvas')
   })
 
-  it('clicking Big while on Small switches to Big and activates big-screen profile', async () => {
+  it('clicking Big while on Small switches to Big', async () => {
     setupWithVideoSong13()
     sessionStorage.setItem('liveLyricDisplayMode', 'small')
     render(<App initialHash="#/" />)
@@ -4765,7 +4743,6 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     })
 
     expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
-    expect(localStorage.getItem(DISPLAY_PROFILE_STORAGE_KEY)).toBe('big-screen')
   })
 
   // §13.GREEN — active segment carries the --active (green) class; inactive segments do not

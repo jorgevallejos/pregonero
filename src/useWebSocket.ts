@@ -7,7 +7,6 @@ export type CommandMessage = {
   value?: number
 }
 export type SeekMessage = { type: 'command'; action: 'seek'; value: number }
-export type ScreenSizeMessage = { type: 'screenSize'; size: 'big' | 'small' }
 
 type Nav = {
   index: number
@@ -35,7 +34,6 @@ export function useWebSocket(nav: Nav | null): {
     state?: { currentIndex: number; blank: boolean }
   ) => void
   sendSeek: (targetTime: number) => void
-  sendScreenSize: (size: 'big' | 'small') => void
 } {
   const wsRef = useRef<WebSocket | null>(null)
   const navRef = useRef(nav)
@@ -118,12 +116,5 @@ export function useWebSocket(nav: Nav | null): {
     }
   }
 
-  const sendScreenSize = (size: 'big' | 'small') => {
-    const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'screenSize', size }))
-    }
-  }
-
-  return { sendCommand, sendState, sendCommandWithState, sendSeek, sendScreenSize }
+  return { sendCommand, sendState, sendCommandWithState, sendSeek }
 }
