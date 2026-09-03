@@ -371,6 +371,32 @@ export async function openTool(
 }
 
 /**
+ * **Serves a tool's page and hands back its address, opening no window.**
+ *
+ * The frame's counterpart to `openTool`. It is what lets the visuals step run Muralista *inside*
+ * Pregonero's window, the way the song flow runs Bombista — so the flow's own step bar and the
+ * tool's are on one screen and pressing a button in the tool is not a launch into another one.
+ *
+ * Nothing else about the boundary changes: the frame gets no preload and no Node, nothing is read
+ * out of it, and Pregonero learns the room afterwards by reading `visuals.json` as it always has.
+ */
+export async function serveTool(
+  key: string,
+  folder: string,
+  page: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const a = api()
+  if (!a || typeof a.serveTool !== 'function') {
+    return { ok: false, error: 'Tools can only be hosted from the desktop app.' }
+  }
+  try {
+    return await a.serveTool(key, folder, page)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
  * Closes a hosted tool window and brings Pregonero forward.
  *
  * **Courtesy, not architecture.** The reload already happened because the file changed; this only
