@@ -261,6 +261,21 @@ html, body, #root {
   color: var(--text-faint);
 }
 
+/* THE ROOM'S NAME (2026-09-04). `Standby` — the stage manager's call before a cue. Titled the way
+   Backstage is: same size, same weight, same paper. It takes the slack between the wordmark and the
+   by-line so it centres on the screen rather than on whatever is left after them, and it is laid
+   out in the flow rather than absolutely positioned, because this masthead has real height of its
+   own where `.songs-top-bar` does not. */
+.control-room-name {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
 .control-masthead-by {
   display: flex;
   flex-direction: column;
@@ -2421,14 +2436,10 @@ html, body, #root {
   list-style: disc;
 }
 
-.control-rig-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 0.8125em;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
+/* THERE IS NO `.control-rig-list` (2026-09-04). The Rig column is gone from the control view, so
+   its one rule goes with it — a stylesheet holding a class nothing renders is a screen
+   half-reverted. `GigView`'s step-5 checklist draws `.setup-rig`, which is a different thing: it is
+   ticked rather than read. */
 
 /* ---- The setup flow: six ordered steps, and a forward button that greys ----
    The block is on the guided path only. Every step stays readable and every song stays listed;
