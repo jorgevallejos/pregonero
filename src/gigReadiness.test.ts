@@ -34,6 +34,8 @@ function brokenRow(id: string, error: string): SetlistSongInput {
 function visuals(
   defaults: Record<string, string[]>,
   songs: Record<string, Record<string, string[]>> = {},
+  /** **What each song puts in each shape** — `songVisuals.assets`, since *the song holds no media*. */
+  assets: Record<string, Record<string, string>> = {},
   shapes = [
     { id: 'lyr', layer: { type: 'song-lyrics' } },
     { id: 'lyr2', layer: { type: 'song-lyrics' } },
@@ -46,7 +48,7 @@ function visuals(
       visualsVersion: 1,
       gigId: GIG_ID,
       shapes,
-      songVisuals: { defaults, songs },
+      songVisuals: { defaults, songs, assets },
     }),
     GIG_ID
   )
@@ -179,31 +181,36 @@ describe('the hard gate', () => {
   })
 })
 
+/**
+ * **THE VIDEO REQUIREMENT READS `visuals.json` NOW, AND THAT IS THE POINT OF THESE** (Jorge,
+ * 2026-09-03/04).
+ *
+ * It read the SONG — *has a video shape but declares no media*, off `song.media.src`. Under
+ * *the song holds no media* a song declares nothing, so **a check reading that field would pass
+ * forever and mean nothing**: the class of failure this repo calls a confident answer that is false.
+ * The same three questions are asked one level over, of the asset Muralista assigned.
+ */
 describe('the content a resolved type requires', () => {
   const withVideo = visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] })
+  const withAsset = (name: string) =>
+    visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }, {}, { tragedia: { vid: name } })
 
-  it('a video shape needs media the song declares', () => {
+  it('a video shape needs something assigned to it, and names the shape', () => {
     const r = computeGigReadiness(input({ visuals: withVideo, setlist: [row(song('vidas'))] }))
-    expect(whySongCannotArm(r, 'vidas')).toContain('has a video shape but declares no media')
+    expect(whySongCannotArm(r, 'vidas')).toContain('has the video shape vid with nothing assigned to it')
   })
 
-  it('a video shape needs that media linked on this machine', () => {
-    const s = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    })
-    const r = computeGigReadiness(input({ visuals: withVideo, setlist: [row(s)] }))
+  it('a video shape needs that asset linked on this machine', () => {
+    const s = song('tragedia', { timeline: [{ start: 0, end: 1 }] })
+    const r = computeGigReadiness(input({ visuals: withAsset('tragedia.mp4'), setlist: [row(s)] }))
     expect(whySongCannotArm(r, 'tragedia')[0]).toMatch(/not linked on this machine/)
   })
 
   it('a video shape needs that linked file to still be there', () => {
-    const s = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    })
+    const s = song('tragedia', { timeline: [{ start: 0, end: 1 }] })
     const r = computeGigReadiness(
       input({
-        visuals: withVideo,
+        visuals: withAsset('tragedia.mp4'),
         setlist: [row(s)],
         mediaResolution: { 'tragedia.mp4': { linked: true, exists: false } },
       })
@@ -211,11 +218,12 @@ describe('the content a resolved type requires', () => {
     expect(whySongCannotArm(r, 'tragedia')[0]).toMatch(/is not there/)
   })
 
+  /** **The timeline stays the SONG's**, and that half of the ruling did not move. */
   it('a video shape needs a timeline, because the subtitles read the video’s clock', () => {
-    const s = song('tragedia', { media: { type: 'video', src: 'tragedia.mp4' } })
+    const s = song('tragedia')
     const r = computeGigReadiness(
       input({
-        visuals: withVideo,
+        visuals: withAsset('tragedia.mp4'),
         setlist: [row(s)],
         mediaResolution: { 'tragedia.mp4': { linked: true, exists: true } },
       })
@@ -225,14 +233,22 @@ describe('the content a resolved type requires', () => {
     )
   })
 
-  it('is ready when the video shape has all three', () => {
-    const s = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    })
+  /** **A song with no animation sets nothing, and asks for nothing.** The common case is free. */
+  it('asks for no timeline when the song puts nothing in the video shape', () => {
     const r = computeGigReadiness(
       input({
-        visuals: withVideo,
+        visuals: visuals({ 'song-lyrics': ['lyr'] }),
+        setlist: [row(song('vidas'))],
+      })
+    )
+    expect(isSongReadyToArm(r, 'vidas')).toBe(true)
+  })
+
+  it('is ready when the video shape has all three', () => {
+    const s = song('tragedia', { timeline: [{ start: 0, end: 1 }] })
+    const r = computeGigReadiness(
+      input({
+        visuals: withAsset('tragedia.mp4'),
         setlist: [row(s)],
         mediaResolution: { 'tragedia.mp4': { linked: true, exists: true } },
       })
@@ -644,13 +660,14 @@ describe('the checks as fields', () => {
   it('says which songs name a file that does not resolve, separately from that', () => {
     // A song whose own file read perfectly and whose media is not linked on this machine. Before
     // the split these were one verdict and one sentence.
-    const withVideo = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    } as Partial<LibrarySong>)
+    const withVideo = song('tragedia', { timeline: [{ start: 0, end: 1 }] } as Partial<LibrarySong>)
     const r = computeGigReadiness(
       input({
-        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        visuals: visuals(
+          { 'song-lyrics': ['lyr'], 'song-video': ['vid'] },
+          {},
+          { tragedia: { vid: 'tragedia.mp4' } }
+        ),
         setlist: [row(withVideo)],
         mediaResolution: {},
       })
@@ -677,13 +694,14 @@ describe('the checks as fields', () => {
   it('does not disagree with the sentences it sits beside', () => {
     // One computation, two answers: `contentResolves` cannot say *fine* while `missing` names a
     // file that is not there, because both are written by the same branch.
-    const withVideo = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    } as Partial<LibrarySong>)
+    const withVideo = song('tragedia', { timeline: [{ start: 0, end: 1 }] } as Partial<LibrarySong>)
     const r = computeGigReadiness(
       input({
-        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        visuals: visuals(
+          { 'song-lyrics': ['lyr'], 'song-video': ['vid'] },
+          {},
+          { tragedia: { vid: 'tragedia.mp4' } }
+        ),
         setlist: [row(withVideo)],
         mediaResolution: { 'tragedia.mp4': { linked: true, exists: false } },
       })

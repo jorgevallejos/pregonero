@@ -35,8 +35,8 @@ function add(into: Map<string, MediaSource>, src: string, use: string): void {
 }
 
 /**
- * The songs first, then the room. Both are optional: a gig with no visuals still has song media,
- * and a room with a logo still has one before any setlist exists.
+ * The songs' videos first, then the room's own static sources. **Both come out of `visuals.json`
+ * now**: a song names nothing, so the first loop reads what the room says each song plays.
  */
 export function collectMediaSources(
   setlist: readonly LibraryEntry[],
@@ -44,9 +44,14 @@ export function collectMediaSources(
 ): MediaSource[] {
   const found = new Map<string, MediaSource>()
 
-  for (const entry of setlist) {
-    const src = entry.song?.media?.src
-    if (src) add(found, src, `${entry.song?.title ?? entry.ref.id} — video`)
+  // **A song's video is named by the ROOM now, not by the song** (Jorge, 2026-09-03). This read
+  // `song.media.src`; under *the song holds no media* that field has no writer, so a list built
+  // from it would quietly stop naming the one thing this screen exists to resolve.
+  for (const [songId, byShape] of Object.entries(visuals?.songVisuals.assets ?? {})) {
+    const title = setlist.find((entry) => entry.ref.id === songId)?.song?.title ?? songId
+    for (const src of Object.values(byShape)) {
+      if (src) add(found, src, `${title} — video`)
+    }
   }
 
   for (const shape of visuals?.shapes ?? []) {

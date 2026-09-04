@@ -11,13 +11,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Mock } from 'vitest'
 import { render, act, cleanup } from '@testing-library/react'
-import type { MediaFile } from './songState'
 
 vi.mock('./mediaPathStore', () => ({
   absolutePathToMediaUrl: (path: string) => `media://${path}`,
 }))
 
-const MEDIA: MediaFile = { type: 'video', src: 'test.mp4', trimStart: 3.0 }
+/**
+ * **`trimStart` is a prop now, not a field of the song's media** (2026-09-04). A song holds no
+ * media; what plays is named by `visuals.json`, and an assignment is a name — so the value has no
+ * author today and defaults to 0. Kept as a prop, and tested at a non-zero value, because the
+ * seeking behaviour is real and the number is the only thing without a home.
+ */
+const TRIM_START = 3.0
 
 let playSpy: Mock<() => Promise<void>>
 let pauseSpy: Mock<() => void>
@@ -56,7 +61,7 @@ describe('ShapeVideo — mount', () => {
   it('does NOT auto-play on mount', async () => {
     const { ShapeVideo } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     expect(playSpy).not.toHaveBeenCalled()
   })
@@ -64,15 +69,15 @@ describe('ShapeVideo — mount', () => {
   it('seeks to trimStart on mount', async () => {
     const { ShapeVideo } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
-    expect(currentTimeSetter).toHaveBeenCalledWith(MEDIA.trimStart)
+    expect(currentTimeSetter).toHaveBeenCalledWith(TRIM_START)
   })
 
   it('fills the unit box exactly, because the quad is the framing', async () => {
     const { ShapeVideo } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     const video = document.querySelector('video') as HTMLVideoElement
     expect(video.style.width).toBe('100%')
@@ -87,7 +92,7 @@ describe('ShapeVideo — transport', () => {
   it('plays when a play command arrives', async () => {
     const { ShapeVideo, VIDEO_TRANSPORT_KEY } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     await act(async () => { fireTransport(VIDEO_TRANSPORT_KEY, 'play') })
     expect(playSpy).toHaveBeenCalled()
@@ -96,7 +101,7 @@ describe('ShapeVideo — transport', () => {
   it('ignores an unrelated storage key', async () => {
     const { ShapeVideo } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     await act(async () => { fireTransport('somethingElse', 'play') })
     expect(playSpy).not.toHaveBeenCalled()
@@ -105,7 +110,7 @@ describe('ShapeVideo — transport', () => {
   it('pauses when a pause command arrives', async () => {
     const { ShapeVideo, VIDEO_TRANSPORT_KEY } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     await act(async () => { fireTransport(VIDEO_TRANSPORT_KEY, 'pause') })
     expect(pauseSpy).toHaveBeenCalled()
@@ -114,12 +119,12 @@ describe('ShapeVideo — transport', () => {
   it('pauses and returns to trimStart on stop', async () => {
     const { ShapeVideo, VIDEO_TRANSPORT_KEY } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     currentTimeSetter.mockClear()
     await act(async () => { fireTransport(VIDEO_TRANSPORT_KEY, 'stop') })
     expect(pauseSpy).toHaveBeenCalled()
-    expect(currentTimeSetter).toHaveBeenCalledWith(MEDIA.trimStart)
+    expect(currentTimeSetter).toHaveBeenCalledWith(TRIM_START)
   })
 
   it('reports started and stopped to the caller that owns the intro card', async () => {
@@ -127,7 +132,7 @@ describe('ShapeVideo — transport', () => {
     const onStartedChange = vi.fn()
     await act(async () => {
       render(
-        <ShapeVideo absolutePath="/v.mp4" media={MEDIA} onStartedChange={onStartedChange} />
+        <ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} onStartedChange={onStartedChange} />
       )
     })
     await act(async () => { fireTransport(VIDEO_TRANSPORT_KEY, 'play') })
@@ -139,7 +144,7 @@ describe('ShapeVideo — transport', () => {
   it('seeks where the scrubber says', async () => {
     const { ShapeVideo, VIDEO_SEEK_TARGET_KEY } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     currentTimeSetter.mockClear()
     await act(async () => {
@@ -156,7 +161,7 @@ describe('ShapeVideo — transport', () => {
   it('survives a malformed payload rather than throwing at the projector', async () => {
     const { ShapeVideo, VIDEO_TRANSPORT_KEY } = await importShapeVideo()
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} />)
     })
     await act(async () => {
       window.dispatchEvent(
@@ -177,7 +182,7 @@ describe('ShapeVideo — the clock', () => {
       configurable: true,
     })
     await act(async () => {
-      render(<ShapeVideo absolutePath="/v.mp4" media={MEDIA} onTimeUpdate={onTimeUpdate} />)
+      render(<ShapeVideo absolutePath="/v.mp4" trimStart={TRIM_START} onTimeUpdate={onTimeUpdate} />)
     })
     const video = document.querySelector('video') as HTMLVideoElement
     await act(async () => { video.dispatchEvent(new Event('timeupdate')) })

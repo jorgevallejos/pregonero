@@ -50,6 +50,15 @@ type RoomOptions = {
   defaults?: Record<string, string[]>
   /** Per-song reassignment: `{ songId: { type: [shapeId] } }`. */
   songs?: Record<string, Record<string, string[]>>
+  /**
+   * **What each song puts in each shape**: `{ songId: { shapeId: name } }`.
+   *
+   * A different question from `songs` above, and the two are easy to confuse: that one says *which
+   * shape does this song use*, this one says *what does this song put in it*. Since *the song holds
+   * no media* (Jorge, 2026-09-03) this is where a video's name lives — the song carries words and
+   * timing, and nothing that has to be present on the night.
+   */
+  assets?: Record<string, Record<string, string>>
   gigId?: string
   folderPath?: string
   visualsVersion?: number
@@ -90,6 +99,7 @@ export function installRoom(options: RoomOptions = {}): VisualShape[] {
     songVisuals: {
       defaults: options.defaults ?? defaultsFor(shapes),
       songs: options.songs ?? {},
+      assets: options.assets ?? {},
     },
   }
   localStorage.setItem(GIG_FOLDER_KEY, folderPath)

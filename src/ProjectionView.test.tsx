@@ -820,9 +820,11 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
     installLibrary([{
       ...song,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }])
+    // **The video is the room's, not the song's** (Jorge, 2026-09-03). `installRoom` above put a
+    // `song-video` shape on the wall; this is what that shape plays for this song.
+    installRoom({ assets: { [song.id]: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     // Since 3bff124, video display defaults to 'none' (Videoclip: None) — the performer must
     // explicitly opt in to Small/Big before the Projection window shows the video compositor
@@ -1144,7 +1146,9 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     localStorage.clear()
     sessionStorage.clear()
     window.location.hash = '#/'
-    installRoom()
+    // **The video is assigned by the room now**, so the default room's `song-video` shape gets
+    // the name this song plays. The song itself declares nothing.
+    installRoom({ assets: { tragedia: { 'video-1': 'test.mp4' } } })
   })
 
   afterEach(() => {
@@ -1169,7 +1173,6 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
         id: 'tragedia',
         title: 'Tragedia',
         items: LINES,
-        media: { type: 'video' as const, src: 'test.mp4' },
         timeline: [
           { start: 0, end: 2 },
           { start: 2, end: 4 },
@@ -1236,7 +1239,6 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
         id: 'tragedia',
         title: 'Tragedia',
         items: TWO_LINES,
-        media: { type: 'video' as const, src: 'test.mp4' },
         timeline: [{ start: 0, end: 2 }],
       },
     ])

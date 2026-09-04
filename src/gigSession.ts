@@ -35,6 +35,7 @@ import {
 } from './gigReadiness'
 import {
   parseVisualsFile,
+  songVideoAssets,
   visualsRefusalKind,
   type VisualsFile,
   type VisualsRefusalKind,
@@ -169,19 +170,32 @@ function toProjection(entry: SetlistSongInput): SetlistProjection {
   return { id: entry.id, title: entry.title, path: entry.path }
 }
 
+/**
+ * **Every name the room asks for, resolved on this machine.**
+ *
+ * **It used to gather `song.media.src` off each song.** Under *the song holds no media* a song names
+ * nothing, and what plays on the wall is named by `visuals.json` — so the names come from
+ * `songVisuals.assets`, per song, for the shapes that song actually lights.
+ *
+ * **Resolution itself is unchanged**: `resolveMediaPath` is still the one answer to *where is the
+ * file called X*, and the file still travels as a name.
+ */
 async function resolveMedia(
-  setlist: readonly SetlistSongInput[]
+  setlist: readonly SetlistSongInput[],
+  visuals: VisualsFile | null
 ): Promise<Record<string, MediaResolution>> {
   const out: Record<string, MediaResolution> = {}
+  if (visuals === null) return out
   for (const entry of setlist) {
-    const src = entry.song?.media?.src
-    if (!src || out[src]) continue
-    const linkedPath = resolveMediaPath(src)
-    if (!linkedPath) {
-      out[src] = { linked: false, exists: false }
-      continue
+    for (const src of songVideoAssets(visuals, entry.id).named) {
+      if (out[src]) continue
+      const linkedPath = resolveMediaPath(src)
+      if (!linkedPath) {
+        out[src] = { linked: false, exists: false }
+        continue
+      }
+      out[src] = { linked: true, exists: await platform.fileExists(linkedPath) }
     }
-    out[src] = { linked: true, exists: await platform.fileExists(linkedPath) }
   }
   return out
 }
@@ -573,7 +587,7 @@ async function publishFromFolder(
   broadcastVisuals(folderPath, visuals)
 
   const [mediaResolution, validation, fingerprints] = await Promise.all([
-    resolveMedia(setlist),
+    resolveMedia(setlist, visuals),
     validateSetlist(setlist),
     currentFingerprints(orderedSetlistEntries(), read.visualsText),
   ])

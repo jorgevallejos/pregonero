@@ -207,7 +207,9 @@ declare global {
         key: string,
         folder: string,
         page: string,
-        title: string
+        title: string,
+        /** The visuals folder, mounted read-only so the page can offer a name from it. */
+        visualsFolder?: string
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
       /**
        * Serves a tool's page and hands back its address. **No window** — the renderer frames it,
@@ -216,7 +218,9 @@ declare global {
       serveTool: (
         key: string,
         folder: string,
-        page: string
+        page: string,
+        /** The visuals folder, mounted read-only so the page can offer a name from it. */
+        visualsFolder?: string
       ) => Promise<{ ok: true; url: string } | { ok: false; error: string }>
       closeTool: (key: string) => Promise<void>
       isToolOpen: (key: string) => Promise<boolean>
