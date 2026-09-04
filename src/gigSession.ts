@@ -346,10 +346,19 @@ export async function refreshGigReadiness(): Promise<GigReadiness> {
     if (hasAuthoredSetlist(gig)) {
       await adoptSetlistFromGig(gig, folderPath)
     } else {
-      // The file has not reached step 2's running order yet. Writing the app's in is the field
-      // accreting for the first time, which is the normal way this file grows.
-      const projection = readSetlist().map(toProjection)
-      const next = withSetlist(gig, projection, folderPath)
+      // **The field accretes EMPTY, because a gig that has not stated a running order has none.**
+      //
+      // This wrote `readSetlist()` — the app's currently active setlist — into the file, which is
+      // the E1 direction that `adoptSetlistFromGig` exists to have reversed, surviving in the one
+      // branch the reversal did not touch. A gig made from Backstage therefore arrived carrying
+      // whatever setlist happened to be active when it was created, and step 2 opened on a
+      // catalogue reading *Every song you have is in this gig's setlist*. Walked 2026-09-04.
+      //
+      // **A NEW GIG'S SETLIST IS EMPTY**, and the only thing that fills it is a person on step 2.
+      // Writing the field at all is still right — it is what makes the running order exist, and
+      // the adoption below is what gives `Add →` an active setlist to write into, which is the
+      // `v0.39.0` fix and is unchanged. What changed is what goes in it.
+      const next = withSetlist(gig, [], folderPath)
       const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
       if (written.ok) {
         gig = next

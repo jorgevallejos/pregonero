@@ -631,8 +631,13 @@ html, body, #root {
   text-align: center;
 }
 
-/* Value zone only (middle row); fills row and centers content so values align across columns */
+/* Value zone only (middle row); fills row and centers content so values align across columns.
+   **AND IT IS THE VALUE'S CONTAINER**, which is what makes the type size a fact about the column
+   rather than about the window — see `.control-setup-value`. It is declared here rather than on
+   `.control-setup-section` because the section is a subgrid of the panel's rows, and containment
+   is not a thing to put on a subgrid to save one selector. */
 .control-setup-content {
+  container-type: inline-size;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -647,9 +652,10 @@ html, body, #root {
 .control-setup-status {
   font-size: 0.8125em;
   color: var(--text-status);
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  word-break: break-word;
+  /* NO MID-WORD BREAK IN ANY COLUMN (Jorge, 2026-09-04). See `.control-setup-value` below for
+     what was actually causing it. `break-word` here was the same authorisation in a smaller size. */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .control-setup-content .control-setup-value,
@@ -755,14 +761,52 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+/* THE VALUE, AND WHY IT USED TO BREAK MID-WORD (found 2026-09-04, blamed on the column count
+   twice before that).
+
+   `Unarmed` broke as `Unarm / ed`, and `Closed` before it on 02/09. The suspicion both times was
+   too many columns. **It was never the column count.** The Rig column came off in `v0.52.0` and
+   `Unarmed` still broke, at five columns instead of six.
+
+   **The type was sized off the VIEWPORT and the column off the PANEL.** This rule said
+   `clamp(1.75em, 4vw, 2.75em)`; the column is `minmax(0, 1fr)`, one of N equal shares of the panel
+   (see `.control-center-setup .control-performance-state`). Two unrelated numbers, and nothing
+   made them agree. On a 1440-wide window that is 57.6px of type and `Unarmed` measures ~242px, in
+   a column carrying ~226px of content — and `word-break: break-word` on this same rule is what
+   turned *does not fit* into a break inside the word. Six columns gave ~180px, five gave ~226px:
+   **taking a column away shrank the gap and never closed it.**
+
+   **So the column sizes the type now.** `cqi` is a share of `.control-setup-content`'s own width,
+   which is the column's, so this holds at any window width and any number of columns — a sixth
+   column coming back cannot reopen it.
+
+   **And the cap is divided by the longest word in the value**, because these are not all the app's
+   own words: Gig and Song carry whatever a person called their gig and their song, and one cap
+   that fits `Unarmed` does not fit a fifteen-character title. `--value-longest-word` is set by
+   `SetupValue`, from the string's own length — nothing is measured off the screen. 150 rather than
+   the ~167 the arithmetic gives, so the widest realistic letters keep a tenth of the column spare.
+
+   **`max()` is a floor, and it is set LOW on purpose.** It was 20px for one round and that was the
+   wrong instinct: a fifteen-character title in a 141px column asks for 14px, the floor forced 20px,
+   and the word overflowed and was clipped by the column's `overflow: hidden`. **A word too small to
+   be comfortable is still a word; a clipped one is not**, and the values that carry the app's own
+   vocabulary never come near this — `Unarmed` sits at 48px on a 1440 window. So the floor is only
+   there to stop a pathological string collapsing to nothing.
+
+   **Mid-word breaking is off.** The sizing is what keeps the word inside its column; this is what
+   makes *no word breaks mid-word* a property of the screen rather than a consequence of arithmetic
+   that could drift. `word-wrap` went with it: it is the legacy alias of the same thing. */
 .control-setup-value {
-  font-size: clamp(1.75em, 4vw, 2.75em);
+  font-size: max(
+    0.75rem,
+    min(clamp(1.75em, 4vw, 2.75em), calc(150cqi / var(--value-longest-word, 7)))
+  );
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.25;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  word-break: break-word;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .control-setup-hint {
@@ -1214,6 +1258,33 @@ html, body, #root {
   font-size: 1.05em;
   line-height: 1.4;
   margin: 0.5rem 0 1rem;
+  /* It is a block with a way out of it now, not one sentence: `Setlist` pressed with no gig open
+     names the missing thing and offers the screen where it is chosen. A bare `<p>` still gets
+     everything above and nothing below, because the children are what these two rules touch. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.setlist-prompt p {
+  margin: 0;
+}
+
+/* The pointer at where the missing thing is chosen, one shade quieter than the statement above
+   it, and with the mark drawn inline so the sentence names the button by its face. */
+.setlist-prompt-where {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  flex-wrap: wrap;
+  font-size: 0.9em;
+  color: var(--text-dim);
+}
+
+.setlist-prompt-where .manage-setlists-icon-svg {
+  vertical-align: middle;
 }
 
 .songs-song-btn {
@@ -2223,7 +2294,10 @@ html, body, #root {
   font-size: 0.8125em;
   color: var(--text-status);
   line-height: 1.35;
-  overflow-wrap: break-word;
+  /* NO MID-WORD BREAK IN ANY COLUMN (Jorge, 2026-09-04). These are sentences, so they have spaces
+     to break at; `break-word` was standing authorisation for the failure `.control-setup-value` was
+     fixed for, in a size where it would have been harder to notice. */
+  overflow-wrap: normal;
 }
 
 .control-arm-blocked {
@@ -3839,6 +3913,39 @@ html, body, #root {
   min-height: 0;
 }
 
+/* ---- The visuals step: Muralista's whole page, inside Pregonero's window ----
+   NOT A BOX INSIDE THE FLOW (Jorge, 2026-09-04, walking `v0.52.0`). It was Muralista framed under
+   the gig flow's step bar, so two step bars nested and the tool that most needs the window got a
+   panel of it — *too verbose*, *a very little frame*, *steps within steps is stressing*.
+
+   The song flow is the worked example and these rules are its rules: the screen is the tool's, the
+   only chrome is Pregonero's top bar, and the frame carries no border and no padding of its own,
+   because a Pregonero margin around a whole page reads as one page inside another. */
+.songs-screen.gig-visuals-screen .songs-body.gig-visuals-body {
+  /* Two classes for the same reason Backstage and the song flow need them:
+     `.songs-screen:not(.languages-screen) .songs-body` declares the song-button grid and outranks
+     a single class. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+/* Inside the whole-window screen it is the page, so it loses the flow page's top padding and keeps
+   only the gap that separates the frame from the one control under it. */
+.gig-visuals-body .gig-flow-visuals {
+  padding-top: 0;
+  gap: 0;
+}
+
+.gig-visuals-body .gig-flow-visuals > .gig-actions {
+  margin: 0;
+  padding: 0.75em 0;
+}
+
 /* The visuals screen takes the slack the same way, because what fills it is another tool's whole
    page. Bombista's frame in the song flow is the same shape and the same rule. */
 .gig-flow-visuals {
@@ -3849,13 +3956,14 @@ html, body, #root {
 .gig-flow-frame {
   flex: 1;
   width: 100%;
-  border: 1px solid var(--rule);
+  border: 0;
   min-height: 0;
   /* Muralista's own ground, not this app's: the page inside is a whole page. It happens to be ink
      too, and that is Muralista taking Pregonero's design system rather than a coincidence to lean
      on — the declaration stays, so a restyle over there cannot leave a white flash here. */
   background: var(--app-bg);
 }
+
 
 /* The setlist screen takes the slack, so the two frames are as tall as the screen even when both
    lists are empty — Backstage's rule, and for the same reason: a frame that only fills once it has
