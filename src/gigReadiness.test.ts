@@ -195,9 +195,40 @@ describe('the content a resolved type requires', () => {
   const withAsset = (name: string) =>
     visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }, {}, { tragedia: { vid: name } })
 
-  it('a video shape needs something assigned to it, and names the shape', () => {
+  /**
+   * **AN EMPTY VIDEO SHAPE IS THE DESIGNED COMMON CASE, NOT A FINDING** (Jorge, 2026-09-04, with
+   * conditional visibility). The default room gives every song a frame-filling video shape; **a
+   * song with no animation leaves it empty**, and the lyrics shape conditioned on *video is empty*
+   * is what carries the song. Reporting it would put a line on the sign-off for the commonest case
+   * there is. **Empty means dark for that song** — this suite's own sentence about shapes.
+   */
+  it('says nothing about a video shape this song puts nothing in', () => {
     const r = computeGigReadiness(input({ visuals: withVideo, setlist: [row(song('vidas'))] }))
-    expect(whySongCannotArm(r, 'vidas')).toContain('has the video shape vid with nothing assigned to it')
+    expect(whySongCannotArm(r, 'vidas')).toEqual([])
+    expect(isSongReadyToArm(r, 'vidas')).toBe(true)
+  })
+
+  /**
+   * **What still fails is a song nothing would paint anything for.** A room with a video shape and
+   * no lyrics shape, and a song that assigned the video nothing: every shape resolves and the wall
+   * stays dark. *Carried* is the question, not *resolved*.
+   */
+  it('fails a song nothing in the room would paint anything for', () => {
+    const videoOnly = visuals({ 'song-video': ['vid'] })
+    const r = computeGigReadiness(input({ visuals: videoOnly, setlist: [row(song('vidas'))] }))
+    expect(whySongCannotArm(r, 'vidas')[0]).toMatch(/no shape carries this song/)
+  })
+
+  it('is carried by a video shape alone once that song assigns it something', () => {
+    const videoOnly = visuals({ 'song-video': ['vid'] }, {}, { vidas: { vid: 'v.mp4' } })
+    const r = computeGigReadiness(
+      input({
+        visuals: videoOnly,
+        setlist: [row(song('vidas', { timeline: [{ start: 0, end: 1 }] }))],
+        mediaResolution: { 'v.mp4': { linked: true, exists: true } },
+      })
+    )
+    expect(whySongCannotArm(r, 'vidas')).toEqual([])
   })
 
   it('a video shape needs that asset linked on this machine', () => {
@@ -789,13 +820,14 @@ describe('an unreadable song: routed around while composing, blocking at the ass
   it('does not block the confirmation for a file the song NAMES not resolving', () => {
     // The ruling widened the gate for an unreadable song file and named nothing else. That song
     // still cannot be armed, which is a gate on the night rather than on the gig.
-    const withVideo = song('tragedia', {
-      media: { type: 'video', src: 'tragedia.mp4' },
-      timeline: [{ start: 0, end: 1 }],
-    } as Partial<LibrarySong>)
+    const withVideo = song('tragedia', { timeline: [{ start: 0, end: 1 }] } as Partial<LibrarySong>)
     const r = computeGigReadiness(
       input({
-        visuals: visuals({ 'song-lyrics': ['lyr'], 'song-video': ['vid'] }),
+        visuals: visuals(
+          { 'song-lyrics': ['lyr'], 'song-video': ['vid'] },
+          {},
+          { tragedia: { vid: 'tragedia.mp4' } }
+        ),
         setlist: [row(withVideo)],
         mediaResolution: {},
       })

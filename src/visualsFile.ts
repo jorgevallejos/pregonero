@@ -80,7 +80,70 @@ export type VisualShape = {
   outline?: Point[] | null
   layer?: { type?: string } & Record<string, unknown>
   visible?: boolean
+  /** When this shape shows, if it does not always. See `shapeCondition`. */
+  visibleWhen?: { shape?: unknown; is?: unknown } | null
   [key: string]: unknown
+}
+
+/** The two states a condition asks about. Content, never existence — see `shapeCondition`. */
+export type ConditionState = 'filled' | 'empty'
+
+export type ShapeCondition = { shape: string; is: ConditionState }
+
+/**
+ * **A shape's visibility condition, or null when it always shows.**
+ *
+ * ## Why it asks about another SHAPE
+ *
+ * Cowork proposed a flag on a `song-lyrics` shape saying *for songs with video / without*, and
+ * **Jorge rejected it: that is domain knowledge Muralista does not have** (2026-09-04). Whether a
+ * song has a video lives below Muralista's line — it reads `gig.json` and nothing else. **His
+ * replacement asks about another shape, which is entirely Muralista's own vocabulary: Muralista
+ * declares the relationship and Pregonero evaluates it**, because Pregonero is the one that knows
+ * what content landed. Each tool says only what it can know.
+ *
+ * ## It is about CONTENT, never EXISTENCE
+ *
+ * Shapes are gig level and always exist; what varies per song is whether they got content.
+ * *Visible when that shape is empty for this song*, never *visible if that shape is not there*.
+ * **Filled means an asset is assigned for that song** in `songVisuals.assets`.
+ *
+ * ## One level, so cycles are impossible
+ *
+ * A condition may only point at a shape that has none of its own — enforced in Muralista, on the
+ * way into the file. **So this never recurses**: it reads the target's CONTENT, never the target's
+ * visibility, and there is nothing here to detect or refuse.
+ *
+ * **An object rather than a string**, so a `when` or an `after` can join it later without a
+ * redesign. This is the condition, not an animation system.
+ */
+export function shapeCondition(shape: VisualShape): ShapeCondition | null {
+  const raw = shape.visibleWhen
+  if (!raw || typeof raw !== 'object') return null
+  const target = (raw as { shape?: unknown }).shape
+  const is = (raw as { is?: unknown }).is
+  if (typeof target !== 'string' || target === '') return null
+  if (is !== 'filled' && is !== 'empty') return null
+  return { shape: target, is }
+}
+
+/**
+ * **Whether this shape shows for this song.** True for every unconditional shape, which is most of
+ * them, and they pay nothing for the question.
+ *
+ * With **no song at all** — `gig-contact` is looked up that way — nothing is assigned to anything,
+ * so a target reads *empty*. That is the honest answer rather than a special case: an asset is a
+ * per-song fact, and there is no song.
+ */
+export function shapeShowsForSong(
+  visuals: VisualsFile,
+  shape: VisualShape,
+  songId: string | null
+): boolean {
+  const condition = shapeCondition(shape)
+  if (condition === null) return true
+  const filled = songAssetFor(visuals, songId, condition.shape) !== null
+  return condition.is === 'filled' ? filled : !filled
 }
 
 function isPoint(p: unknown): p is Point {
@@ -234,6 +297,22 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
     .filter((s) => isNonEmptyString(s.id))
     .map((s) => s as unknown as VisualShape)
 
+  // **The one-level rule is Muralista's to enforce and this repo's to survive.** A condition
+  // pointing at a shape that is not there, or at one that has a condition of its own, is dropped
+  // here — `shapeCondition` then reads null and the shape shows unconditionally. **A file this app
+  // did not write is arbitrary JSON**, and a lookup that recursed on it would be the cycle this
+  // design exists to make impossible.
+  const conditioned = new Set(
+    shapes.filter((shape) => shapeCondition(shape) !== null).map((shape) => shape.id)
+  )
+  for (const shape of shapes) {
+    const condition = shapeCondition(shape)
+    if (condition === null) continue
+    const target = condition.shape
+    const known = shapes.some((s) => s.id === target)
+    if (!known || conditioned.has(target) || target === shape.id) delete shape.visibleWhen
+  }
+
   const sv = o.songVisuals !== null && typeof o.songVisuals === 'object' ? (o.songVisuals as Record<string, unknown>) : {}
   const songsSrc = sv.songs !== null && typeof sv.songs === 'object' ? (sv.songs as Record<string, unknown>) : {}
   const songs: Record<string, AssignmentMap> = {}
@@ -292,7 +371,7 @@ export function songAssetFor(
  */
 export function songVideoAssets(
   visuals: VisualsFile,
-  songId: string
+  songId: string | null
 ): { named: string[]; unassigned: string[] } {
   const named: string[] = []
   const unassigned: string[] = []
@@ -302,6 +381,22 @@ export function songVideoAssets(
     else if (!named.includes(name)) named.push(name)
   }
   return { named, unassigned }
+}
+
+/**
+ * **Whether anything will actually paint for this song.**
+ *
+ * A resolved shape is not the same as a shape with something in it, and since the default became
+ * three shapes the difference matters: **a song with no animation resolves the video shape and
+ * leaves it empty, which is the designed state**, not a fault — the lyrics shape conditioned on
+ * *video is empty* is what carries it.
+ *
+ * So: a `song-lyrics` shape always paints, because the words come from the song file at render
+ * time. **A `song-video` shape paints only when this song assigned it something.**
+ */
+export function songIsCarried(visuals: VisualsFile, songId: string): boolean {
+  if (resolveShapesForType(visuals, 'song-lyrics', songId).length > 0) return true
+  return songVideoAssets(visuals, songId).named.length > 0
 }
 
 /**
@@ -332,5 +427,15 @@ export function resolveShapesForType(
   const ids = perSong && perSong.length > 0 ? perSong : (visuals.songVisuals.defaults[type] ?? [])
   return ids
     .map((id) => visuals.shapes.find((s) => s.id === id))
-    .filter((s): s is VisualShape => s !== undefined && shapeTypeOf(s) === type && shapeIsVisible(s))
+    .filter(
+      (s): s is VisualShape =>
+        s !== undefined &&
+        shapeTypeOf(s) === type &&
+        shapeIsVisible(s) &&
+        // **The condition is evaluated HERE, in the one lookup**, for the same reason the hidden
+        // flag is: a shape that satisfied the arm gate and then painted nothing would be exactly
+        // the disagreement between the gate and the wall that having one readiness function exists
+        // to prevent.
+        shapeShowsForSong(visuals, s, songId)
+    )
 }

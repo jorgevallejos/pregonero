@@ -40,6 +40,7 @@ import { hasLyricLines } from './songState'
 import type { GigFile, SetupFingerprints } from './gigFile'
 import {
   resolveShapesForType,
+  songIsCarried,
   songVideoAssets,
   type VisualsFile,
   type VisualsRefusalKind,
@@ -47,9 +48,6 @@ import {
 
 /** The song-aware types a song can point content at. `gig-contact` is gig-level and not per song. */
 const PER_SONG_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
-
-/** The types that, when they resolve, mean the song has somewhere to actually perform. */
-const PERFORMING_TYPES = ['song-lyrics', 'song-video'] as const
 
 export type StepStatus = 'complete' | 'not-yet' | 'broken'
 
@@ -340,11 +338,15 @@ function contentMissingFor(
     missing.push('has a lyrics shape but no lyric lines')
   }
   if (types.includes('song-video')) {
-    const { named, unassigned } = songVideoAssets(visuals, songId)
-    for (const shapeName of unassigned) {
-      // Not a file question: there is no name here that failed to resolve, there is no name.
-      missing.push(`has the video shape ${shapeName} with nothing assigned to it`)
-    }
+    const { named } = songVideoAssets(visuals, songId)
+    // **AN UNASSIGNED VIDEO SHAPE IS NOT A FINDING ANY MORE** (2026-09-04). It was, for one round,
+    // and conditional visibility made it wrong: **the designed default gives every song a
+    // frame-filling video shape**, and a song with no animation leaves it empty while a lyrics
+    // shape conditioned on *video is empty* carries the song. Reporting that would put a line on
+    // the sign-off for the commonest case there is.
+    //
+    // **Empty means dark for that song**, which is this suite's own sentence about shapes. What
+    // still fails is a song nothing paints for at all, and that is `songIsCarried`, one level up.
     for (const src of named) {
       const resolution = mediaResolution[src]
       if (!resolution || !resolution.linked) {
@@ -465,9 +467,13 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
       )
     } else {
       const types = resolvedTypesFor(input.visuals, entry.id)
-      const performing = types.filter((t) => (PERFORMING_TYPES as readonly string[]).includes(t))
-      if (performing.length === 0) {
-        missing.push('no shape carries this song — the gig has no lyrics or video shape for it')
+      // **CARRIED, NOT MERELY RESOLVED** (2026-09-04, with conditional visibility). A resolved
+      // shape is not a shape with something in it: since the default became three shapes, **a song
+      // with no animation resolves the video shape and leaves it empty on purpose**, and the
+      // lyrics shape conditioned on *video is empty* is what carries it. Counting resolved types
+      // would have called that ready; counting them as *carrying* would have called it broken.
+      if (!songIsCarried(input.visuals, entry.id)) {
+        missing.push('no shape carries this song — nothing in the room would paint anything for it')
       }
       const content = contentMissingFor(
         entry.song,

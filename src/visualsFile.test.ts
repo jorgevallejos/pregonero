@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseVisualsFile,
+  shapeCondition,
   songAssetFor,
   songVideoAssets,
   resolveShapesForType,
@@ -10,6 +11,7 @@ import {
   shapeOutlineIsFrame,
   shapeTypeOf,
   type Point,
+  type VisualsFile,
 } from './visualsFile'
 
 const GIG = 'k3f9x2abcd'
@@ -251,5 +253,172 @@ describe('a hidden shape', () => {
     )
     expect(resolveShapesForType(visuals, 'song-lyrics', null)).toEqual([])
     expect(resolveShapesForType(visuals, 'song-lyrics', 'duelo').map((s) => s.id)).toEqual(['s2'])
+  })
+})
+
+/**
+ * **CONDITIONAL VISIBILITY** (Jorge, 2026-09-04, `project-context.md`).
+ *
+ * Cowork proposed a flag saying *for songs with video / without*; **Jorge rejected it as domain
+ * knowledge Muralista does not have** — whether a song has a video lives below its line. His
+ * replacement asks about **another shape**, which is Muralista's own vocabulary: **it declares the
+ * relationship, this app evaluates it**, because this app is the one that knows what content landed.
+ *
+ * **It is about content, never existence.** Shapes always exist; what varies per song is whether
+ * they got something. Filled means an asset is assigned for that song.
+ */
+describe('conditional visibility', () => {
+  const QUAD: Point[] = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+  ]
+  /** The designed default: a video frame, lyrics at its foot when filled, lyrics across when empty. */
+  const room = (assets: Record<string, Record<string, string>> = {}) =>
+    parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        shapes: [
+          { id: 'frame', name: 'Frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          {
+            id: 'foot',
+            name: 'Foot',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'frame', is: 'filled' },
+          },
+          {
+            id: 'across',
+            name: 'Across',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'frame', is: 'empty' },
+          },
+        ],
+        songVisuals: {
+          defaults: { 'song-video': ['frame'], 'song-lyrics': ['foot', 'across'] },
+          assets,
+        },
+      }),
+      GIG
+    )
+
+  const lyricsFor = (v: VisualsFile, songId: string | null) =>
+    resolveShapesForType(v, 'song-lyrics', songId).map((s) => s.id)
+
+  it('reads the condition off the shape, as an object', () => {
+    expect(shapeCondition(room().shapes[1]!)).toEqual({ shape: 'frame', is: 'filled' })
+    expect(shapeCondition(room().shapes[0]!)).toBeNull()
+  })
+
+  /** **The whole point of the round**, in one assertion per branch. */
+  it('gives a song with an animation words at the foot, and one without words across the frame', () => {
+    expect(lyricsFor(room({ duelo: { frame: 'cerdo.mp4' } }), 'duelo')).toEqual(['foot'])
+    expect(lyricsFor(room(), 'duelo')).toEqual(['across'])
+  })
+
+  it('leaves the unconditional shape alone in both cases', () => {
+    expect(resolveShapesForType(room({ duelo: { frame: 'x.mp4' } }), 'song-video', 'duelo')).toHaveLength(1)
+    expect(resolveShapesForType(room(), 'song-video', 'duelo')).toHaveLength(1)
+  })
+
+  /** Each song answers for itself: the condition is per song, like the asset it reads. */
+  it('answers per song, not per gig', () => {
+    const v = room({ duelo: { frame: 'cerdo.mp4' } })
+    expect(lyricsFor(v, 'duelo')).toEqual(['foot'])
+    expect(lyricsFor(v, 'vidas')).toEqual(['across'])
+  })
+
+  /**
+   * **With no song at all nothing is assigned to anything**, so a target reads *empty*. That is the
+   * honest answer rather than a special case — an asset is a per-song fact and there is no song.
+   */
+  it('treats a target as empty when there is no song', () => {
+    expect(lyricsFor(room({ duelo: { frame: 'cerdo.mp4' } }), null)).toEqual(['across'])
+  })
+
+  /**
+   * **ONE LEVEL, SO CYCLES ARE IMPOSSIBLE.** Muralista enforces it on the way into the file; this
+   * survives a file it did not write. A condition pointing at a conditional shape, at a missing
+   * shape, or at itself is dropped — and the shape then shows unconditionally rather than
+   * disappearing, because losing the smaller thing is the repair with the smaller blast radius.
+   */
+  it('drops a condition that points at a conditional shape, a missing one, or itself', () => {
+    const chained = parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        shapes: [
+          { id: 'a', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          {
+            id: 'b',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'a', is: 'empty' },
+          },
+          {
+            id: 'c',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'b', is: 'empty' },
+          },
+          {
+            id: 'd',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'ghost', is: 'empty' },
+          },
+          {
+            id: 'e',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'e', is: 'empty' },
+          },
+        ],
+        songVisuals: { defaults: {} },
+      }),
+      GIG
+    )
+    const byId = (id: string) => chained.shapes.find((s) => s.id === id)!
+    expect(shapeCondition(byId('b'))).toEqual({ shape: 'a', is: 'empty' })
+    for (const id of ['c', 'd', 'e']) expect(`${id}:${shapeCondition(byId(id))}`).toBe(`${id}:null`)
+  })
+
+  it('ignores a malformed condition rather than refusing the file', () => {
+    const v = parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        shapes: [
+          { id: 'a', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          {
+            id: 'b',
+            layer: { type: 'song-lyrics' },
+            corners: QUAD,
+            visible: true,
+            visibleWhen: { shape: 'a', is: 'sometimes' },
+          },
+        ],
+        songVisuals: { defaults: { 'song-lyrics': ['b'] } },
+      }),
+      GIG
+    )
+    expect(shapeCondition(v.shapes[1]!)).toBeNull()
+    expect(lyricsFor(v, 'duelo')).toEqual(['b'])
+  })
+
+  /** A hidden shape stays hidden whatever its condition says: two gates, both in the one lookup. */
+  it('still honours the author’s hidden flag', () => {
+    const v = room()
+    v.shapes[2]!.visible = false
+    expect(lyricsFor(v, 'duelo')).toEqual([])
   })
 })
