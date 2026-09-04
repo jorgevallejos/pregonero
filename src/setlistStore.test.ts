@@ -151,8 +151,7 @@ describe('the persisted snapshot holds references, not songs', () => {
       song('pimiento', {
         timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
         timelineVersion: 2,
-        leadIn: { durationSec: 1, source: 'measured', confidence: 'high', apply: true },
-        media: { type: 'video', src: 'pimiento.mp4' },
+        leadIn: { durationSec: 1, source: 'measured', confidence: 'high' },
         tempo: { bpm: 90, numerator: 4, denominator: 4 },
       }),
     ])

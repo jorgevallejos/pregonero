@@ -42,16 +42,29 @@ export function videoCueLookup(timeline: TimelineEntry[], songTime: number): num
  * already reflects that once the element has been seeked there — folding it in here would shift
  * the same thing twice.
  *
- * When `leadIn` is `undefined` (no v2 timeline, or a legacy timeline with no `timelineVersion`)
- * or `leadIn.apply` is `false` (Auto mode; a live intro can run any length), the lead-in term is
- * `0` and this is bit-for-bit identical to the pre-P2 formula (`video.currentTime + offset`).
+ * ## Whether the lead-in applies is the CALLER's answer now, not the file's
+ *
+ * **`leadIn` splits the way the media did** (Jorge, 2026-09-04). Its measured VALUE stays with the
+ * timeline — a real measurement of the words — and **the decision to apply it belongs to whoever
+ * knows a video is playing.** Bombista derived it from `media.type == "video"`; once no song
+ * declares media that default silently flips, and **every video song would have lost its lead-in
+ * correction with nothing reporting it.**
+ *
+ * So the mode arrives as an argument. It is `true` exactly in Video mode, which after this round
+ * means *a video is assigned to this song for this gig in `visuals.json`* — the contract's own
+ * table, read from the only party that can answer it.
+ *
+ * When `leadIn` is `undefined` (no v2 timeline) or `applyLeadIn` is `false` (Auto mode; a live
+ * intro can run any length), the lead-in term is `0` and this is bit-for-bit identical to the
+ * pre-P2 formula (`video.currentTime + offset`).
  */
 export function resolveVideoSongTime(
   videoCurrentTime: number,
   offset: number,
   leadIn?: TimelineLeadIn,
+  applyLeadIn = false,
 ): number {
-  const leadInSec = leadIn?.apply ? leadIn.durationSec : 0
+  const leadInSec = applyLeadIn && leadIn ? leadIn.durationSec : 0
   return videoCurrentTime + offset - leadInSec
 }
 
@@ -66,6 +79,7 @@ export function resolveVideoCueIndex(
   videoCurrentTime: number,
   offset: number,
   leadIn?: TimelineLeadIn,
+  applyLeadIn = false,
 ): number {
-  return videoCueLookup(timeline, resolveVideoSongTime(videoCurrentTime, offset, leadIn))
+  return videoCueLookup(timeline, resolveVideoSongTime(videoCurrentTime, offset, leadIn, applyLeadIn))
 }

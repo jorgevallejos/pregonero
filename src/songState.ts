@@ -117,8 +117,6 @@ export interface TimelineLeadIn {
   source: 'measured' | 'manual' | 'none'
   /** Always `low` when `measured` — faster-whisper clamps the first sung word toward 0. */
   confidence: 'low' | 'high'
-  /** `true` when the song has `media.type == "video"`, else `false`. */
-  apply: boolean
 }
 
 const TIMELINE_VERSION_REJECT_MESSAGE =
@@ -158,10 +156,17 @@ export function validateTimelineLeadIn(leadIn: unknown, context: string): Timeli
   if (obj.confidence !== 'low' && obj.confidence !== 'high') {
     throw new Error(`${context} "leadIn.confidence" must be "low" or "high"`)
   }
-  if (typeof obj.apply !== 'boolean') {
-    throw new Error(`${context} "leadIn.apply" must be a boolean`)
-  }
-  return { durationSec: obj.durationSec, source: obj.source, confidence: obj.confidence, apply: obj.apply }
+  // **`apply` IS NOT READ, AND AN OLD FILE CARRYING IT STILL PARSES** (Jorge, 2026-09-04).
+  //
+  // **`leadIn` splits the same way the media did**: its measured VALUE stays with the timeline —
+  // that is a real measurement of the words — and **the DECISION to apply it is Pregonero's**,
+  // taken from whether a video is assigned to this song for this gig in `visuals.json`. After the
+  // split Pregonero is the only party that could know, which is why Bombista stopped deriving it
+  // from `media.type` and stopped writing it.
+  //
+  // It is accepted and dropped rather than refused: **no migration** — a song file written before
+  // today carries the key, and rejecting one would make walk state unreadable for no gain.
+  return { durationSec: obj.durationSec, source: obj.source, confidence: obj.confidence }
 }
 
 export interface MediaFile {

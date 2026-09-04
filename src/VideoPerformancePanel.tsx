@@ -185,14 +185,17 @@ export function VideoPerformancePanel({
     const video = videoRef.current
     if (!video) return
     const onTimeUpdate = () => {
-      setActiveCueIndex(resolveVideoCueIndex(timeline, video.currentTime, offset, leadIn))
+      // **The panel is only ever mounted in Video mode**, which is what makes `true` the honest
+      // answer here: `showVideoPerformance` gates it on `isVideoMode`, and that is now *a video is
+      // assigned to this song for this gig*. The contract's table, read where it can be answered.
+      setActiveCueIndex(resolveVideoCueIndex(timeline, video.currentTime, offset, leadIn, true))
     }
     video.addEventListener('timeupdate', onTimeUpdate)
     return () => video.removeEventListener('timeupdate', onTimeUpdate)
     // Depend on leadIn's primitive fields, not the object itself — `leadIn` is derived from the
     // library song and may be a fresh object every render (see the "Hook stability gotcha" in
     // CLAUDE.md).
-  }, [timeline, offset, leadIn?.apply, leadIn?.durationSec])
+  }, [timeline, offset, leadIn?.durationSec])
 
   // Derive the current singing-language lyric text from activeCueIndex → lines.
   // Section markers and out-of-range indices render no lyric text.

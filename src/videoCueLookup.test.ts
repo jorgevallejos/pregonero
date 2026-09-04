@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect } from 'vitest'
 import { videoCueLookup, resolveVideoSongTime, resolveVideoCueIndex } from './videoCueLookup'
-import type { TimelineEntry, TimelineLeadIn } from './songState'
+import type { TimelineEntry } from './songState'
 import { GOLDEN_TIMELINE_ENTRIES, GOLDEN_LEAD_IN } from './fixtures/timelineV2'
 
 describe('videoCueLookup', () => {
@@ -107,8 +107,17 @@ const NORMALISED_BOUNDARIES = [
   GOLDEN_TIMELINE_ENTRIES[GOLDEN_TIMELINE_ENTRIES.length - 1].end,
 ]
 
-const LEAD_IN_APPLY_TRUE: TimelineLeadIn = { ...GOLDEN_LEAD_IN, apply: true }
-const LEAD_IN_APPLY_FALSE: TimelineLeadIn = { ...GOLDEN_LEAD_IN, apply: false }
+/**
+ * **WHETHER THE LEAD-IN APPLIES IS THE CALLER'S ANSWER, NOT THE FILE'S** (Jorge, 2026-09-04).
+ *
+ * `leadIn.apply` was Bombista's, derived from `media.type == "video"` — and once no song declares
+ * media that default silently flips, so **every video song would have lost its lead-in correction
+ * with nothing reporting it.** The measured VALUE stays with the timeline; the DECISION moved to
+ * the party that knows a video is playing. The fixture is the same lead-in either way now, and the
+ * mode is the last argument.
+ */
+const APPLY = true
+const DO_NOT_APPLY = false
 
 describe('resolveVideoSongTime — leadIn composition', () => {
   it('proves losslessness against the golden Libertad fixture (tolerance 0.005)', () => {
@@ -117,7 +126,7 @@ describe('resolveVideoSongTime — leadIn composition', () => {
     for (let i = 0; i < RAW_BOUNDARIES.length; i++) {
       // resolveVideoSongTime inverts Bombista's `round(raw - leadIn, 2)`: feeding the raw
       // boundary in as "video time" (offset 0) should reproduce the normalised boundary.
-      const recovered = resolveVideoSongTime(RAW_BOUNDARIES[i], 0, LEAD_IN_APPLY_TRUE)
+      const recovered = resolveVideoSongTime(RAW_BOUNDARIES[i], 0, GOLDEN_LEAD_IN, APPLY)
       expect(Math.abs(recovered - NORMALISED_BOUNDARIES[i])).toBeLessThan(0.005)
     }
   })
@@ -127,18 +136,23 @@ describe('resolveVideoSongTime — leadIn composition', () => {
     expect(resolveVideoSongTime(42.5, 1.2, undefined)).toBe(42.5 + 1.2)
   })
 
-  it('applies no offset when leadIn.apply is false, even with a nonzero durationSec', () => {
-    expect(resolveVideoSongTime(42.5, 0, LEAD_IN_APPLY_FALSE)).toBe(42.5)
-    expect(LEAD_IN_APPLY_FALSE.durationSec).toBeGreaterThan(0) // sanity: the field is nonzero
+  it('applies no lead-in in Auto mode, even with a nonzero durationSec', () => {
+    expect(resolveVideoSongTime(42.5, 0, GOLDEN_LEAD_IN, DO_NOT_APPLY)).toBe(42.5)
+    expect(GOLDEN_LEAD_IN.durationSec).toBeGreaterThan(0) // sanity: the field is nonzero
   })
 
-  it('subtracts leadIn.durationSec when apply is true', () => {
-    expect(resolveVideoSongTime(10, 0, LEAD_IN_APPLY_TRUE)).toBeCloseTo(10 - 7.26, 10)
+  /** **The default is Auto**, so a caller that says nothing gets the pre-P2 formula. */
+  it('applies no lead-in when the caller does not say a video is playing', () => {
+    expect(resolveVideoSongTime(42.5, 0, GOLDEN_LEAD_IN)).toBe(42.5)
+  })
+
+  it('subtracts leadIn.durationSec in Video mode', () => {
+    expect(resolveVideoSongTime(10, 0, GOLDEN_LEAD_IN, APPLY)).toBeCloseTo(10 - 7.26, 10)
   })
 
   it('composes leadIn and offset additively (independent corrections)', () => {
     // offset = -0.2 (manual alignment nudge), leadIn = 7.26 (structural). Both apply.
-    const result = resolveVideoSongTime(20, -0.2, LEAD_IN_APPLY_TRUE)
+    const result = resolveVideoSongTime(20, -0.2, GOLDEN_LEAD_IN, APPLY)
     expect(result).toBeCloseTo(20 + -0.2 - 7.26, 10)
   })
 })
@@ -146,15 +160,15 @@ describe('resolveVideoSongTime — leadIn composition', () => {
 describe('resolveVideoCueIndex — integration with videoCueLookup', () => {
   it('resolves the correct cue when video time = leadIn.durationSec + timeline[i].start', () => {
     // Line 1 (index 1) spans normalised [5.84, 9.64). Video time = 7.26 + 5.84 = 13.10.
-    const videoTime = LEAD_IN_APPLY_TRUE.durationSec + GOLDEN_TIMELINE_ENTRIES[1].start
-    const idx = resolveVideoCueIndex(GOLDEN_TIMELINE_ENTRIES, videoTime, 0, LEAD_IN_APPLY_TRUE)
+    const videoTime = GOLDEN_LEAD_IN.durationSec + GOLDEN_TIMELINE_ENTRIES[1].start
+    const idx = resolveVideoCueIndex(GOLDEN_TIMELINE_ENTRIES, videoTime, 0, GOLDEN_LEAD_IN, APPLY)
     expect(idx).toBe(1)
   })
 
   it('returns -1 before the lead-in has elapsed, even though timeline[0].start is 0', () => {
     // Without the leadIn offset this would resolve to line 0; with it, the video is still
     // inside the lead-in and no line should be active yet.
-    const idx = resolveVideoCueIndex(GOLDEN_TIMELINE_ENTRIES, 3.0, 0, LEAD_IN_APPLY_TRUE)
+    const idx = resolveVideoCueIndex(GOLDEN_TIMELINE_ENTRIES, 3.0, 0, GOLDEN_LEAD_IN, APPLY)
     expect(idx).toBe(-1)
   })
 
@@ -167,7 +181,7 @@ describe('resolveVideoCueIndex — integration with videoCueLookup', () => {
 
   it('matches the pre-P2 behavior exactly when leadIn.apply is false', () => {
     const timeline: TimelineEntry[] = [{ start: 2, end: 5 }]
-    expect(resolveVideoCueIndex(timeline, 3.5, 0.1, LEAD_IN_APPLY_FALSE)).toBe(
+    expect(resolveVideoCueIndex(timeline, 3.5, 0.1, GOLDEN_LEAD_IN, DO_NOT_APPLY)).toBe(
       videoCueLookup(timeline, 3.5 + 0.1),
     )
   })
