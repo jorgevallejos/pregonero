@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseVisualsFile,
+  songAssetFor,
+  songVideoAssets,
   resolveShapesForType,
   shapeFrame,
   shapeIsVisible,
@@ -75,7 +77,61 @@ describe('parseVisualsFile', () => {
 
   it('survives a file with no songVisuals at all — absence is the empty state', () => {
     const v = parseVisualsFile(JSON.stringify({ visualsVersion: 1, gigId: GIG, shapes: [] }), GIG)
-    expect(v.songVisuals).toEqual({ defaults: {}, songs: {} })
+    expect(v.songVisuals).toEqual({ defaults: {}, songs: {}, assets: {} })
+  })
+})
+
+/**
+ * **What a song puts in a shape** — the field that made *the song holds no media* buildable
+ * (Jorge, 2026-09-03/04). A song carries words and timing; **what plays on the wall is the
+ * visuals**, and this is where the pairing lives.
+ *
+ * **It is not the map beside it.** `songs` answers *which shape does this song use*, which is
+ * reassignment; `assets` answers *what does this song put in it*. Two questions that look alike.
+ */
+describe('song assets', () => {
+  const QUAD: Point[] = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+  ]
+  const withAssets = (assets: unknown) =>
+    parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        shapes: [
+          { id: 'v1', name: 'Frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          { id: 'v2', name: 'Pillar', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+        ],
+        songVisuals: { defaults: { 'song-video': ['v1', 'v2'] }, assets },
+      }),
+      GIG
+    )
+
+  it('reads song → shape → name', () => {
+    const v = withAssets({ duelo: { v1: 'cerdo.mp4' } })
+    expect(songAssetFor(v, 'duelo', 'v1')).toBe('cerdo.mp4')
+    expect(songAssetFor(v, 'duelo', 'v2')).toBeNull()
+    expect(songAssetFor(v, 'vidas', 'v1')).toBeNull()
+    expect(songAssetFor(v, null, 'v1')).toBeNull()
+  })
+
+  it('refuses a path, because a name is what travels', () => {
+    expect(songAssetFor(withAssets({ duelo: { v1: '../secret.mp4' } }), 'duelo', 'v1')).toBeNull()
+    expect(songAssetFor(withAssets({ duelo: { v1: '/Users/x/a.mp4' } }), 'duelo', 'v1')).toBeNull()
+  })
+
+  /** **A set, not a shape.** Two video shapes is how a corner gets spanned, and each carries its own. */
+  it('gathers every name a song’s video shapes ask for, and names the ones asking for none', () => {
+    const v = withAssets({ duelo: { v1: 'cerdo.mp4' } })
+    expect(songVideoAssets(v, 'duelo')).toEqual({ named: ['cerdo.mp4'], unassigned: ['Pillar'] })
+  })
+
+  it('says a song with nothing assigned needs nothing and lights nothing', () => {
+    const v = withAssets({})
+    expect(songVideoAssets(v, 'duelo')).toEqual({ named: [], unassigned: ['Frame', 'Pillar'] })
   })
 })
 

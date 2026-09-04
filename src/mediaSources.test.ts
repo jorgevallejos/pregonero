@@ -4,32 +4,34 @@ import { collectMediaSources } from './mediaSources'
 import type { LibraryEntry } from './setlistStore'
 import type { VisualsFile, VisualShape } from './visualsFile'
 
-function entry(id: string, title: string, src?: string): LibraryEntry {
-  return {
-    ref: { id, path: `/songs/${id}.json` },
-    song: {
-      id,
-      title,
-      items: [],
-      ...(src ? { media: { type: 'video' as const, src } } : {}),
-    },
-  }
+function entry(id: string, title: string): LibraryEntry {
+  return { ref: { id, path: `/songs/${id}.json` }, song: { id, title, items: [] } }
 }
 
-function visuals(shapes: VisualShape[]): VisualsFile {
+function visuals(
+  shapes: VisualShape[],
+  assets: Record<string, Record<string, string>> = {}
+): VisualsFile {
   return {
     visualsVersion: 1,
     gigId: 'g',
     shapes,
-    songVisuals: { defaults: {}, songs: {} },
+    songVisuals: { defaults: {}, songs: {}, assets },
   }
 }
 
 describe('the names the app has to turn into bytes', () => {
-  it('lists a song’s declared media', () => {
-    expect(collectMediaSources([entry('tragedia', 'Tragedia', 'tragedia.mp4')], null)).toEqual([
-      { src: 'tragedia.mp4', uses: ['Tragedia — video'] },
-    ])
+  /**
+   * **The song's video, named by the ROOM** (Jorge, 2026-09-03). It used to be `song.media.src`;
+   * under *the song holds no media* that field has no writer, and a list built from it would
+   * quietly stop naming the one thing this screen exists to resolve.
+   */
+  it('lists the video the room says a song plays', () => {
+    const found = collectMediaSources(
+      [entry('tragedia', 'Tragedia')],
+      visuals([], { tragedia: { 'v-1': 'tragedia.mp4' } })
+    )
+    expect(found).toEqual([{ src: 'tragedia.mp4', uses: ['Tragedia — video'] }])
   })
 
   it('lists a static image — the logo, which had no screen at all before', () => {
@@ -54,8 +56,11 @@ describe('the names the app has to turn into bytes', () => {
 
   it('is one row per name, however many things ask for it', () => {
     const found = collectMediaSources(
-      [entry('a', 'A', 'shared.mp4'), entry('b', 'B', 'shared.mp4')],
-      visuals([{ id: 's1', name: 'Wall', layer: { type: 'video', src: 'shared.mp4' } }])
+      [entry('a', 'A'), entry('b', 'B')],
+      visuals([{ id: 's1', name: 'Wall', layer: { type: 'video', src: 'shared.mp4' } }], {
+        a: { 'v-1': 'shared.mp4' },
+        b: { 'v-1': 'shared.mp4' },
+      })
     )
     expect(found).toHaveLength(1)
     expect(found[0]!.uses).toEqual(['A — video', 'B — video', 'Wall — video shape'])

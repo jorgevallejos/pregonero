@@ -312,10 +312,16 @@ describe('VideoPerformancePanel — pause and resume', () => {
 // ── restart ───────────────────────────────────────────────────────────────
 
 describe('VideoPerformancePanel — restart', () => {
-  it('Restart resets video.currentTime to trimStart', async () => {
+  /**
+   * **`trimStart` IS ZERO NOW, AND NOT BECAUSE RESTART CHANGED** (2026-09-04). It lived in the
+   * song's `media` block, which no longer exists — *the song holds no media*, and what plays is a
+   * NAME assigned in Muralista. **The manual trim has no author any more**, so the panel restarts
+   * to the top of the file. This asserts the behaviour that survives: Restart seeks, rather than
+   * leaving the video where it stopped.
+   */
+  it('Restart seeks the video back to its start', async () => {
     const Panel = await importPanel()
-    const media: MediaFile = { type: 'video', src: 'test.mp4', trimStart: 5.0 }
-    render(<Panel {...defaultProps({ media, tempo: TEMPO_4_4_1BAR })} />)
+    render(<Panel {...defaultProps({ tempo: TEMPO_4_4_1BAR })} />)
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
     })
@@ -324,7 +330,7 @@ describe('VideoPerformancePanel — restart', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^restart$/i }))
     })
-    expect(currentTimeSetter).toHaveBeenCalledWith(5.0)
+    expect(currentTimeSetter).toHaveBeenCalledWith(0)
   })
 
   it('Restart re-starts the count-in from t=0 (video.play() not called until count-in ends again)', async () => {

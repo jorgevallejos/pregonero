@@ -19,7 +19,7 @@ import type {
   ProjectorPlacement,
   SongValidationResult,
 } from './electronApi'
-import { getBombistaPath } from './contentFolders'
+import { getBombistaPath, getVisualsFolder } from './contentFolders'
 import { gigsSetupFolder, songFilesFolder } from './fileLayout'
 import { lastPickerFolder, rememberPickerFolder, type PickerName } from './pickerMemory'
 
@@ -364,7 +364,7 @@ export async function openTool(
     return { ok: false, error: 'Tools can only be hosted from the desktop app.' }
   }
   try {
-    return await a.openTool(key, folder, page, title)
+    return await a.openTool(key, folder, page, title, getVisualsFolder() ?? undefined)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
@@ -390,7 +390,11 @@ export async function serveTool(
     return { ok: false, error: 'Tools can only be hosted from the desktop app.' }
   }
   try {
-    return await a.serveTool(key, folder, page)
+    // **The visuals folder is read here, not passed in**, for the same reason every other folder
+    // join happens at this boundary: nothing above `platform.ts` should be holding a second copy of
+    // where this machine keeps things. A tool that is not Muralista is handed nothing — see the
+    // main process, which drops it on any other key.
+    return await a.serveTool(key, folder, page, getVisualsFolder() ?? undefined)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

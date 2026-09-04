@@ -43,6 +43,8 @@ import { getStoredPerformedBpm } from './performedTempo'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
 import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
+import { installRoom, TEST_GIG_ID } from './testSupport/room'
+import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
 
 /** The played log flattened to ids, for the assertions that only care that a song is in it. */
 function playedSongIds(): string[] {
@@ -108,6 +110,9 @@ async function navigateToLastLyric() {
 }
 
 function setupControlViewWithReadinessPassing() {
+  // The two folders this machine is pointed at, so a gig's relative `file` and the library's own
+  // reference resolve to one path. Harmless for the tests that never open a gig.
+  installRequiredFolders('/vault/songs', '/vault/gigs')
   sessionStorage.setItem('liveLyricLaunched', '1')
   sessionStorage.removeItem('liveLyricPerformanceArmed')
   setSongLines(VALID_LINES)
@@ -123,6 +128,47 @@ function setupControlViewWithReadinessPassing() {
     onProjectionClosed: vi.fn(() => vi.fn()),
     openProjection: vi.fn().mockResolvedValue(undefined),
     closeProjection: vi.fn().mockResolvedValue(undefined),
+    /**
+     * **A gig folder that reads back the room the test installed.**
+     *
+     * Needed since *the song holds no media* (Jorge, 2026-09-03): a video song is one the ROOM
+     * assigns a video to, so a test about a video song has to open a gig — and a remembered folder
+     * turns the arm gate on. Without this the folder is remembered and unreadable, which is a real
+     * state and a blocked one, so every song would fail the gate for the wrong reason.
+     *
+     * It answers out of the broadcast the test seeded, so readiness and the wall cannot disagree.
+     */
+    readGigFolder: vi.fn(async () => {
+      const raw = localStorage.getItem(KEY_VISUALS_BROADCAST)
+      const visuals = raw ? (JSON.parse(raw) as { visuals: unknown }).visuals : null
+      return {
+        gigText: JSON.stringify({
+          gigVersion: 1,
+          id: TEST_GIG_ID,
+          date: '2026-05-16',
+          venue: { name: 'Test' },
+          visuals: './visuals.json',
+          // **The gig states its own running order**, because reading a gig ADOPTS it: a gig.json
+          // with no setlist gets an empty one written in, and the song under test would drop out
+          // of the setlist it was just put in.
+          // **The same file the library already holds**, written relative to the gig folder as a
+          // real one is. Adopting compares RESOLVED paths, so a match means the reference is not
+          // repointed and not re-read — which is the behaviour on a real machine too.
+          songs: [
+            { id: 'duelo', title: 'Duelo', file: '../../../vault/songs/song-performance/duelo.json' },
+          ],
+          setlist: ['duelo'],
+        }),
+        gigError: null,
+        gigPresent: true,
+        visualsText: visuals ? JSON.stringify(visuals) : null,
+        visualsError: null,
+        visualsPresent: visuals !== null,
+      }
+    }),
+    writeGigFile: vi.fn(async () => ({ ok: true })),
+    // The video the room assigns is on this machine. `platform.fileExists` asks through this.
+    getFileStats: vi.fn(async () => ({ exists: true })),
   }
   ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
   return mockApi
@@ -4131,10 +4177,12 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -4355,10 +4403,12 @@ describe('§17 C2 — Projection status text ignores a leftover screenSize key',
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -4488,10 +4538,12 @@ describe('§5 video armed screen — End Card absent', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     // Provide a resolved path so the panel renders with video
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
 
@@ -4524,10 +4576,12 @@ describe('§5 video armed screen — End Card absent', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
 
     setupControlViewWithReadinessPassing()
@@ -4578,10 +4632,12 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -4834,10 +4890,12 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     sessionStorage.setItem('liveLyricLaunched', '1')
     sessionStorage.removeItem('liveLyricPerformanceArmed')
@@ -4957,29 +5015,16 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
       id: 'duelo',
       title: 'Duelo',
       items: VALID_LINES,
-      media: { type: 'video' as const, src: 'test.mp4' },
       timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
     }
     installLibrary([songWithVideo])
+    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
+    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
+    // **The shared helper, because a video song now needs a gig.** It carries the gig bridges the
+    // arm gate reads through — a remembered folder with nothing behind it is a real, blocked state.
+    return setupControlViewWithReadinessPassing()
   }
 
   it('performer view shows manual (non-video) flow, not VideoPerformancePanel, when armed with display mode None (default)', async () => {

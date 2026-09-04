@@ -132,9 +132,26 @@ export function shapeIsVisible(shape: VisualShape): boolean {
 /** `{ type: [shapeId] }`, as Muralista's `sanitizeAssignmentMap` writes it. */
 export type AssignmentMap = Partial<Record<string, string[]>>
 
+/**
+ * **What a song puts in a shape** — Muralista's `songVisuals.assets`, song id → shape id → name.
+ *
+ * **A different question from `songs` beside it, and the two are easy to confuse.** `songs` answers
+ * *which shape of this kind does this song use*, which is reassignment; this answers *what does this
+ * song put in that shape*, which is content. One moves a song onto a different quad, the other fills
+ * a quad it already has.
+ *
+ * **Keyed by shape id, never by type**, because the lookup returns a set: two shapes carrying one
+ * song's video is how a corner gets spanned, and keying by type would cap that at one.
+ *
+ * **A name, never a path.** The folder is a fact about this machine and is resolved through
+ * `resolveMediaPath` like every other name; the file travels.
+ */
+export type SongAssets = Record<string, Record<string, string>>
+
 export type SongVisuals = {
   defaults: AssignmentMap
   songs: Record<string, AssignmentMap>
+  assets: SongAssets
 }
 
 export type VisualsFile = {
@@ -229,12 +246,62 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
     if (Object.keys(assignments).length > 0) songs[songId] = assignments
   }
 
+  const assetsSrc = sv.assets !== null && typeof sv.assets === 'object' ? (sv.assets as Record<string, unknown>) : {}
+  const assets: SongAssets = {}
+  for (const [songId, map] of Object.entries(assetsSrc)) {
+    if (!songId || map === null || typeof map !== 'object') continue
+    const entry: Record<string, string> = {}
+    for (const [shapeId, name] of Object.entries(map as Record<string, unknown>)) {
+      // **A name, so a path is refused rather than repaired.** The same rule Muralista writes
+      // under: a separator here would be a fact about one machine in a file built to travel.
+      if (!shapeId || !isNonEmptyString(name)) continue
+      if (name.includes('/') || name.includes('\\')) continue
+      entry[shapeId] = name
+    }
+    if (Object.keys(entry).length > 0) assets[songId] = entry
+  }
+
   return {
     visualsVersion: VISUALS_VERSION,
     gigId: o.gigId,
     shapes,
-    songVisuals: { defaults: readAssignmentMap(sv.defaults), songs },
+    songVisuals: { defaults: readAssignmentMap(sv.defaults), songs, assets },
   }
+}
+
+/**
+ * **What this song puts in this shape, or null.** The one reader, so the arm gate, the readiness
+ * check and the wall cannot disagree about what is playing.
+ */
+export function songAssetFor(
+  visuals: VisualsFile,
+  songId: string | null,
+  shapeId: string
+): string | null {
+  if (!songId) return null
+  return visuals.songVisuals.assets[songId]?.[shapeId] ?? null
+}
+
+/**
+ * **Every name this song's video shapes ask for, and every shape that asks for none.**
+ *
+ * One pass over the shapes the song actually lights, so a shape reassigned away from this song is
+ * neither required nor resolved. **A shape with no asset is not an error here** — it is *dark for
+ * this song*, which is the sentence this suite already has — but it IS what the sign-off reports
+ * when a song has a video shape and nothing to put in it.
+ */
+export function songVideoAssets(
+  visuals: VisualsFile,
+  songId: string
+): { named: string[]; unassigned: string[] } {
+  const named: string[] = []
+  const unassigned: string[] = []
+  for (const shape of resolveShapesForType(visuals, 'song-video', songId)) {
+    const name = songAssetFor(visuals, songId, shape.id)
+    if (name === null) unassigned.push(shape.name ?? shape.id)
+    else if (!named.includes(name)) named.push(name)
+  }
+  return { named, unassigned }
 }
 
 /**

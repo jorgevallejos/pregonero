@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import type { MediaFile } from './songState'
 import { absolutePathToMediaUrl } from './mediaPathStore'
 import {
   VIDEO_SEEK_TARGET_KEY,
@@ -10,7 +9,14 @@ import {
 
 type Props = {
   absolutePath: string
-  media: MediaFile
+  /**
+   * **`trimStart` and `offset` are gone with the song's `media` block** (Jorge, 2026-09-03/04).
+   * A song holds no media, and Muralista's assignment is a NAME — so the two manual corrections
+   * that block carried have no home and default to zero. `videoCueLookup` documents that an offset
+   * of 0 with no lead-in is bit-for-bit the original formula, so this is a lost adjustment rather
+   * than a broken clock. Recorded here because it is the one thing the ruling did not name.
+   */
+  trimStart?: number
   /**
    * Reports the element's own clock. **Only the first video shape is given this**: it is the clock
    * the lyrics read against, and two clocks would be two answers to what line is showing.
@@ -29,7 +35,7 @@ type Props = {
  * is what the warp maps onto the corners, so filling it is what makes the video land exactly
  * inside them.
  */
-export function ShapeVideo({ absolutePath, media, onTimeUpdate, onStartedChange }: Props) {
+export function ShapeVideo({ absolutePath, trimStart = 0, onTimeUpdate, onStartedChange }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   // Callbacks in a ref: the listeners below are attached once, and a caller that re-creates its
@@ -41,8 +47,8 @@ export function ShapeVideo({ absolutePath, media, onTimeUpdate, onStartedChange 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-    video.currentTime = media.trimStart ?? 0
-  }, [absolutePath, media.trimStart])
+    video.currentTime = trimStart
+  }, [absolutePath, trimStart])
 
   useEffect(() => {
     const video = videoRef.current
@@ -71,7 +77,6 @@ export function ShapeVideo({ absolutePath, media, onTimeUpdate, onStartedChange 
 
   // play / pause / stop from VideoPerformancePanel.
   useEffect(() => {
-    const trimStart = media.trimStart ?? 0
     const onStorage = (e: StorageEvent) => {
       if (e.key !== VIDEO_TRANSPORT_KEY || !e.newValue) return
       try {
@@ -94,7 +99,7 @@ export function ShapeVideo({ absolutePath, media, onTimeUpdate, onStartedChange 
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [media.trimStart])
+  }, [trimStart])
 
   return (
     <video

@@ -38,7 +38,12 @@
 import type { LibrarySong } from './setlistStore'
 import { hasLyricLines } from './songState'
 import type { GigFile, SetupFingerprints } from './gigFile'
-import { resolveShapesForType, type VisualsFile, type VisualsRefusalKind } from './visualsFile'
+import {
+  resolveShapesForType,
+  songVideoAssets,
+  type VisualsFile,
+  type VisualsRefusalKind,
+} from './visualsFile'
 
 /** The song-aware types a song can point content at. `gig-contact` is gig-level and not per song. */
 const PER_SONG_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
@@ -297,15 +302,32 @@ function songNotes(validation: SongValidation | undefined): string[] {
 /**
  * Whether this song's content is there for every type it points at.
  *
- * `song-video` is the one that carries a real requirement: it plays the song's declared `media`
- * with subtitles bound to that video's own clock, so it needs the media to exist on this machine
- * *and* a timeline to read against it. `song-lyrics` needs lyric lines and nothing more — the
- * timeline question there is `bombista`'s, and it arrives as a note, because ten of the fourteen
- * songs in `songs/` are performed from the pedal with no timeline at all.
+ * ## The video half reads `visuals.json` now, and that is the whole of this change
+ *
+ * **It used to read the SONG**: *has a video shape but declares no media*, off `song.media.src`.
+ * **Under *the song holds no media* (Jorge, 2026-09-03) a song declares nothing** — a recording is
+ * used to derive a timeline and is then irrelevant, and what appears on the wall is the visuals.
+ * **So a check reading that field would pass forever and mean nothing**, which is the failure this
+ * project has a name for: a confident answer that is false.
+ *
+ * **What is asked instead: does this song's video shape have an asset assigned to it**, in
+ * `songVisuals.assets`, which Muralista writes on `1 SHAPES`. Same three questions, one level over:
+ * is something named, is the name linked on this machine, is the file there.
+ *
+ * **A song with no video shape asks nothing**, and a video shape with nothing assigned is **dark
+ * for that song** rather than broken — that is this suite's own sentence about shapes. It is
+ * reported here because a shape lit with nothing in it, on a night, is a black rectangle nobody
+ * decided on.
+ *
+ * `song-lyrics` needs lyric lines and nothing more — the timeline question there is `bombista`'s
+ * and arrives as a note, because ten of the fourteen songs in `songs/` are performed from the pedal
+ * with no timeline at all.
  */
 function contentMissingFor(
   song: LibrarySong,
+  songId: string,
   types: readonly string[],
+  visuals: VisualsFile,
   mediaResolution: Readonly<Record<string, MediaResolution>>
 ): { missing: string[]; filesResolve: boolean } {
   const missing: string[] = []
@@ -318,11 +340,12 @@ function contentMissingFor(
     missing.push('has a lyrics shape but no lyric lines')
   }
   if (types.includes('song-video')) {
-    const src = song.media?.src
-    if (!src) {
-      // Also not a file question: there is no name here that failed to resolve, there is no name.
-      missing.push('has a video shape but declares no media')
-    } else {
+    const { named, unassigned } = songVideoAssets(visuals, songId)
+    for (const shapeName of unassigned) {
+      // Not a file question: there is no name here that failed to resolve, there is no name.
+      missing.push(`has the video shape ${shapeName} with nothing assigned to it`)
+    }
+    for (const src of named) {
       const resolution = mediaResolution[src]
       if (!resolution || !resolution.linked) {
         missing.push(`has a video shape but ${src} is not linked on this machine`)
@@ -331,9 +354,11 @@ function contentMissingFor(
         missing.push(`has a video shape but the file linked for ${src} is not there`)
         filesResolve = false
       }
-      if ((song.timeline ?? []).length === 0) {
-        missing.push('has a video shape but no timeline to bind subtitles to')
-      }
+    }
+    // **The timeline is still the SONG's**, and it stays that way: *the song's own row and its
+    // `manual only` mode still read from the timeline, which is in the song file*.
+    if (named.length > 0 && (song.timeline ?? []).length === 0) {
+      missing.push('has a video shape but no timeline to bind subtitles to')
     }
   }
   return { missing, filesResolve }
@@ -444,7 +469,13 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
       if (performing.length === 0) {
         missing.push('no shape carries this song — the gig has no lyrics or video shape for it')
       }
-      const content = contentMissingFor(entry.song, types, input.mediaResolution)
+      const content = contentMissingFor(
+        entry.song,
+        entry.id,
+        types,
+        input.visuals,
+        input.mediaResolution
+      )
       missing.push(...content.missing)
       contentResolves = content.filesResolve
     }

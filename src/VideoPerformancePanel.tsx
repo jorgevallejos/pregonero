@@ -6,11 +6,10 @@ import { resolveVideoCueIndex } from './videoCueLookup'
 import { setVideoTransportCommand } from './videoTransport'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
-import { isLyricLine, getLyricText, type MediaFile, type SongItem, type TimelineEntry, type TimelineLeadIn } from './songState'
+import { isLyricLine, getLyricText, type SongItem, type TimelineEntry, type TimelineLeadIn } from './songState'
 
 interface Props {
   absolutePath: string | null
-  media: MediaFile
   timeline: TimelineEntry[]
   /** Lead-in metadata for a v2 timeline. Undefined for legacy timelines — no offset applied. */
   leadIn?: TimelineLeadIn
@@ -36,7 +35,6 @@ function hasCountIn(tempo: SongTempo | undefined): boolean {
 
 export function VideoPerformancePanel({
   absolutePath,
-  media,
   timeline,
   leadIn,
   lines,
@@ -64,8 +62,11 @@ export function VideoPerformancePanel({
   const tempoRef = useRef(tempo)
   tempoRef.current = tempo
 
-  const trimStart = media.trimStart ?? 0
-  const offset = media.offset ?? 0
+  // **Both were the song's `media` block, which no longer exists.** A song holds no media; what
+  // plays is named by `visuals.json`, and an assignment is a name. So the two manual corrections
+  // default to zero — see `ShapeVideo`, which records the same loss.
+  const trimStart = 0
+  const offset = 0
 
   // ── clock interval ───────────────────────────────────────────────────────
 
