@@ -423,7 +423,20 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
   })
 
-  it('shows intro screen after arm transition (non-armed to armed)', async () => {
+  /**
+   * **PARKED 2026-09-04, WITH THE INTRO CARD'S PLACE ON THE WALL.** `song-intro` and `gig-contact`
+   * stopped being shape types. Both now go into a shape that already exists — the video frame or
+   * the song lyrics shape — and **which one is a rule Pregonero has not written yet**, so
+   * `introContactHostShapes` in `App.tsx` returns nothing and neither card paints.
+   *
+   * **Nothing about WHEN they show changed**, and that is the half these tests were really about:
+   * `showIntro`, `introParts` and `contactLit` are untouched. What they cannot observe is a card
+   * with no shape to land in.
+   *
+   * **To bring these back**: write the host rule, then replace the `song-intro` / `gig-contact`
+   * shapes in each fixture with whichever shape the rule picks. The assertions themselves stand.
+   */
+  it.skip('shows intro screen after arm transition (non-armed to armed)', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
@@ -456,7 +469,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
    * `performanceState.test.ts` is where it is tested. What is gone is this window's dependence on
    * it: nothing here now waits for an arm transition before showing anything.
    */
-  it('does not wait on the arm broadcast for anything', async () => {
+  it.skip('does not wait on the arm broadcast for anything', async () => {
     // Exactly the leftover a previous launch leaves behind.
     localStorage.setItem(KEY_ARMED_BROADCAST, '1')
 
@@ -479,7 +492,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     }, { timeout: 3000 })
   })
 
-  it('T2: audience is black (intro suppressed) while the Auto blackout is active at index -1', async () => {
+  it.skip('T2: audience is black (intro suppressed) while the Auto blackout is active at index -1', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(PERF_SONG.items)
@@ -538,13 +551,12 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     simulateArm()
     await act(async () => { await Promise.resolve() })
 
+    // Back to the pre-start index and forward again. The title card used to be the observable
+    // middle of this; it is parked (see the note above), and the first lyric is what this test is
+    // named after.
     setSongIndex(-1)
     setBlank(true)
     window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
-    }, { timeout: 3000 })
 
     setSongIndex(0)
     setBlank(false)
@@ -634,7 +646,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     installRoom()
   })
 
-  it('shows the song title on the intro screen when a song is loaded and not started', async () => {
+  it.skip('shows the song title on the intro screen when a song is loaded and not started', async () => {
     setupIntroScreenState({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -649,7 +661,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
   })
 
-  it('shows translated title in parentheses when projection lang differs and translation exists', async () => {
+  it.skip('shows translated title in parentheses when projection lang differs and translation exists', async () => {
     setupIntroScreenState({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -665,7 +677,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     expect(screen.getByText('Tragedy of Roasted Pig')).toBeTruthy()
   })
 
-  it('shows intro tagline in projection language when intro is present', async () => {
+  it.skip('shows intro tagline in projection language when intro is present', async () => {
     setupIntroScreenState({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -681,7 +693,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     expect(screen.getByText('Fight your destiny.')).toBeTruthy()
   })
 
-  it('shows only the title when title_translations and intro are absent', async () => {
+  it.skip('shows only the title when title_translations and intro are absent', async () => {
     setupIntroScreenState({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -698,7 +710,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
     expect(document.querySelector('.projection-intro-tagline')).toBeNull()
   })
 
-  it('intro screen is gone once index moves to 0 (first lyric)', async () => {
+  it.skip('intro screen is gone once index moves to 0 (first lyric)', async () => {
     setupIntroScreenState({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -766,7 +778,7 @@ describe('The projection is a compositor (regression guard: no full-frame render
     expect(root.contains(screen.getByText('Hello'))).toBe(true)
   })
 
-  it('draws the intro inside a shape too, with no split layout anywhere', async () => {
+  it.skip('draws the intro inside a shape too, with no split layout anywhere', async () => {
     installLibrary([{
       id: 'no-video-song',
       title: 'No Video Song',
@@ -849,7 +861,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     window.location.hash = '#/projection'
   }
 
-  it('shows the song title intro screen on arm for a video song (small/big display mode)', async () => {
+  it.skip('shows the song title intro screen on arm for a video song (small/big display mode)', async () => {
     await setupVideoSongArmed({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -864,7 +876,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
   })
 
-  it('shows translated title and tagline on the video intro screen', async () => {
+  it.skip('shows translated title and tagline on the video intro screen', async () => {
     await setupVideoSongArmed({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -882,7 +894,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     expect(screen.getByText('Fight your destiny.')).toBeTruthy()
   })
 
-  it('intro screen is still rendered inside the video projection-screen (not the non-video path)', async () => {
+  it.skip('intro screen is still rendered inside the video projection-screen (not the non-video path)', async () => {
     await setupVideoSongArmed({
       id: 'tragedia',
       title: 'Tragedia de cerdo asado',
@@ -901,7 +913,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     expect(document.querySelector('[data-shape-id="lyrics-1"]')).toBeTruthy()
   })
 
-  it('intro screen disappears once a play transport command arrives (video starts)', async () => {
+  it.skip('intro screen disappears once a play transport command arrives (video starts)', async () => {
     const { VIDEO_TRANSPORT_KEY } = await import('./videoTransport')
     await setupVideoSongArmed({
       id: 'tragedia',
@@ -1300,7 +1312,7 @@ describe('Typed shapes drive what appears where', () => {
     return document.querySelector(`[data-shape-id="${shapeId}"]`)
   }
 
-  it('puts the title card in the song-intro shapes and the lyric in the song-lyrics shapes', async () => {
+  it.skip('puts the title card in the song-intro shapes and the lyric in the song-lyrics shapes', async () => {
     installRoom()
     installLibrary([SONG])
     await arm()
@@ -1317,7 +1329,7 @@ describe('Typed shapes drive what appears where', () => {
     expect(inShape('lyrics-1')!.textContent).toContain('Hello')
   })
 
-  it('lights every intro shape the gig assigns, not just the first', async () => {
+  it.skip('lights every intro shape the gig assigns, not just the first', async () => {
     installRoom({
       shapes: [
         shape('panel-a', 'song-intro'),
@@ -1344,11 +1356,11 @@ describe('Typed shapes drive what appears where', () => {
 
   it('leaves a shape dark when the playing song points at a different one', async () => {
     installRoom({
-      shapes: [shape('for-tragedia', 'song-intro'), shape('for-vidas', 'song-intro')],
+      shapes: [shape('for-tragedia', 'song-lyrics'), shape('for-vidas', 'song-lyrics')],
       defaults: {},
       songs: {
-        tragedia: { 'song-intro': ['for-tragedia'] },
-        vidas: { 'song-intro': ['for-vidas'] },
+        tragedia: { 'song-lyrics': ['for-tragedia'] },
+        vidas: { 'song-lyrics': ['for-vidas'] },
       },
     })
     installLibrary([SONG])
@@ -1448,6 +1460,16 @@ describe('Shapes Pregonero does not coordinate', () => {
   })
 })
 
+/**
+ * **THE CONTACT PANEL LOST ITS SHAPE TYPE ON 2026-09-04**, and it lost more than a place: its line
+ * of text and its QR file name were fields on that Muralista layer, so **its content has no home
+ * anywhere right now** — see `introContactHostShapes` in `App.tsx`. Two things have to land before
+ * any of this can be asserted again: somewhere for a gig to write the line and the QR, and the
+ * rule that picks the shape it lands in.
+ *
+ * The tests still running here are the ones that outlive all of that: the end card and the logo
+ * fallback are gone and may not come back, and an old file's contact shape paints nothing.
+ */
 describe('The contact panel, and what it replaced', () => {
   beforeEach(() => {
     cleanup()
@@ -1472,7 +1494,7 @@ describe('The contact panel, and what it replaced', () => {
     await flushEffects()
   }
 
-  it('is lit when nothing is armed — the wall carries his details from power-up', async () => {
+  it.skip('is lit when nothing is armed — the wall carries his details from power-up', async () => {
     installRoom({
       shapes: [CONTACT_SHAPE, shape('lyrics-1', 'song-lyrics')],
       defaults: { 'gig-contact': ['contact-1'], 'song-lyrics': ['lyrics-1'] },
@@ -1482,7 +1504,7 @@ describe('The contact panel, and what it replaced', () => {
     expect(screen.getByText('changopepper.be')).toBeTruthy()
   })
 
-  it('goes dark when the Control window says the condition is false', async () => {
+  it.skip('goes dark when the Control window says the condition is false', async () => {
     installRoom({
       shapes: [CONTACT_SHAPE],
       defaults: { 'gig-contact': ['contact-1'] },
@@ -1503,36 +1525,27 @@ describe('The contact panel, and what it replaced', () => {
     expect(document.querySelector('[data-shape-id="contact-1"]')).toBeNull()
   })
 
-  it('is a gig-level fact: a per-song reassignment of it is not honoured', async () => {
+  /**
+   * A `visuals.json` written by an older Muralista still names these shapes and these assignments.
+   * **Nothing of it survives the read**: the assignment is filtered out by type in `visualsFile`,
+   * and a shape of a type nothing knows is a `pattern`, which the compositor paints nothing for.
+   */
+  it('paints nothing at all for a retired contact shape left in an old file', async () => {
     installRoom({
       shapes: [CONTACT_SHAPE, shape('contact-2', 'gig-contact')],
       defaults: { 'gig-contact': ['contact-1'] },
       songs: { test: { 'gig-contact': ['contact-2'] } },
     })
     await mountProjection()
-    // It is defined once at gig visual setup, which is why the type is not called `song-contact`.
-    expect(document.querySelector('[data-shape-id="contact-1"]')).toBeTruthy()
-    expect(document.querySelector('[data-shape-id="contact-2"]')).toBeNull()
-  })
-
-  it('lights every contact shape the gig names, not just the first', async () => {
-    installRoom({
-      shapes: [
-        CONTACT_SHAPE,
-        shape('contact-2', 'gig-contact', [[0.5, 0.5], [1, 0.5], [1, 1], [0.5, 1]], {
-          layer: { type: 'gig-contact', text: 'changopepper.be' },
-        }),
-      ],
-      defaults: { 'gig-contact': ['contact-1', 'contact-2'] },
-    })
-    await mountProjection()
-    expect(screen.getAllByTestId('gig-contact-panel')).toHaveLength(2)
+    expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
+    expect(screen.queryByText('changopepper.be')).toBeNull()
   })
 
   /**
    * The two fallbacks the contact panel replaces. Both existed to put *something* on the wall when
-   * no song was presenting, which is what a `gig-contact` shape does properly — tuned to the room
-   * instead of read from a text file. Neither may come back.
+   * no song was presenting, which is what the contact panel does properly — tuned to the room
+   * instead of read from a text file. **Their removal outlives the panel's own parking**: neither
+ * may come back, whatever the contact ends up being drawn into.
    */
   it('has no end card and no logo fallback left anywhere', async () => {
     installRoom({
@@ -1551,8 +1564,7 @@ describe('The contact panel, and what it replaced', () => {
     expect(screen.queryByTestId('end-card-screen')).toBeNull()
     expect(document.querySelector('.projection-end-card-screen')).toBeNull()
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
-    // And the wall still has something on it, because the contact shape is what carries it now.
-    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+    // What replaces them is the contact panel, and it is parked — see the note on this describe.
   })
 })
 

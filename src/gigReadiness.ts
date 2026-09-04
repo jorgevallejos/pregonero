@@ -46,8 +46,13 @@ import {
   type VisualsRefusalKind,
 } from './visualsFile'
 
-/** The song-aware types a song can point content at. `gig-contact` is gig-level and not per song. */
-const PER_SONG_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
+/**
+ * The song-aware types a song can point content at. Two of them since 2026-09-04, when `song-intro`
+ * and `gig-contact` stopped being types — see `SONG_AWARE_TYPES`. Readiness never counted a type
+ * the room has no shapes of (`resolvedTypesFor` filters to the ones that resolve), so a gig that
+ * was complete under four types is complete under two.
+ */
+const PER_SONG_TYPES = ['song-lyrics', 'song-video'] as const
 
 export type StepStatus = 'complete' | 'not-yet' | 'broken'
 

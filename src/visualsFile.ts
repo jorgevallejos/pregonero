@@ -53,9 +53,29 @@ export function visualsRefusalKind(error: unknown): VisualsRefusalKind {
   return error instanceof VisualsRefused ? error.kind : 'unparseable'
 }
 
-/** The four song-aware types. `gig-contact` is a gig-level fact and is never reassigned per song. */
-export const SONG_AWARE_TYPES = ['song-lyrics', 'song-video', 'song-intro', 'gig-contact'] as const
-export const SONG_REASSIGNABLE_TYPES = ['song-lyrics', 'song-video', 'song-intro'] as const
+/**
+ * **THE SONG-AWARE TYPES, AND THERE ARE TWO OF THEM SINCE 2026-09-04.** `song-intro` and
+ * `gig-contact` were the other two. They are not types any more, in either repo.
+ *
+ * **THE LINE: Muralista owns WHERE THINGS ARE, Pregonero owns WHAT IS SHOWING WHEN.** An intro is
+ * a *when* — before the cue — and a contact panel is a *when* — after the last song. Neither needs
+ * a place of its own, because both go into a shape that already exists: the video frame or the
+ * song lyrics shape. **Which of the two is Pregonero's to decide and has not been decided** — see
+ * `introContactHostShapes` in `App.tsx`, the one address that question has.
+ *
+ * A file written by an older Muralista may still name these types. Nothing special happens to it:
+ * `readAssignmentMap` keeps assignments for the types in this list and drops the rest, so the
+ * entries fall away the same way any unknown type's would.
+ */
+export const SONG_AWARE_TYPES = ['song-lyrics', 'song-video'] as const
+
+/**
+ * The types a song may reassign. **Identical to `SONG_AWARE_TYPES` today**, since the only type
+ * that was ever gig-level-only was `gig-contact`. Kept as a separate name because the question is
+ * different — what a song may point somewhere else is not the same question as what a shape may
+ * be — and the day a gig-level type comes back, this is the list that stops matching.
+ */
+export const SONG_REASSIGNABLE_TYPES = ['song-lyrics', 'song-video'] as const
 
 export type SongAwareType = (typeof SONG_AWARE_TYPES)[number]
 export type SongReassignableType = (typeof SONG_REASSIGNABLE_TYPES)[number]
@@ -131,9 +151,10 @@ export function shapeCondition(shape: VisualShape): ShapeCondition | null {
  * **Whether this shape shows for this song.** True for every unconditional shape, which is most of
  * them, and they pay nothing for the question.
  *
- * With **no song at all** — `gig-contact` is looked up that way — nothing is assigned to anything,
- * so a target reads *empty*. That is the honest answer rather than a special case: an asset is a
- * per-song fact, and there is no song.
+ * With **no song at all**, nothing is assigned to anything, so a target reads *empty*. That is the
+ * honest answer rather than a special case: an asset is a per-song fact, and there is no song.
+ * (`gig-contact` was the caller that asked that way, until it stopped being a type on 2026-09-04.
+ * The behaviour stays, because gig visual setup still resolves with no song.)
  */
 export function shapeShowsForSong(
   visuals: VisualsFile,
@@ -228,10 +249,17 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
 }
 
+/**
+ * An assignment map, **filtered to the types that still exist**. A file written by an older
+ * Muralista names `song-intro` and `gig-contact`; a hand-edited one can name anything. Either way
+ * the entry is dropped here rather than carried around inert, so `songVisuals` never claims an
+ * assignment the app has no way to honour.
+ */
 function readAssignmentMap(value: unknown): AssignmentMap {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   const out: AssignmentMap = {}
   for (const [type, ids] of Object.entries(value as Record<string, unknown>)) {
+    if (!(SONG_AWARE_TYPES as readonly string[]).includes(type)) continue
     if (!Array.isArray(ids)) continue
     const list = ids.filter(isNonEmptyString)
     if (list.length > 0) out[type] = list
@@ -319,9 +347,6 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
   for (const [songId, map] of Object.entries(songsSrc)) {
     if (!songId) continue
     const assignments = readAssignmentMap(map)
-    // Muralista drops a per-song gig-contact entry rather than honouring it: the contact panel
-    // is a gig-level fact, and a file claiming otherwise is a file to correct.
-    delete assignments['gig-contact']
     if (Object.keys(assignments).length > 0) songs[songId] = assignments
   }
 
