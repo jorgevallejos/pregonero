@@ -35,6 +35,12 @@ vi.mock('./platform', async (importOriginal) => ({
 }))
 
 const {
+  getActiveSetlistId,
+  getOrderedEntriesForActiveSetlist,
+  hasValidActiveSetlist,
+} = await import('./setlistStore')
+
+const {
   closeGig,
   createGig,
   saveGigIdentity,
@@ -526,7 +532,11 @@ describe('opening a folder that already holds a gig', () => {
     )
   })
 
-  it('accretes the running order into a file that has none — that is not an overwrite', async () => {
+  it('gives a file with no running order an EMPTY one, never the app’s', async () => {
+    // **The other direction of the E1 defect, walked on `v0.52.0`.** This branch wrote
+    // `readSetlist()` into the file, so a gig created from Backstage while another gig's setlist
+    // was active arrived carrying that setlist, and step 2 opened on *Every song you have is in
+    // this gig's setlist*. A new gig's setlist is empty; only step 2 fills it.
     const noSetlist = JSON.stringify({
       gigVersion: 1,
       id: GIG_ID,
@@ -537,8 +547,28 @@ describe('opening a folder that already holds a gig', () => {
     const r = await refreshGigReadiness()
     const calls = writeGigFile.mock.calls as [string, string][]
     expect(calls).toHaveLength(1)
-    expect((JSON.parse(calls[0]![1]) as { setlist: string[] }).setlist).toEqual(['duelo', 'vidas'])
-    expect(r.adoption).toBeNull()
+    const written = JSON.parse(calls[0]![1]) as { setlist: string[]; songs: unknown[] }
+    expect(written.setlist).toEqual([])
+    expect(written.songs).toEqual([])
+    // And the app comes away holding the gig's own — empty — running order, not the one it had.
+    expect(r.songs).toEqual([])
+  })
+
+  it('still leaves an active setlist for `Add →` to write into', async () => {
+    // The `v0.39.0` fix, unchanged by the repair above: the field is still written and still
+    // adopted, so the store has `gig-<id>` active and `addSongToSetlist` has somewhere to go. It
+    // is the CONTENT that changed, not whether the setlist exists.
+    const noSetlist = JSON.stringify({
+      gigVersion: 1,
+      id: GIG_ID,
+      date: '2026-09-12',
+      venue: { name: 'Bar Eduard' },
+    })
+    readGigFolder.mockResolvedValue(emptyRead({ gigPresent: true, gigText: noSetlist }))
+    await refreshGigReadiness()
+    expect(hasValidActiveSetlist()).toBe(true)
+    expect(getActiveSetlistId()).toBe(`gig-${GIG_ID}`)
+    expect(getOrderedEntriesForActiveSetlist()).toEqual([])
   })
 
   it('refuses a mapping of a different room, and blocks every song', async () => {

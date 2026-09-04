@@ -234,7 +234,10 @@ describe('First launch (empty persisted library)', () => {
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 
-  it('Setlist screen shows the setlist selection prompt after hydration', async () => {
+  it('Setlist screen says there is no GIG — the thing that is actually missing', async () => {
+    // **Walked on `v0.52.0`.** From nothing, `Setlist` said *Choose a setlist to continue*, which
+    // asks for something that cannot exist: a setlist belongs to a gig and no gig is open. It
+    // names the gig now, and points at where a gig is chosen.
     sessionStorage.setItem('liveLyricLaunched', '1')
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
       isProjectionOpen: vi.fn().mockResolvedValue(false),
@@ -248,10 +251,16 @@ describe('First launch (empty persisted library)', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+        expect(screen.getByTestId('setlist-no-gig')).toBeTruthy()
       },
       { timeout: WAIT_TIMEOUT }
     )
+    expect(screen.getByTestId('setlist-no-gig').textContent).toContain('No gig is open')
+    expect(screen.getByTestId('setlist-no-gig').textContent).toContain('Backstage')
+    expect(screen.queryByTestId('setlist-selection-prompt')).toBeNull()
+    // And it is a way there, not only a sentence about there.
+    fireEvent.click(screen.getByTestId('setlist-go-backstage'))
+    expect(window.location.hash).toBe('#/setup')
   })
 })
 
@@ -2480,7 +2489,7 @@ describe('ControlView performer state flow', () => {
       expect(document.querySelectorAll('.setlist-name-btn').length).toBe(0)
     })
 
-    it('when active setlist is missing, shows prompt instead of song grid', async () => {
+    it('when there is no gig and no setlist, names the gig as the thing that is missing', async () => {
       clearStorage()
       installProductionLikeLibrary()
       const base = loadSetlistStore()!
@@ -2490,7 +2499,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.getByTestId('setlist-selection-prompt')).toBeTruthy()
+        expect(screen.getByTestId('setlist-no-gig')).toBeTruthy()
       })
       expect(document.querySelectorAll('.songs-song-btn').length).toBe(0)
       expect(screen.getByRole('heading', { name: 'Setlist' })).toBeTruthy()
