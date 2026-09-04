@@ -2384,17 +2384,19 @@ html, body, #root {
   color: var(--text-dim);
 }
 
-/* THE PAGE'S OWN FOOTER, BOTTOM-RIGHT, THE SAME PLACE ON EVERY STEP OF BOTH FLOWS (Jorge,
-   2026-09-04). **The problem was never *left*** — Bombista's `Process song →` is bottom-left and
-   has never been missed. It was that Muralista's forward control sat at the foot of a tall column
-   of controls and read as one more panel item. Outside every panel, on the right because a control
-   whose arrow points right should not sit on the opposite side, and in one place so the eye learns
-   it once. */
+/* THE PAGE'S OWN FOOTER, BOTTOM-LEFT, THE SAME PLACE ON EVERY STEP OF BOTH FLOWS (Jorge,
+   2026-09-04, reversing the round before on sight).
+
+   **The problem was never *left*.** Bombista's `Process song →` is bottom-left and has never been
+   missed. It was that Muralista's forward control sat at the foot of a tall column of controls and
+   read as one more panel item — and **the divider is what fixes that**: a full-width rule with the
+   control below every panel rather than inside one. Moving it right treated the symptom and lost
+   the alignment the other two flows already had. */
 .gig-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 0.75em;
   margin-top: auto;
   padding-top: 0.9em;
@@ -2407,7 +2409,7 @@ html, body, #root {
   margin-top: 0;
 }
 
-/* A refusal beside the control it belongs to, taking the slack so the control stays pinned right. */
+/* A refusal beside the control it belongs to, taking the slack to its right. */
 .gig-flow-footer .setup-song-problem {
   flex: 1;
   min-width: 0;
