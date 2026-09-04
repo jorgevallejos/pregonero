@@ -697,7 +697,7 @@ describe('parseSongFile — timeline field', () => {
     const result = parseSongFile(json)
     expect(result.timeline).toEqual([{ start: 0, end: 2.5 }, { start: 3, end: 5 }])
     expect(result.timelineVersion).toBe(2)
-    expect(result.leadIn).toEqual({ durationSec: 1.5, source: 'measured', confidence: 'low', apply: true })
+    expect(result.leadIn).toEqual({ durationSec: 1.5, source: 'measured', confidence: 'low' })
   })
 
   it('the golden Libertad fixture (20 lines, 20-entry timeline) round-trips exactly', () => {
@@ -782,7 +782,15 @@ describe('parseSongFile — timeline field', () => {
       expect(() => parseSongFile(json)).toThrow(/leadIn\.confidence/)
     })
 
-    it('non-boolean leadIn.apply throws', () => {
+    /**
+     * **`apply` IS ACCEPTED AND DROPPED, NOT REFUSED** (Jorge, 2026-09-04). It was Bombista's
+     * field, derived from `media.type == "video"`; the DECISION moved to the party that knows a
+     * video is playing, and Bombista stopped writing it with the media it came from.
+     *
+     * **No migration**: a song file written before today carries the key, and refusing one would
+     * make walk state unreadable for nothing. Whatever it holds is ignored.
+     */
+    it('ignores leadIn.apply entirely, whatever it holds', () => {
       const json = JSON.stringify({
         title: 'S',
         lyrics: [{ es: 'A', en: 'B' }],
@@ -790,7 +798,11 @@ describe('parseSongFile — timeline field', () => {
         leadIn: { durationSec: 0, source: 'measured', confidence: 'low', apply: 'yes' },
         timeline: [{ start: 0, end: 1 }],
       })
-      expect(() => parseSongFile(json)).toThrow(/leadIn\.apply/)
+      expect(parseSongFile(json).leadIn).toEqual({
+        durationSec: 0,
+        source: 'measured',
+        confidence: 'low',
+      })
     })
   })
 

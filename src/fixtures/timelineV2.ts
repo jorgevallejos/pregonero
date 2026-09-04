@@ -5,11 +5,16 @@
  */
 import type { TimelineEntry } from '../songState'
 
+/**
+ * **`apply` is not here, and its absence is the point** (Jorge, 2026-09-04). The measured value
+ * stays with the timeline; **whether it applies is Pregonero's answer**, from whether a video is
+ * assigned for this gig — see `videoCueLookup`. Bombista stopped writing the field with the media
+ * reference it was derived from.
+ */
 export const GOLDEN_LEAD_IN = {
   durationSec: 7.26,
   source: 'measured' as const,
   confidence: 'low' as const,
-  apply: false,
 }
 
 export const GOLDEN_TIMELINE_ENTRIES: TimelineEntry[] = [
