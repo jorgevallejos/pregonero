@@ -2627,12 +2627,92 @@ html, body, #root {
   overflow-y: auto;
 }
 
-/* ---- First run: the two folders, asked once, replacing the main screen ----
-   TWO EQUAL COLUMNS WITH A HARD RULE BETWEEN THEM, songs left and gigs right (2026-09-02).
-   Stacked, the second question read as the first one asked again; side by side with a line
-   through the middle they are two questions before either is read. Same reasoning and the same
+/* ---- The app's deal: the first thing on screen, one screen before the folders ----
+   THREE BLOCKS, ONE CONTROL, AND NO STEP BAR (Jorge, 2026-09-04). Not a flow: the offer, and then
+   the folders. A step bar would say this is the first of a numbered sequence you are already
+   inside, and it is not.
+
+   THE BODY TEXT IS THE LOUDEST THING ON THE SCREEN, and the caps labels are the quiet ones — the
+   inversion of every other screen in this app, where a caps label heads a block and the prose
+   underneath is a note in the muted register. Here the prose IS the content. That is the whole
+   typographic decision, and it is the reason this block does not reuse `.gig-hint`.
+
+   NO NEW COLOUR. `--text-primary` for the body, `--text-dim` for the labels, `--rule-strong` for
+   the one line above the control: the same three the first-run screen next door uses. */
+.songs-screen.app-deal-screen .songs-body.app-deal-body {
+  /* Two classes for the reason the first-run body needs them: `.songs-screen:not(.languages-screen)
+     .songs-body` declares a song-button grid and outranks one class. */
+  display: flex;
+  flex-direction: column;
+  /* Centred in the screen, like the folders screen after it: the three blocks ARE the content, and
+     pinned to the top they would read as the head of a document with the rest still to come. */
+  justify-content: center;
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 1.75em;
+  max-width: none;
+  margin: 0;
+  /* 2.5em at the top rather than 2em: there is no masthead here, so the first caps label is what
+     meets the window's chrome, and it needs some of the room `Start here` was given on the sixth
+     walk. **The three blocks and the control have to fit a 1400×900 window without scrolling** —
+     that is what this padding, the gap above and the measure below are all tuned against. */
+  padding: 2.5em 2em 2em;
+}
+
+.app-deal-block {
+  display: block;
+  /* The blocks are a column of prose, not a grid: they line up on the left edge that `Begin →`
+     sits on, and the measure is what stops the body text running the width of a wide window.
+     **41em rather than the 34em the removed column paragraphs used**: at this size a narrower
+     measure buys nothing and costs lines, and the lines are what has to fit the window. */
+  max-width: 41em;
+}
+
+/* The quiet half. Same treatment as `.first-run-label`, deliberately: a caps mono line naming what
+   the block below it answers. */
+.app-deal-label {
+  display: block;
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* THE LOUD HALF. Bigger than anything the folders screen has below its heading — this one has no
+   heading, so the prose carries it. `1.25em` is where it stops: the app renders at
+   `--control-ui-scale: 1.5`, so this is 30px on the real window, and the three blocks plus the
+   control have to fit 1400×900 without scrolling. */
+.app-deal-body-text {
+  margin: 0.4em 0 0;
+  font-size: 1.25em;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+/* One control at the foot and nothing else. The rule above it is the folders screen's
+   `.first-run-confirm-row` treatment: what is above is the offer, what is below is taking it. */
+.app-deal-foot {
+  border-top: 1px solid var(--rule-strong);
+  padding-top: 1.5em;
+}
+
+/* It sizes to its own label, at the left edge the blocks start on. NO STATE COLOUR: green on this
+   app means *you are ready*, and nothing has been answered here. */
+.app-deal-foot .ctrl-btn.ctrl-setup-link {
+  width: auto;
+  max-width: none;
+}
+
+/* ---- First run: the three folders, asked once, replacing the main screen ----
+   EQUAL COLUMNS WITH A HARD RULE BETWEEN THEM — songs, visuals, gigs (2026-09-02, a third added
+   2026-09-04). Stacked, the second question read as the first one asked again; side by side with a
+   line between them they are separate questions before any is read. Same reasoning and the same
    vocabulary as Setup home and the control view's setup sections — the separator is a border on
-   the column, not a background gradient positioned from a hardcoded pitch. */
+   the column, not a background gradient positioned from a hardcoded pitch.
+
+   THE PARAGRAPHS CAME OFF (2026-09-04) and that is what makes three fit: each column is its name,
+   its caps subtitle, a `Choose` and its path. Four parts, not five. */
 /* NO RULE UNDER THE TITLE (2026-09-02, the fourth walk). `.songs-top-bar` draws one on every
    screen that has somewhere to go back to, where it separates the navigation from the content.
    This screen has no navigation: the title names the moment and the two columns are everything
@@ -2682,38 +2762,45 @@ html, body, #root {
    tall as the taller one and the border does not stop where the shorter paragraph does. */
 .first-run-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  /* Name, label, paragraph, button, path — named here so both columns can borrow them below. The
-     paragraph takes the slack, which pins both buttons AND both paths to the same line however
-     unevenly the two paragraphs wrap. */
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-columns: 1fr 1fr 1fr;
+  /* Name, label, button, path — named here so all three columns can borrow them below. The LABEL
+     row takes the slack now that the paragraph is gone: it is the part that wraps unevenly in a
+     narrower column, and giving it the give is what pins every button AND every path to the same
+     line. */
+  grid-template-rows: auto 1fr auto auto;
   align-items: stretch;
   column-gap: 0;
 }
 
 .first-run-column {
-  /* `subgrid`, the same device the control view's setup sections use: the five parts line up
-     ACROSS the two columns, so a label that wraps onto a second line does not push its own path
-     out of step with the other one. Without it the two answers sit at different heights, which
-     is exactly the "one question asked twice" reading this layout exists to break. */
+  /* `subgrid`, the same device the control view's setup sections use: the four parts line up
+     ACROSS the three columns, so a label that wraps onto a second line does not push its own path
+     out of step with the others. Without it the answers sit at different heights, which is exactly
+     the "one question asked over again" reading this layout exists to break. */
   display: grid;
-  grid-row: span 5;
+  grid-row: span 4;
   grid-template-rows: subgrid;
   align-content: start;
   justify-items: start;
   min-width: 0;
   box-sizing: border-box;
-  /* 2em of inline padding either side of the line keeps it centred between the two columns'
-     content, the way the control view's setup sections do it. */
-  padding-inline: 2em;
+  /* 1.5em of inline padding either side of the line, down from 2em: with three columns and two
+     rules the gutters are paid for twice, and the paths are the part that runs out of width. */
+  padding-inline: 1.5em;
   border-left: 1px solid var(--rule-strong);
 }
 
-/* The line is between the columns, so the left one does not draw one, and its content starts at
-   the block's left edge — where `Confirm` starts too. */
+/* The lines are BETWEEN the columns, so the leftmost draws none, and its content starts at the
+   block's left edge — where `Confirm` starts too. */
 .first-run-column:first-of-type {
   border-left: none;
   padding-left: 0;
+}
+
+/* And the rightmost has nothing to its right, so it spends its padding on the left where the rule
+   is. Without this the three columns are unequal in the width they actually have for a path. */
+.first-run-column:last-of-type {
+  padding-right: 0;
 }
 
 /* THE NAME, AND IT IS THE LOUDEST THING IN THE COLUMN (2026-09-02, the fifth walk). `SONGS` and
@@ -2727,7 +2814,11 @@ html, body, #root {
    on `Confirm`. */
 .first-run-name {
   font-family: var(--font-label);
-  font-size: 2.25em;
+  /* 1.75em, down from 2.25em (2026-09-04). `VISUALS` is seven characters where `SONGS` is five and
+     `GIGS` four, in a column a third of the window rather than half of it — at 2.25em it was the
+     one name that wrapped, and a wrapped name is a name that has stopped being read at a glance.
+     Still the loudest thing in the column, which is the rule; the path came down with it. */
+  font-size: 1.75em;
   line-height: 1.1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2758,7 +2849,10 @@ html, body, #root {
    quiet, the repair is WEIGHT on the path, not colour returning to it. */
 .first-run-path {
   font-family: var(--font-control);
-  font-size: 1.375em;
+  /* 1.125em, down from 1.375em (2026-09-04). A third of the window is not half of it, and a path
+     is the one thing here with no natural break in it: `/Users/jorge/Chango Pepper/songs` was
+     wrapping to three lines. It stays quieter than the name, which is the fifth walk's rule. */
+  font-size: 1.125em;
   line-height: 1.3;
   color: var(--text-primary);
   overflow-wrap: anywhere;
@@ -2773,14 +2867,10 @@ html, body, #root {
   color: var(--text-dim);
 }
 
-/* The one paragraph. It argues for what the folder is worth; it does not explain the app. */
-.first-run-paragraph {
-  margin: 0.7em 0 0;
-  font-size: 0.875em;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  max-width: 34em;
-}
+/* THERE IS NO `.first-run-paragraph` (2026-09-04). The column's paragraph argued for its folder
+   because this screen was the first thing you met; the deal argues for all three, one screen
+   earlier, and three paragraphs is what would not have fitted. The rule is removed rather than
+   left unused — a stylesheet holding a class nothing renders is a screen half-reverted. */
 
 .first-run-column .ctrl-btn.ctrl-setup-link {
   width: auto;

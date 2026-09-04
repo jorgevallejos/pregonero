@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { setMediaFolder } from './contentFolders'
+import { setVisualsFolder } from './contentFolders'
 import {
   getMediaPath,
   resolveMediaPath,
@@ -164,23 +164,23 @@ describe('resolving a name to bytes on this machine', () => {
   })
 
   it('finds a name in the media folder — which is what puts the logo back on the wall', () => {
-    setMediaFolder('/vault/assets')
+    setVisualsFolder('/vault/assets')
     expect(resolveMediaPath('chango-pepper-logo.png')).toBe('/vault/assets/chango-pepper-logo.png')
   })
 
   it('keeps a name that carries a subpath, as Muralista writes it', () => {
-    setMediaFolder('/vault/assets')
+    setVisualsFolder('/vault/assets')
     expect(resolveMediaPath('clips/pig.mp4')).toBe('/vault/assets/clips/pig.mp4')
   })
 
   it('lets an explicit link win over the folder — the override for the file that moved', () => {
-    setMediaFolder('/vault/assets')
+    setVisualsFolder('/vault/assets')
     setMediaPath('logo.png', '/elsewhere/logo-v2.png')
     expect(resolveMediaPath('logo.png')).toBe('/elsewhere/logo-v2.png')
   })
 
   it('has no answer for an empty name', () => {
-    setMediaFolder('/vault/assets')
+    setVisualsFolder('/vault/assets')
     expect(resolveMediaPath('')).toBeNull()
   })
 })

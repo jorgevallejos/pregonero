@@ -1,4 +1,4 @@
-import { getMediaFolder } from './contentFolders'
+import { getVisualsFolder } from './contentFolders'
 import { joinPath } from './paths'
 
 export const MEDIA_PATH_STORE_KEY = 'mediaPathStore'
@@ -51,7 +51,7 @@ export function resolveMediaPath(src: string): string | null {
   if (!src) return null
   const linked = getMediaPath(src)
   if (linked) return linked
-  const folder = getMediaFolder()
+  const folder = getVisualsFolder()
   return folder === null ? null : joinPath(folder, src)
 }
 

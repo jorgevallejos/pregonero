@@ -28,7 +28,13 @@ import { songFilesFolder } from './fileLayout'
 import { isAbsolutePath, joinPath } from './paths'
 
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
-export const MEDIA_FOLDER_KEY = 'pregoneroMediaFolder'
+/**
+ * **The visuals folder.** The stored key still says `media` and is deliberately not migrated: a
+ * per-machine answer already on disk is not wrong because the screen that asks for it found a
+ * better name. **`visuals` is the word everywhere a person can read one** — Muralista's assets are
+ * what is in there, and *media* was the app's word for the mechanism that resolves them.
+ */
+export const VISUALS_FOLDER_KEY = 'pregoneroMediaFolder'
 export const GIGS_FOLDER_KEY = 'pregoneroGigsFolder'
 export const MURALISTA_FOLDER_KEY = 'pregoneroMuralistaFolder'
 export const BOMBISTA_PATH_KEY = 'pregoneroBombistaPath'
@@ -88,15 +94,37 @@ export function setGigsFolder(folderPath: string | null): void {
 }
 
 /**
- * **Whether the app has been told where its two folders are** — the one predicate first run turns
- * on. Both, or the app asks.
+ * **Whether the app has been told where its three folders are** — the one predicate first run turns
+ * on. All three, or the app asks.
+ *
+ * **The visuals folder joined the other two on 2026-09-04.** It used to be reachable only from
+ * Preferences, which is the shape first run exists to remove: a setting discovered at the moment it
+ * blocks you. Muralista reads the assets out of it, so a machine without it has a wall that paints
+ * nothing and nothing anywhere saying why.
  */
 export function hasRequiredFolders(): boolean {
-  return getSongsFolder() !== null && getGigsFolder() !== null
+  return getSongsFolder() !== null && getGigsFolder() !== null && getVisualsFolder() !== null
 }
 
 /**
- * **Where a `src` name is looked for**, and null until somebody says.
+ * **Whether this machine has answered any of the three.** The deal's one question, and it is read
+ * from the world rather than from a remembered dismissal — the rule Bombista's deal already holds.
+ *
+ * False is *nothing has been said here yet*, which is the only state the app's deal is shown in. A
+ * launch that answered one folder and stopped comes back to the folders, not to the deal: the offer
+ * has been taken, and repeating it would be the app failing to notice.
+ */
+export function hasAnsweredAnyFolder(): boolean {
+  return getSongsFolder() !== null || getGigsFolder() !== null || getVisualsFolder() !== null
+}
+
+/**
+ * **Where a `src` name is looked for** — the visuals folder — and null until somebody says.
+ *
+ * **Nothing in the suite writes into it** (Jorge, 2026-09-04). Songs got `song-performance/` and
+ * gigs got `setup/` because the tools write into both; this one is only ever read. Muralista takes
+ * its assets from here and writes `visuals.json` into the gig's own `setup/`, so there is no
+ * subfolder to carve out and no ownership boundary to defend.
  *
  * **It used to default to `<songs>/audio`, and that default is gone** (2026-09-01). Audio and video
  * are not one thing called media: the alignment audio is consumed once, at setup, to derive a
@@ -108,12 +136,12 @@ export function hasRequiredFolders(): boolean {
  * **A per-source link still wins**, and absence is reported at setup validation and again at arming,
  * which is where it was already reported and is where it stays.
  */
-export function getMediaFolder(): string | null {
-  return read(MEDIA_FOLDER_KEY)
+export function getVisualsFolder(): string | null {
+  return read(VISUALS_FOLDER_KEY)
 }
 
-export function setMediaFolder(folderPath: string | null): void {
-  write(MEDIA_FOLDER_KEY, folderPath)
+export function setVisualsFolder(folderPath: string | null): void {
+  write(VISUALS_FOLDER_KEY, folderPath)
 }
 
 /**
