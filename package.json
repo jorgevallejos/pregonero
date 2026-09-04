@@ -1,6 +1,6 @@
 {
   "name": "pregonero",
-  "version": "0.51.1",
+  "version": "0.52.0",
   "description": "Offline lyric/translation projection for macOS",
   "main": "electron/main.cjs",
   "author": "",
