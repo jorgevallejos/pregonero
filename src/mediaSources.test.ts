@@ -42,7 +42,13 @@ describe('the names the app has to turn into bytes', () => {
     expect(found).toEqual([{ src: 'chango-pepper-logo.png', uses: ['Logo — image shape'] }])
   })
 
-  it('lists a static video and a contact QR', () => {
+  /**
+   * **THE CONTACT QR WAS THE SECOND HALF OF THIS TEST AND IS GONE** (2026-09-04). `gig-contact`
+   * stopped being a shape type, so no layer holds a `qrSrc` for this to find. What is asserted now
+   * is that a shape of that name contributes NOTHING — an old `visuals.json` still on disk names
+   * one, and a stale row pointing at a file nothing can use would be worse than no row.
+   */
+  it('lists a static video, and nothing for a retired contact shape', () => {
     const found = collectMediaSources(
       [],
       visuals([
@@ -50,8 +56,7 @@ describe('the names the app has to turn into bytes', () => {
         { id: 's2', name: 'Contact', layer: { type: 'gig-contact', text: 'hi', qrSrc: 'qr.png' } },
       ])
     )
-    expect(found.map((f) => f.src)).toEqual(['loop.mp4', 'qr.png'])
-    expect(found[1]!.uses).toEqual(['Contact — contact QR'])
+    expect(found.map((f) => f.src)).toEqual(['loop.mp4'])
   })
 
   it('is one row per name, however many things ask for it', () => {

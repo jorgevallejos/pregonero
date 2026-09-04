@@ -11,7 +11,8 @@
  *
  * Two holes this closes, both left open by earlier rounds:
  *
- * - **The logo.** A static shape's `image`, a static `video` and a `gig-contact` QR all resolve
+ * - **The logo.** A static shape's `image` and a static `video` (and, until 2026-09-04, a
+ *   `gig-contact` QR) all resolve
  *   through the media link table, and the only way to put anything into that table was the song
  *   library's *Locate video…* button, which only ever offers a song's own declared media. So a
  *   `visuals.json` naming `chango-pepper-logo.png` resolved to nothing and the wall lost its logo,

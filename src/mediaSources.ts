@@ -2,11 +2,15 @@
  * **Every file name the app is currently asked to turn into bytes**, gathered in one place so a
  * name that resolves to nothing can be seen instead of inferred from a dark patch of wall.
  *
- * Three kinds of name, and they were never listed together before: a song's declared `media`, a
- * static shape's `src`, and a `gig-contact`'s `qrSrc`. Only the first had a screen. The other two
- * arrived with the shapes that replaced the end card and the logo fallback, and they resolve the
- * same way, which is exactly why they were easy to miss — nothing failed, the wall was simply
- * emptier than it should have been.
+ * Two kinds of name: a song's declared `media` and a static shape's `src`. Only the first had a
+ * screen. The second arrived with the shapes that replaced the logo fallback, and it resolves the
+ * same way, which is exactly why it was easy to miss — nothing failed, the wall was simply emptier
+ * than it should have been.
+ *
+ * **A third was here and is not: the contact panel's QR** (2026-09-04). `gig-contact` stopped
+ * being a shape type, so there is no layer holding a `qrSrc` for this to find. When the contact's
+ * content is given a home — see `introContactHostShapes` in `App.tsx` — the QR is a name like any
+ * other and belongs back in this list, gathered from wherever that home turns out to be.
  *
  * This reads; it never resolves. What a name resolves to is `resolveMediaPath`'s question and only
  * its question.
@@ -14,7 +18,6 @@
 
 import type { LibraryEntry } from './setlistStore'
 import { shapeTypeOf, type VisualsFile } from './visualsFile'
-import { readContactFields } from './ShapeContact'
 import { isStaticType } from './ShapeStatic'
 
 /** One name, and everything that asks for it. A name used twice is one row, not two. */
@@ -60,9 +63,6 @@ export function collectMediaSources(
     if (isStaticType(type)) {
       const src = typeof shape.layer?.src === 'string' ? shape.layer.src : ''
       if (src) add(found, src, `${name} — ${type} shape`)
-    } else if (type === 'gig-contact') {
-      const qr = readContactFields(shape.layer).qrSrc
-      if (qr) add(found, qr, `${name} — contact QR`)
     }
   }
 
