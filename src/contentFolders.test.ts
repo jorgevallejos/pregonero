@@ -2,14 +2,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { joinPath } from './paths'
 import {
-  getMediaFolder,
+  getVisualsFolder,
   getSongFilesFolder,
   getSongsFolder,
   resolveSongPath,
-  setMediaFolder,
+  setVisualsFolder,
   setSongsFolder,
   songRefPathFor,
-  MEDIA_FOLDER_KEY,
+  VISUALS_FOLDER_KEY,
   SONGS_FOLDER_KEY,
 } from './contentFolders'
 
@@ -40,15 +40,15 @@ describe('the configured folders', () => {
 
   it('remembers each folder on its own key, and forgets on null', () => {
     setSongsFolder('/Users/j/Chango Pepper/songs')
-    setMediaFolder('/Users/j/Chango Pepper/songs/video')
+    setVisualsFolder('/Users/j/Chango Pepper/songs/video')
     expect(localStorage.getItem(SONGS_FOLDER_KEY)).toBe('/Users/j/Chango Pepper/songs')
-    expect(localStorage.getItem(MEDIA_FOLDER_KEY)).toBe('/Users/j/Chango Pepper/songs/video')
+    expect(localStorage.getItem(VISUALS_FOLDER_KEY)).toBe('/Users/j/Chango Pepper/songs/video')
     expect(getSongsFolder()).toBe('/Users/j/Chango Pepper/songs')
-    expect(getMediaFolder()).toBe('/Users/j/Chango Pepper/songs/video')
+    expect(getVisualsFolder()).toBe('/Users/j/Chango Pepper/songs/video')
 
     setSongsFolder(null)
     expect(getSongsFolder()).toBeNull()
-    expect(getMediaFolder()).not.toBeNull()
+    expect(getVisualsFolder()).not.toBeNull()
   })
 
   it('reads an unset folder as none rather than as an empty path', () => {
@@ -130,22 +130,22 @@ describe('the media folder has no default', () => {
   // load-bearing for media, so a machine keeping video elsewhere got a resolution failure it never
   // agreed to.
   it('is null when nothing has been chosen, songs folder or not', () => {
-    expect(getMediaFolder()).toBeNull()
+    expect(getVisualsFolder()).toBeNull()
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
-    expect(getMediaFolder()).toBeNull()
+    expect(getVisualsFolder()).toBeNull()
   })
 
   it('is exactly what was chosen', () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
-    setMediaFolder('/Volumes/Passport/media')
-    expect(getMediaFolder()).toBe('/Volumes/Passport/media')
+    setVisualsFolder('/Volumes/Passport/media')
+    expect(getVisualsFolder()).toBe('/Volumes/Passport/media')
   })
 
   it('clearing a choice returns to nothing, and absence is reported rather than guessed at', () => {
     localStorage.setItem(SONGS_FOLDER_KEY, '/Users/j/songs')
-    setMediaFolder('/elsewhere')
-    setMediaFolder(null)
-    expect(getMediaFolder()).toBeNull()
-    expect(localStorage.getItem(MEDIA_FOLDER_KEY)).toBeNull()
+    setVisualsFolder('/elsewhere')
+    setVisualsFolder(null)
+    expect(getVisualsFolder()).toBeNull()
+    expect(localStorage.getItem(VISUALS_FOLDER_KEY)).toBeNull()
   })
 })
