@@ -2384,11 +2384,34 @@ html, body, #root {
   color: var(--text-dim);
 }
 
+/* THE PAGE'S OWN FOOTER, BOTTOM-RIGHT, THE SAME PLACE ON EVERY STEP OF BOTH FLOWS (Jorge,
+   2026-09-04). **The problem was never *left*** — Bombista's `Process song →` is bottom-left and
+   has never been missed. It was that Muralista's forward control sat at the foot of a tall column
+   of controls and read as one more panel item. Outside every panel, on the right because a control
+   whose arrow points right should not sit on the opposite side, and in one place so the eye learns
+   it once. */
 .gig-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.75em;
-  margin-top: 0.9em;
+  margin-top: auto;
+  padding-top: 0.9em;
+}
+
+/* The visuals step's footer sits under the frame rather than under a page, so it needs the rule
+   the other steps get from the page ending. */
+.gig-flow-footer {
+  border-top: 1px solid var(--rule-faint);
+  margin-top: 0;
+}
+
+/* A refusal beside the control it belongs to, taking the slack so the control stays pinned right. */
+.gig-flow-footer .setup-song-problem {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
 
 .gig-adoption {
@@ -3905,12 +3928,16 @@ html, body, #root {
   cursor: default;
 }
 
+/* Every step's page takes the whole height, so `.gig-actions`' `margin-top: auto` puts the footer
+   at the bottom of the WINDOW rather than under whatever content the step happens to have. That is
+   what makes *the same place on every step* true of a short screen as well as a long one. */
 .gig-flow-page {
   display: flex;
   flex-direction: column;
   gap: 1.25em;
   padding-top: 1.5em;
   min-height: 0;
+  flex: 1;
 }
 
 /* ---- The visuals step: Muralista's whole page, inside Pregonero's window ----
@@ -4206,8 +4233,21 @@ html, body, #root {
   line-height: 1.45;
 }
 
-.gig-check-detail {
+/* **`NOT YET` IS NOT RED** (Jorge, 2026-09-04, walking `v0.54.0`). The status word was already
+   dim; the DETAIL under it was the fail colour unconditionally, so a line reporting work not done
+   yet — *no visuals.json yet, map the room in Muralista* — arrived in the colour of a fault, and
+   the screen read as angry about work that had just been done.
+
+   **A state is not a fault**, and this repo made the same call once already when `manual only` was
+   deliberately kept out of the warning colour: where a message goes, and what colour it wears, is
+   decided by what caused it. Red is for `broken` — a file that will not parse, another room's
+   mapping — and nothing else. */
+.gig-check-line[data-state='broken'] .gig-check-detail {
   color: var(--state-fail);
+}
+
+.gig-check-detail {
+  color: var(--text-secondary);
 }
 
 /* Reported, never blocking — and it has to LOOK different from what is in the way, or the
