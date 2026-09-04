@@ -281,7 +281,7 @@ describe('v0.5 control screen state machine integration', () => {
     )
   })
 
-  it('2. In Setup state, the sections appear in this exact order: Gig, Song, Lyrics display, Projection, Rig, Arm', async () => {
+  it('2. In Setup state, the sections appear in this exact order: Gig, Song, Lyrics display, Projection, Arm', async () => {
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -310,13 +310,18 @@ describe('v0.5 control screen state machine integration', () => {
     expect(firstLabels[1]).toBe('Song')
     expect(firstLabels[2]).toBe('Lyrics display')
     expect(firstLabels[3]).toBe('Projection')
-    // The rig sits immediately before Arm because that is the last moment before the room sees
-    // anything, and it is the same four lines step 5 shows at the venue.
-    expect(firstLabels[4]).toBe('Rig')
-    expect(firstLabels[5]).toBe('Arm')
+    // **Arm follows Projection directly since 2026-09-04**: the Rig column is gone, and the rest
+    // of the arrangement is untouched — same columns, same order, same proportions.
+    expect(firstLabels[4]).toBe('Arm')
+    // And the order is the whole of it: nothing sits after Arm.
+    expect(firstLabels).toHaveLength(5)
   })
 
-  it('2a. The rig is four lines to read, stored nowhere', async () => {
+  it('2a. The rig column is gone, and nothing took its place', async () => {
+    // **Jorge said it three times** and it was already owed removal on 02/09 for not being
+    // understood: none of it is a performance concern, and it was inert anyway — a static list
+    // with no state and no store. `RIG_CHECKLIST` itself stays; `GigView`'s step-5 checklist
+    // renders it, and that one is ticked rather than read.
     setupControlViewInitial()
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
@@ -328,9 +333,29 @@ describe('v0.5 control screen state machine integration', () => {
       },
       { timeout: WAIT_TIMEOUT }
     )
-    const rig = screen.getByTestId('control-rig')
-    expect(rig.querySelectorAll('.control-rig-list li')).toHaveLength(4)
-    expect(rig.querySelectorAll('input')).toHaveLength(0)
+    expect(screen.queryByTestId('control-rig')).toBeNull()
+    expect(document.querySelector('.control-rig-list')).toBeNull()
+  })
+
+  it('names the room Standby, and only while it is the room you are in', async () => {
+    // **The stage manager's call before a cue**, which is what this screen is: choose the gig,
+    // choose the song, choose the mode, stand by. Arming is the GO — so the name goes when the
+    // performing view takes over, because that is a different room.
+    setupControlViewInitial()
+    setSongLines(VALID_LINES)
+    setCurrentSongId('duelo')
+    setProjectionLanguage('en')
+    render(<App initialHash="#/" />)
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+      },
+      { timeout: WAIT_TIMEOUT }
+    )
+    const name = screen.getByTestId('control-room-name')
+    expect(name.textContent).toBe('Standby')
+    // Titled the way Backstage is: a heading naming the room.
+    expect(name.tagName).toBe('H1')
   })
 
   it('2b. In Setup state, old top navigation shell is not rendered (no top bar, no bottom transport)', async () => {
