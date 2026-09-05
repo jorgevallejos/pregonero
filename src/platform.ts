@@ -418,12 +418,20 @@ export async function closeTool(key: string): Promise<void> {
 
 /** The native file picker, filtered. Null when cancelled, or when there is no Electron. */
 export async function chooseFilePath(
-  kind: 'video' | 'audio' | 'json' | 'lyrics'
+  kind: 'video' | 'audio' | 'json' | 'lyrics' | 'image',
+  /**
+   * **Where the dialog opens, overriding the remembered folder.** For the one picker that has
+   * exactly one legal destination: a shape's file must come from the visuals folder, so opening
+   * anywhere else invites the pick that is about to be refused. See `chooseVisualInsideFolder`.
+   */
+  openAt?: string
 ): Promise<string | null> {
   const a = api()
   if (!a || typeof a.openFileDialog !== 'function') return null
-  const chosen = await a.openFileDialog(kind, lastPickerFolder(kind) ?? undefined)
-  rememberPickerFolder(kind, chosen)
+  const chosen = await a.openFileDialog(kind, openAt ?? lastPickerFolder(kind) ?? undefined)
+  // **Nothing is remembered for a forced destination**, or the next ordinary pick of that kind
+  // would open in a folder it was never told to.
+  if (openAt === undefined) rememberPickerFolder(kind, chosen)
   return chosen
 }
 

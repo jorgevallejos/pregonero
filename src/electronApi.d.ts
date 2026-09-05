@@ -86,7 +86,7 @@ declare global {
       onProjectionOpened: (cb: () => void) => () => void
       onProjectionClosed: (cb: () => void) => () => void
       openFileDialog: (
-        kind?: 'video' | 'audio' | 'json' | 'lyrics',
+        kind?: 'video' | 'audio' | 'json' | 'lyrics' | 'image',
         /** Where the dialog opens. Remembered per picker in the renderer. */
         defaultPath?: string
       ) => Promise<string | null>
