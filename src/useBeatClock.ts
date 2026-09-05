@@ -82,7 +82,8 @@ function hasCountIn(tempo: SongTempo | undefined): boolean {
  */
 export function useBeatClock(
   tempo: SongTempo | undefined,
-  isArmed: boolean
+  isArmed: boolean,
+  songKey: string
 ): BeatClockResult {
   const [phase, setPhase] = useState<BeatPhaseResult | null>(null)
   const [beginFiredOnce, setBeginFiredOnce] = useState(false)
@@ -132,17 +133,30 @@ export function useBeatClock(
     setSongElapsedMs(0)
   }, [])
 
-  // De-arming resets everything to idle; arming starts the free-running pulse (P5).
-  // NOTE: this effect must stay declared BEFORE the ticking effect below, so the pulse epoch is
-  // set before the first tick can read it.
+  /**
+   * **THE BEAT STARTS WHEN A SONG LOADS. ONE RULE, TWO TRIGGERS** (Jorge, 2026-09-05).
+   *
+   * Jorge stated it as two cases — after arming for the first song, after `next` for every
+   * other — and **they are the same event**, because arming loads the first song and `next`
+   * loads the following ones. **It is written here as one rule so two behaviours cannot be
+   * built that later drift apart**, which is what a separate `next` path would become.
+   *
+   * `songKey` is the loaded song's id. A change to it is a load, and a load is a fresh start:
+   * the transport goes idle and the pulse re-anchors, which is exactly `reset()`.
+   *
+   * **This also closes a real gap rather than only satisfying the design.** Before it, `next`
+   * kept the clock running on the previous song's transport epoch — the song id changed, the
+   * lyric index went back to −1, and `songElapsedMs` did not — so an Auto song reached by
+   * `next` would have been driven from a stale elapsed time.
+   *
+   * De-arming resets to idle exactly as it always did.
+   *
+   * NOTE: this effect must stay declared BEFORE the ticking effect below, so the pulse epoch is
+   * set before the first tick can read it.
+   */
   useEffect(() => {
-    if (!isArmed) {
-      reset()
-      return
-    }
-    pulseStartMsRef.current = Date.now()
-    pausedPulseElapsedRef.current = 0
-  }, [isArmed, reset])
+    reset()
+  }, [isArmed, songKey, reset])
 
   const isClockRunning = playState === 'count-in' || playState === 'playing'
   // P5: the pulse runs whenever the song is armed and has a tempo — including while the

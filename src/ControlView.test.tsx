@@ -4001,12 +4001,11 @@ describe('§6 non-video armed screen', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     vi.useRealTimers()
 
-    // P5 (amends the pre-P5 "no beat circle on arm" assertion): the pulse is a click track the
-    // performer plays to, so it free-runs from Arm — but as a plain click, not a count-in, and
-    // the transport is still idle. The count-in only exists once Start is pressed.
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
-    expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
-    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
+    // **P5's pulse still free-runs from Arm on its own epoch — and in `manual` it is not drawn**
+    // (Jorge, 2026-09-05). This song has a tempo and no timeline, which is what makes it
+    // `manual`: nothing is running on its own, he is the clock, and there is nothing to drift
+    // from. The pulse is still there for the count-in to re-anchor; it is the display that goes.
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
     // R2: the pre-count-in control is the bottom-bar Start button (relabelled Restart).
     expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy()
     // But there is still NO standalone Pause / dedicated beat-restart control overlaying phrases.
@@ -4083,7 +4082,7 @@ describe('§6 non-video armed screen', () => {
     expect(screen.getByTestId('beat-circle')).toBeTruthy()
   })
 
-  it('subsequent Next presses advance lyrics without stopping the beat clock', async () => {
+  it('subsequent Next presses advance lyrics, and the indicator stops at the end of the song', async () => {
     const songWithTempo = {
       id: 'duelo',
       title: 'Duelo',
@@ -4103,6 +4102,7 @@ describe('§6 non-video armed screen', () => {
     })
 
     // R2: Start begins the beat (count-in), then the first Next reveals line 0.
+    // R2: Start begins the count-in, then the first Next reveals line 0.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     })
@@ -4111,14 +4111,16 @@ describe('§6 non-video armed screen', () => {
       fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
     })
     expect(getSongIndex()).toBe(0)
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
 
-    // Second Next advances to line 1; the beat clock keeps running (circle still present).
+    // Second Next advances to line 1, which is the last lyric of this two-line song — so the
+    // song has finished. **The indicator stops there** (Jorge, 2026-09-05): the wall goes black
+    // and there is nothing left running to keep time to. The lyric advance is unaffected, which
+    // is what this test is about.
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^next$/i }))
     })
     expect(getSongIndex()).toBe(1)
-    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
   })
 
   it('R2: the bottom-bar Start button begins the beat clock and then becomes Restart', async () => {

@@ -150,9 +150,26 @@ describe('VideoPerformancePanel — no-path state', () => {
 // ── beat circle ───────────────────────────────────────────────────────────
 
 describe('VideoPerformancePanel — BeatCircle', () => {
-  it('BeatCircle is not visible before Play is pressed (clock not started)', async () => {
+  it('BeatCircle is running before Play is pressed — the beat starts when the song loads', async () => {
+    // **Jorge, 2026-09-05.** The beat runs through *loaded, not yet cued* — the intro card up —
+    // through the press, and into *running*. His reason, in his words: **so he can get into the
+    // rhythm and eventually press start.** The panel is remounted per song, so mount is load.
     const Panel = await importPanel()
     render(<Panel {...defaultProps()} />)
+    act(() => { vi.advanceTimersByTime(50) })
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    // A free-running pulse is a plain click, never a phantom count-in.
+    expect(screen.queryByTestId('beat-circle-count-in')).toBeNull()
+    expect(screen.getByTestId('beat-circle-running')).toBeTruthy()
+  })
+
+  it('stops when the song finishes', async () => {
+    const Panel = await importPanel()
+    const { rerender } = render(<Panel {...defaultProps()} />)
+    act(() => { vi.advanceTimersByTime(50) })
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+    rerender(<Panel {...defaultProps()} songFinished />)
+    act(() => { vi.advanceTimersByTime(50) })
     expect(screen.queryByTestId('beat-circle')).toBeNull()
   })
 

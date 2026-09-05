@@ -16,6 +16,11 @@ interface Props {
   lines: SongItem[]
   singingLang: string
   tempo?: SongTempo
+  /**
+   * **Whether the song has finished** — the last lyric line is up and the transport has flipped
+   * to `Unarm`. The beat indicator stops here (Jorge, 2026-09-05); nothing else uses it.
+   */
+  songFinished?: boolean
   onUnarm: () => void
   onSeek: (targetTime: number) => void
 }
@@ -40,6 +45,7 @@ export function VideoPerformancePanel({
   lines,
   singingLang,
   tempo,
+  songFinished = false,
   onUnarm,
   onSeek,
 }: Props) {
@@ -56,6 +62,26 @@ export function VideoPerformancePanel({
   const videoStartedRef = useRef(false)
 
   const [phase, setPhase] = useState<BeatPhaseResult | null>(null)
+
+  /**
+   * **THE PULSE'S OWN EPOCH, SET WHEN THE SONG LOADS** (Jorge, 2026-09-05).
+   *
+   * The beat runs through *loaded, not yet cued* — the intro card up — through the press, and
+   * into *running*. Before this the indicator was null until `Play`, so the half the design
+   * asks for most (**he gets into the rhythm and eventually presses start**) was the half that
+   * was missing.
+   *
+   * **The panel is remounted per song by its `key`**, so mount is load: that is the one rule —
+   * arming loads the first song and `next` loads every other — rather than a second trigger
+   * written here that could drift from the non-video one in `useBeatClock`.
+   *
+   * **This is the same two-clock split `useBeatClock` documents under P5**, and it is a second
+   * implementation of it. Read that note before changing either: the pulse is a click track the
+   * performer plays to, on its own epoch, and the transport's epoch is the count-in's. `Play`
+   * re-anchors both, deliberately, because a count-in exists to establish the downbeat.
+   */
+  const pulseStartMsRef = useRef<number>(Date.now())
+  const pausedPulseElapsedRef = useRef<number>(0)
 
   // Keep latest tempo in a ref so the interval closure always has fresh values without
   // being listed as a dependency (avoids restarting the interval on object identity changes).
@@ -78,16 +104,38 @@ export function VideoPerformancePanel({
   const denominator = tempo?.denominator
   const countInBars = tempo?.countInBars
 
+  // **The pulse runs from the moment the song loads**, not from `Play` — and it stops when the
+  // song finishes, which is when the wall goes black and there is nothing left to keep time to.
+  const isPulseRunning = tempo !== undefined && playState !== 'paused' && !songFinished
+  const shouldTick = isClockRunning || isPulseRunning
+
+  const isClockRunningRef = useRef(isClockRunning)
+  isClockRunningRef.current = isClockRunning
+  const isCountingInRef = useRef(false)
+  isCountingInRef.current = playState === 'count-in'
+
   useEffect(() => {
-    if (!isClockRunning || !tempoRef.current) return
+    if (!shouldTick) return
 
     const tick = () => {
-      if (!tempoRef.current) return
-      const elapsed = Date.now() - startMsRef.current
-      const p = getBeatPhase(tempoRef.current, elapsed)
-      setPhase(p)
+      const tempoNow = tempoRef.current
+      if (!tempoNow) {
+        setPhase(null)
+        return
+      }
+      const now = Date.now()
 
-      // Handoff: once count-in ends, start the video.
+      // ── The pulse, on its own epoch ──
+      // The count-in concept is suppressed unless a count-in is actually running: a free-running
+      // idle pulse is a plain click, not a phantom count-in the performer would read as meaning
+      // something. During a real count-in both epochs are the same, so this is byte-identical to
+      // what `Play` produced before the pulse existed here.
+      const pulseTempo = isCountingInRef.current ? tempoNow : { ...tempoNow, countInBars: 0 }
+      setPhase(getBeatPhase(pulseTempo, now - pulseStartMsRef.current))
+
+      // ── The transport, and the count-in → video handoff ──
+      if (!isClockRunningRef.current) return
+      const p = getBeatPhase(tempoNow, now - startMsRef.current)
       if (p.beginFired && !videoStartedRef.current) {
         videoStartedRef.current = true
         videoRef.current?.play().catch(() => {})
@@ -99,14 +147,21 @@ export function VideoPerformancePanel({
     tick()
     const id = setInterval(tick, TICK_MS)
     return () => clearInterval(id)
-  }, [isClockRunning, bpm, numerator, denominator, countInBars])
+  }, [shouldTick, bpm, numerator, denominator, countInBars])
+
+  // The song is over: the indicator goes with it rather than freezing on its last beat.
+  useEffect(() => {
+    if (songFinished) setPhase(null)
+  }, [songFinished])
 
   // ── Play button ──────────────────────────────────────────────────────────
 
   const handlePlay = useCallback(() => {
     if (playState === 'paused') {
-      // Resume: adjust start epoch so elapsed continues from where it was.
+      // Resume: adjust both epochs so each continues from where it was — the pulse resumes the
+      // click rather than re-anchoring it.
       startMsRef.current = Date.now() - pausedElapsedRef.current
+      pulseStartMsRef.current = Date.now() - pausedPulseElapsedRef.current
       if (videoStartedRef.current) {
         // Video had been started before the pause; resume it.
         videoRef.current?.play().catch(() => {})
@@ -123,6 +178,10 @@ export function VideoPerformancePanel({
     // Fresh start
     videoStartedRef.current = false
     startMsRef.current = Date.now()
+    // A count-in's job is to establish the downbeat, so Play defines the phase — the same
+    // entitlement `useBeatClock`'s `start()` has, and the reason the cue has none.
+    pulseStartMsRef.current = startMsRef.current
+    pausedPulseElapsedRef.current = 0
 
     if (!hasCountIn(tempo)) {
       // No count-in: start video immediately.
@@ -140,6 +199,7 @@ export function VideoPerformancePanel({
   const handlePause = useCallback(() => {
     if (playState !== 'count-in' && playState !== 'playing') return
     pausedElapsedRef.current = Date.now() - startMsRef.current
+    pausedPulseElapsedRef.current = Date.now() - pulseStartMsRef.current
     videoRef.current?.pause()
     setVideoTransportCommand('pause')
     setPlayState('paused')
@@ -161,6 +221,9 @@ export function VideoPerformancePanel({
     videoStartedRef.current = false
     startMsRef.current = Date.now()
     pausedElapsedRef.current = 0
+    // Restart re-runs the count-in, so it re-anchors the pulse with it (see the Play branch).
+    pulseStartMsRef.current = startMsRef.current
+    pausedPulseElapsedRef.current = 0
     setPhase(null)
 
     if (!hasCountIn(tempo)) {
