@@ -39,6 +39,7 @@ export const VISUALS_FOLDER_KEY = 'pregoneroMediaFolder'
 export const GIGS_FOLDER_KEY = 'pregoneroGigsFolder'
 export const MURALISTA_FOLDER_KEY = 'pregoneroMuralistaFolder'
 export const BOMBISTA_PATH_KEY = 'pregoneroBombistaPath'
+export const ARTIST_NAME_KEY = 'pregoneroArtistName'
 
 function read(key: string): string | null {
   try {
@@ -204,4 +205,54 @@ export function songRefPathFor(absolutePath: string): string {
   if (folder === null) return absolutePath
   const prefix = folder.endsWith('/') ? folder : `${folder}/`
   return absolutePath.startsWith(prefix) ? absolutePath.slice(prefix.length) : absolutePath
+}
+
+/**
+ * **WHO THE ARTIST IS. Asked at first run, on a screen of its own, editable in Preferences.**
+ *
+ * **The principle is Jorge's and it settles the whole group** (2026-09-05): *each artist-level fact
+ * is asked at the moment it is first needed and lives in Preferences afterwards.* The message-home
+ * line and the QR file are asked at the first gig; **the name is asked at first run.**
+ *
+ * ## Why its own screen and not the folders screen
+ *
+ * **The folders screen answers *where your things are*, and a name is a different kind of
+ * question.** Six rounds bought that screen's clarity — two questions, equal columns, a hard rule
+ * between them, so they read as separate before either is read — and a name column would be a third
+ * kind of thing inside a layout whose whole job is that its columns are the same kind of thing.
+ *
+ * **The earlier objection was to the folders screen, not to first run**, and Cowork over-corrected
+ * from one to the other. First run is a sequence and already carries the deal ahead of the folders;
+ * a short third moment asking who the artist is sits there honestly and says what it is for.
+ *
+ * ## Why it is NOT captured from Bombista's page 1
+ *
+ * That was Cowork's proposal and **Jorge rejected it**: *opportunistic and fishy — you capture
+ * something for a purpose different from the one I had in mind when I filled it in.* He is right,
+ * and the principle generalises: **a value collected for one purpose is not silently promoted to
+ * another.** The name typed as *who wrote this song* is not consent to make it the identity of the
+ * installation. **Bombista prefills FROM this preference; it does not feed it.**
+ *
+ * ## What absence means
+ *
+ * Null, and never a guess. The machine's user name, the songs folder's name and the first song's
+ * artist field are all things that would be *usually right*, which is the worst kind of wrong for a
+ * value that goes on a wall in front of a room.
+ */
+export function getArtistName(): string | null {
+  return read(ARTIST_NAME_KEY)
+}
+
+export function setArtistName(name: string | null): void {
+  const trimmed = name === null ? null : name.trim()
+  write(ARTIST_NAME_KEY, trimmed && trimmed.length > 0 ? trimmed : null)
+}
+
+/**
+ * **Whether the name has been answered.** The one predicate the first-run screen turns on, and it
+ * is read from the world for the same reason the deal's is: **a remembered dismissal is state this
+ * suite keeps deleting**, and after one walk nobody would see the screen again.
+ */
+export function hasArtistName(): boolean {
+  return getArtistName() !== null
 }

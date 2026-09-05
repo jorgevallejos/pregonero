@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseVisualsFile,
-  shapeCondition,
+  activeModeFor,
+  doubledShapeLines,
+  modeCondition,
+  shapeModeId,
   songAssetFor,
+  songIsCarried,
   songVideoAssets,
   resolveShapesForType,
   shapeFrame,
@@ -257,29 +261,42 @@ describe('a hidden shape', () => {
 })
 
 /**
- * **CONDITIONAL VISIBILITY** (Jorge, 2026-09-04, `project-context.md`).
+ * **NAMED MODES** (Jorge, 2026-09-05, `project-context.md`).
  *
  * Cowork proposed a flag saying *for songs with video / without*; **Jorge rejected it as domain
  * knowledge Muralista does not have** — whether a song has a video lives below its line. His
  * replacement asks about **another shape**, which is Muralista's own vocabulary: **it declares the
  * relationship, this app evaluates it**, because this app is the one that knows what content landed.
+ * That split is unchanged; what moved on 2026-09-05 is where the condition lives.
+ *
+ * **A mode is a condition plus a set of shapes.** Exclusivity used to be an unwritten assumption
+ * that the two conditions partition, which nothing enforced. **Now it comes from the rule:** an
+ * ordered list, first true condition wins, and when none matches no mode is live.
  *
  * **It is about content, never existence.** Shapes always exist; what varies per song is whether
  * they got something. Filled means an asset is assigned for that song.
  */
-describe('conditional visibility', () => {
+describe('named modes', () => {
   const QUAD: Point[] = [
     [0, 0],
     [1, 0],
     [1, 1],
     [0, 1],
   ]
-  /** The designed default: a video frame, lyrics at its foot when filled, lyrics across when empty. */
+  /** The designed default: a video frame in no mode, and one lyrics shape in each of the two. */
   const room = (assets: Record<string, Record<string, string>> = {}) =>
     parseVisualsFile(
       JSON.stringify({
         visualsVersion: 1,
         gigId: GIG,
+        modes: [
+          { id: 'm-plain', name: 'Song with lyrics', when: { shape: 'frame', is: 'empty' } },
+          {
+            id: 'm-video',
+            name: 'Song with video and lyrics',
+            when: { shape: 'frame', is: 'filled' },
+          },
+        ],
         shapes: [
           { id: 'frame', name: 'Frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
           {
@@ -288,7 +305,7 @@ describe('conditional visibility', () => {
             layer: { type: 'song-lyrics' },
             corners: QUAD,
             visible: true,
-            visibleWhen: { shape: 'frame', is: 'filled' },
+            mode: 'm-video',
           },
           {
             id: 'across',
@@ -296,7 +313,7 @@ describe('conditional visibility', () => {
             layer: { type: 'song-lyrics' },
             corners: QUAD,
             visible: true,
-            visibleWhen: { shape: 'frame', is: 'empty' },
+            mode: 'm-plain',
           },
         ],
         songVisuals: {
@@ -310,9 +327,12 @@ describe('conditional visibility', () => {
   const lyricsFor = (v: VisualsFile, songId: string | null) =>
     resolveShapesForType(v, 'song-lyrics', songId).map((s) => s.id)
 
-  it('reads the condition off the shape, as an object', () => {
-    expect(shapeCondition(room().shapes[1]!)).toEqual({ shape: 'frame', is: 'filled' })
-    expect(shapeCondition(room().shapes[0]!)).toBeNull()
+  it('reads the condition off the mode, and membership off the shape', () => {
+    const v = room()
+    expect(v.modes.map((m) => m.name)).toEqual(['Song with lyrics', 'Song with video and lyrics'])
+    expect(modeCondition(v.modes[1]!)).toEqual({ shape: 'frame', is: 'filled' })
+    expect(shapeModeId(v.shapes[1]!)).toBe('m-video')
+    expect(shapeModeId(v.shapes[0]!)).toBeNull()
   })
 
   /** **The whole point of the round**, in one assertion per branch. */
@@ -321,12 +341,12 @@ describe('conditional visibility', () => {
     expect(lyricsFor(room(), 'duelo')).toEqual(['across'])
   })
 
-  it('leaves the unconditional shape alone in both cases', () => {
+  it('leaves the no-mode shape alone in both cases', () => {
     expect(resolveShapesForType(room({ duelo: { frame: 'x.mp4' } }), 'song-video', 'duelo')).toHaveLength(1)
     expect(resolveShapesForType(room(), 'song-video', 'duelo')).toHaveLength(1)
   })
 
-  /** Each song answers for itself: the condition is per song, like the asset it reads. */
+  /** Each song answers for itself: the mode is resolved per song, like the asset it reads. */
   it('answers per song, not per gig', () => {
     const v = room({ duelo: { frame: 'cerdo.mp4' } })
     expect(lyricsFor(v, 'duelo')).toEqual(['foot'])
@@ -342,83 +362,243 @@ describe('conditional visibility', () => {
   })
 
   /**
-   * **ONE LEVEL, SO CYCLES ARE IMPOSSIBLE.** Muralista enforces it on the way into the file; this
-   * survives a file it did not write. A condition pointing at a conditional shape, at a missing
-   * shape, or at itself is dropped — and the shape then shows unconditionally rather than
-   * disappearing, because losing the smaller thing is the repair with the smaller blast radius.
+   * **THE LIST IS HONEST OR IT IS NOT A LIST.** Muralista's authoring surface seeds exactly two
+   * modes and offers no way to make a third — **and the file format says list.** A reader that
+   * quietly assumed two would be the half of a contract mismatch that refuses what the other side
+   * wrote, which is the exact shape of the five mismatches of 02/09 and of `countInBars`.
+   *
+   * So this is the same hand-written three-mode room Muralista's `modes.test.mjs` renders, read by
+   * the consumer. **The third assertion is the one with teeth:** both conditions are true at once,
+   * and **order decides** — which two hand-written branches have no answer for at all.
    */
-  it('drops a condition that points at a conditional shape, a missing one, or itself', () => {
-    const chained = parseVisualsFile(
-      JSON.stringify({
-        visualsVersion: 1,
-        gigId: GIG,
-        shapes: [
-          { id: 'a', layer: { type: 'song-video' }, corners: QUAD, visible: true },
-          {
-            id: 'b',
-            layer: { type: 'song-lyrics' },
-            corners: QUAD,
-            visible: true,
-            visibleWhen: { shape: 'a', is: 'empty' },
+  it('renders a hand-written THREE-MODE room, and order decides when two conditions are true', () => {
+    const threeModes = (assets: Record<string, Record<string, string>>) =>
+      parseVisualsFile(
+        JSON.stringify({
+          visualsVersion: 1,
+          gigId: GIG,
+          modes: [
+            { id: 'm-both', name: 'Video and translation', when: { shape: 'trans', is: 'filled' } },
+            { id: 'm-video', name: 'Video and lyrics', when: { shape: 'video', is: 'filled' } },
+            { id: 'm-plain', name: 'Lyrics only', when: { shape: 'video', is: 'empty' } },
+          ],
+          shapes: [
+            { id: 'video', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+            { id: 'trans', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+            { id: 'wide', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-plain' },
+            { id: 'foot', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-video' },
+            { id: 'left', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-both' },
+            { id: 'right', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-both' },
+          ],
+          songVisuals: {
+            defaults: { 'song-lyrics': ['wide', 'foot', 'left', 'right'] },
+            assets,
           },
-          {
-            id: 'c',
-            layer: { type: 'song-lyrics' },
-            corners: QUAD,
-            visible: true,
-            visibleWhen: { shape: 'b', is: 'empty' },
-          },
-          {
-            id: 'd',
-            layer: { type: 'song-lyrics' },
-            corners: QUAD,
-            visible: true,
-            visibleWhen: { shape: 'ghost', is: 'empty' },
-          },
-          {
-            id: 'e',
-            layer: { type: 'song-lyrics' },
-            corners: QUAD,
-            visible: true,
-            visibleWhen: { shape: 'e', is: 'empty' },
-          },
-        ],
-        songVisuals: { defaults: {} },
-      }),
-      GIG
-    )
-    const byId = (id: string) => chained.shapes.find((s) => s.id === id)!
-    expect(shapeCondition(byId('b'))).toEqual({ shape: 'a', is: 'empty' })
-    for (const id of ['c', 'd', 'e']) expect(`${id}:${shapeCondition(byId(id))}`).toBe(`${id}:null`)
+        }),
+        GIG
+      )
+
+    expect(lyricsFor(threeModes({}), 'duelo')).toEqual(['wide'])
+    expect(lyricsFor(threeModes({ duelo: { video: 'a.mp4' } }), 'duelo')).toEqual(['foot'])
+    expect(
+      lyricsFor(threeModes({ duelo: { video: 'a.mp4', trans: 'b.mp4' } }), 'duelo')
+    ).toEqual(['left', 'right'])
   })
 
-  it('ignores a malformed condition rather than refusing the file', () => {
+  /**
+   * **WHAT HAPPENS WHEN NO CONDITION MATCHES IS STATED, NOT LEFT TO FALL OUT.** No mode is live and
+   * only the no-mode shapes paint. Two complementary conditions never reach that case; a list has
+   * to answer it anyway, and the answer being *nothing* is what makes `songIsCarried` report it.
+   */
+  it('lights no mode at all when nothing matches, and says so through songIsCarried', () => {
     const v = parseVisualsFile(
       JSON.stringify({
         visualsVersion: 1,
         gigId: GIG,
+        modes: [{ id: 'm-a', name: 'Only with video', when: { shape: 'frame', is: 'filled' } }],
         shapes: [
-          { id: 'a', layer: { type: 'song-video' }, corners: QUAD, visible: true },
-          {
-            id: 'b',
-            layer: { type: 'song-lyrics' },
-            corners: QUAD,
-            visible: true,
-            visibleWhen: { shape: 'a', is: 'sometimes' },
-          },
+          { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          { id: 'words', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-a' },
         ],
-        songVisuals: { defaults: { 'song-lyrics': ['b'] } },
+        songVisuals: { defaults: { 'song-video': ['frame'], 'song-lyrics': ['words'] } },
       }),
       GIG
     )
-    expect(shapeCondition(v.shapes[1]!)).toBeNull()
-    expect(lyricsFor(v, 'duelo')).toEqual(['b'])
+    expect(activeModeFor(v, 'duelo')).toBeNull()
+    expect(lyricsFor(v, 'duelo')).toEqual([])
+    expect(songIsCarried(v, 'duelo')).toBe(false)
   })
 
-  /** A hidden shape stays hidden whatever its condition says: two gates, both in the one lookup. */
+  /** A mode with no usable condition is never live. There is nothing left for it to ask. */
+  it('never lights a mode whose condition is malformed', () => {
+    const v = parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        modes: [{ id: 'm-a', name: 'Broken', when: { shape: 'frame', is: 'sometimes' } }],
+        shapes: [
+          { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          { id: 'words', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-a' },
+        ],
+        songVisuals: { defaults: { 'song-lyrics': ['words'] } },
+      }),
+      GIG
+    )
+    expect(v.modes[0]!.when).toBeNull()
+    expect(activeModeFor(v, 'duelo')).toBeNull()
+  })
+
+  /**
+   * **A file this app did not write is arbitrary JSON.** An entry with no id cannot be pointed at
+   * and is not a mode; a duplicate id would make membership ambiguous. Both are dropped, and
+   * **membership pointing at a mode the file does not hold makes the shape always-on** — the safe
+   * direction and the visible one, where *live in no mode at all* paints nothing with nothing
+   * anywhere saying why.
+   */
+  it('rebuilds the mode list rather than trusting it, and frees an orphaned shape', () => {
+    const v = parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        modes: [
+          { id: 'm-a', when: { shape: 'frame', is: 'empty' } },
+          { id: 'm-a', name: 'Duplicate' },
+          { name: 'No id' },
+          'not an object',
+        ],
+        shapes: [
+          { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+          { id: 'orphan', layer: { type: 'song-lyrics' }, corners: QUAD, visible: true, mode: 'm-gone' },
+        ],
+        songVisuals: { defaults: { 'song-lyrics': ['orphan'] } },
+      }),
+      GIG
+    )
+    expect(v.modes).toEqual([{ id: 'm-a', name: 'Mode', when: { shape: 'frame', is: 'empty' } }])
+    expect(shapeModeId(v.shapes[1]!)).toBeNull()
+    expect(lyricsFor(v, 'duelo')).toEqual(['orphan'])
+  })
+
+  /** A hidden shape stays hidden whatever mode it is in: two gates, both in the one lookup. */
   it('still honours the author’s hidden flag', () => {
     const v = room()
     v.shapes[2]!.visible = false
-    expect(lyricsFor(v, 'duelo')).toEqual([])
+    expect(lyricsFor(v, null)).toEqual([])
+  })
+})
+
+/**
+ * **PER MODE, HOW MANY SHAPES OF EACH KIND ARE LIVE** (Jorge, 2026-09-05).
+ *
+ * **The failure named modes did NOT close.** They made the room exclusive between themselves by
+ * construction; the always group is not a mode and is deliberately not exclusive with anything —
+ * a backdrop, a logo and a video frame all belong there. So **a no-mode lyrics shape and a mode's
+ * lyrics shape are both live at once**, stacked, and that is authorable by accident.
+ */
+describe('the per-mode census', () => {
+  const QUAD: Point[] = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+  ]
+  /**
+   * **The gig-level defaults are derived from the shapes**, which is what Muralista's
+   * `syncGigDefaultsFromShapes` writes: every shape of a song-aware type is that type's default.
+   * The census reads the defaults rather than the whole shape list — a room may hold a second
+   * lyrics shape that only a reassigned song uses, and that is reassignment working.
+   */
+  const build = (shapes: { id: string; layer: { type: string }; visible: boolean; corners?: Point[] }[]) => {
+    const defaults: Record<string, string[]> = {}
+    for (const shape of shapes) (defaults[shape.layer.type] ??= []).push(shape.id)
+    return parseVisualsFile(
+      JSON.stringify({
+        visualsVersion: 1,
+        gigId: GIG,
+        modes: [
+          { id: 'm-plain', name: 'Song with lyrics', when: { shape: 'frame', is: 'empty' } },
+          { id: 'm-video', name: 'Song with video and lyrics', when: { shape: 'frame', is: 'filled' } },
+        ],
+        shapes,
+        songVisuals: { defaults },
+      }),
+      GIG
+    )
+  }
+  const lyrics = (id: string, mode?: string) => ({
+    id,
+    layer: { type: 'song-lyrics' },
+    corners: QUAD,
+    visible: true,
+    ...(mode ? { mode } : {}),
+  })
+
+  it('says nothing about a room that says each thing once', () => {
+    const v = build([
+      { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+      lyrics('foot', 'm-video'),
+      lyrics('across', 'm-plain'),
+    ])
+    expect(doubledShapeLines(v)).toEqual([])
+  })
+
+  /** The accident: a shape dragged out of a group to look at something and not dragged back. */
+  it('catches a no-mode lyrics shape stacked on a mode’s lyrics shape', () => {
+    const v = build([
+      { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+      lyrics('stray'),
+      lyrics('foot', 'm-video'),
+      lyrics('across', 'm-plain'),
+    ])
+    expect(doubledShapeLines(v)).toEqual([
+      'Song with lyrics: 2 song-lyrics shapes live at once.',
+      'Song with video and lyrics: 2 song-lyrics shapes live at once.',
+    ])
+  })
+
+  /** **Two shapes inside ONE mode are the same fault**, and it is reported against that mode only. */
+  it('catches two lyrics shapes inside one mode', () => {
+    const v = build([
+      { id: 'frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
+      lyrics('foot', 'm-video'),
+      lyrics('also', 'm-video'),
+      lyrics('across', 'm-plain'),
+    ])
+    expect(doubledShapeLines(v)).toEqual([
+      'Song with video and lyrics: 2 song-lyrics shapes live at once.',
+    ])
+  })
+
+  /**
+   * **The no-mode room is a row too**, because *no mode matched* is a state the list has to answer
+   * and a song can land in it. Here it is clean while a mode is not, which is exactly the case a
+   * census over modes alone would miss going the other way.
+   */
+  it('counts the room a song matching no mode would get', () => {
+    const v = build([lyrics('stray'), lyrics('also-stray')])
+    expect(doubledShapeLines(v)).toContain('When no mode matches: 2 song-lyrics shapes live at once.')
+  })
+
+  /** A hidden shape is not live, so it is not counted. Same gate as everywhere else. */
+  it('does not count a hidden shape', () => {
+    const v = build([
+      lyrics('stray'),
+      { id: 'off', layer: { type: 'song-lyrics' }, corners: QUAD, visible: false },
+    ])
+    expect(doubledShapeLines(v)).toEqual([])
+  })
+
+  /**
+   * **Only the song-aware kinds.** Two fills, two logos or two text cards stacked is composition;
+   * two lyrics shapes live at once is the wall saying the same thing twice.
+   */
+  it('says nothing about two fills or two text cards', () => {
+    const v = build([
+      { id: 'a', layer: { type: 'fill' }, corners: QUAD, visible: true },
+      { id: 'b', layer: { type: 'fill' }, corners: QUAD, visible: true },
+      { id: 'c', layer: { type: 'text' }, corners: QUAD, visible: true },
+      { id: 'd', layer: { type: 'text' }, corners: QUAD, visible: true },
+    ])
+    expect(doubledShapeLines(v)).toEqual([])
   })
 })
