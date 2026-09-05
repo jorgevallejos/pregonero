@@ -45,6 +45,7 @@ import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSize
 import { getAutoBlackout } from './autoBlackout'
 import { installRoom, TEST_GIG_ID } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
+import { standbyState } from './testSupport/standbyState'
 
 /** The played log flattened to ids, for the assertions that only care that a song is in it. */
 function playedSongIds(): string[] {
@@ -329,8 +330,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        const labelEl = screen.getByTestId('performance-state-label')
-        expect(labelEl.textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -350,7 +350,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -384,7 +384,7 @@ describe('v0.5 control screen state machine integration', () => {
     render(<App initialHash="#/" />)
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -403,7 +403,7 @@ describe('v0.5 control screen state machine integration', () => {
     render(<App initialHash="#/" />)
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -422,7 +422,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -441,7 +441,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -464,7 +464,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -502,7 +502,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -526,7 +526,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -580,7 +580,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -602,7 +602,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -619,7 +619,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -679,7 +679,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -695,7 +695,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -727,7 +727,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -742,7 +742,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -757,7 +757,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -774,7 +774,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -795,7 +795,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -816,7 +816,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -835,7 +835,7 @@ describe('v0.5 control screen state machine integration', () => {
     })
     vi.useRealTimers()
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
   })
 
   it('8a. Unarm button requires hold-to-confirm (single click does not unarm)', async () => {
@@ -844,7 +844,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -866,7 +866,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -885,7 +885,7 @@ describe('v0.5 control screen state machine integration', () => {
     })
     vi.useRealTimers()
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
     const main = screen.getByRole('main')
     expect(main.textContent).toMatch(/Duelo|Song selected/)
     expect(main.textContent).toMatch(/ES → EN|Languages selected/)
@@ -922,7 +922,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -937,7 +937,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -949,7 +949,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -976,7 +976,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       },
       { timeout: WAIT_TIMEOUT }
     )
@@ -999,7 +999,7 @@ describe('v0.5 control screen state machine integration', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1020,7 +1020,7 @@ describe('v0.5 control screen state machine integration', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1035,7 +1035,7 @@ describe('v0.5 control screen state machine integration', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
 
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
 
     it('when armed and not at last lyric phrase, Unarm keeps normal style and requires hold-to-confirm', async () => {
@@ -1044,7 +1044,7 @@ describe('v0.5 control screen state machine integration', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1068,7 +1068,7 @@ describe('v0.5 control screen state machine integration', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1108,7 +1108,7 @@ describe('v0.5 control screen state machine integration', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1142,7 +1142,7 @@ describe('v0.5 control screen state machine integration', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+          expect(standbyState()).toBe('READY_TO_ARM')
         },
         { timeout: WAIT_TIMEOUT }
       )
@@ -1167,7 +1167,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1208,7 +1208,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1272,7 +1272,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1296,7 +1296,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1326,7 +1326,7 @@ describe('v0.5 control screen state machine integration', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1366,7 +1366,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
       await act(async () => {
         fireEvent.click(getArmButton())
       })
@@ -1396,7 +1396,7 @@ describe('v0.5 control screen state machine integration', () => {
       await act(async () => {
         await Promise.resolve()
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
       await act(async () => {
         fireEvent.click(getArmButton())
       })
@@ -1444,7 +1444,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
   })
 
@@ -1453,7 +1453,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
 
     await act(async () => {
@@ -1468,7 +1468,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -1490,7 +1490,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -1525,7 +1525,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -1542,7 +1542,7 @@ describe('ControlView performer state flow', () => {
     })
     vi.useRealTimers()
 
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
     expect(getCurrentSongId()).toBe('duelo')
     expect(getSongIndex()).toBe(-1)
   })
@@ -1552,7 +1552,7 @@ describe('ControlView performer state flow', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
 
     expect(queryArmedTransportNextButton()).toBeNull()
@@ -1578,7 +1578,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1594,7 +1594,7 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       expect(screen.queryByText(/Armed/)).toBeNull()
     })
@@ -1604,7 +1604,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1623,9 +1623,9 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
 
     it('3. changing language while armed resets the session', async () => {
@@ -1650,7 +1650,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1663,7 +1663,7 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       expect(screen.queryByText(/Armed/)).toBeNull()
     })
@@ -1690,7 +1690,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1706,9 +1706,9 @@ describe('ControlView performer state flow', () => {
       dispatchStorageEvent()
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
 
     it('5. after unarm mid-performance, changing projection language resets lyrics and sends setIndex to projection', async () => {
@@ -1747,7 +1747,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1769,7 +1769,7 @@ describe('ControlView performer state flow', () => {
       })
       vi.useRealTimers()
 
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
       expect(getSongIndex()).toBe(0)
 
       setProjectionLanguage('fr')
@@ -1824,7 +1824,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1879,7 +1879,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1936,7 +1936,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -1976,7 +1976,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2040,7 +2040,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2067,7 +2067,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2104,7 +2104,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2132,7 +2132,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2172,7 +2172,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2194,7 +2194,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2231,7 +2231,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
 
       await act(async () => {
@@ -2246,7 +2246,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.keyDown(window, { key: 'a' })
@@ -2259,7 +2259,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.keyDown(window, { key: 'a' })
       })
 
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
       expect(screen.queryByText(/Armed/)).toBeNull()
     })
 
@@ -2268,7 +2268,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       expect(getSongIndex()).toBe(-1)
 
@@ -2285,7 +2285,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2314,7 +2314,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2566,7 +2566,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('duelo')
@@ -2615,7 +2615,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.queryByTestId('performance-state-label')).toBeNull()
+        expect(standbyState()).toBeNull()
       })
 
       await act(async () => {
@@ -2645,7 +2645,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('duelo')
@@ -2677,7 +2677,7 @@ describe('ControlView performer state flow', () => {
       renderSetlistScreen()
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Setup')
+        expect(standbyState()).toBe('SETUP')
       })
       await waitFor(() => {
         expect(getCurrentSongId()).toBe('')
@@ -2695,7 +2695,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2710,7 +2710,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
 
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
       expect(playedSongIds()).toContain('duelo')
     })
 
@@ -2720,7 +2720,7 @@ describe('ControlView performer state flow', () => {
       render(<App initialHash="#/" />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
       await act(async () => {
         fireEvent.click(getArmButton())
@@ -2743,7 +2743,7 @@ describe('ControlView performer state flow', () => {
       })
       vi.useRealTimers()
 
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
       expect(playedSongIds()).not.toContain('duelo')
     })
 
@@ -2896,7 +2896,7 @@ describe('ControlView performer state flow', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm/)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Setlist' }))
@@ -3047,7 +3047,7 @@ describe('ControlView performer state flow', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       }, { timeout: WAIT_TIMEOUT })
 
       await act(async () => {
@@ -3073,7 +3073,7 @@ describe('ControlView performer state flow', () => {
 
       await holdConfirm(screen.getByRole('button', { name: /^Unarm/ }))
       await waitFor(() => {
-        expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
 
       await act(async () => {
@@ -3136,7 +3136,7 @@ describe('Control next-line preview', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3159,7 +3159,7 @@ describe('Control next-line preview', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3190,7 +3190,7 @@ describe('Control next-line preview', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3217,7 +3217,7 @@ describe('Control next-line preview', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3249,7 +3249,7 @@ describe('Control next-line preview', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3548,7 +3548,7 @@ describe('Control performance timer/status button', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
 
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3575,7 +3575,7 @@ describe('Control performance timer/status button', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
 
     cleanup()
     render(<App initialHash="#/songs" />)
@@ -3591,7 +3591,7 @@ describe('Control performance timer/status button', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+    expect(standbyState()).toBe('READY_TO_ARM')
 
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3740,7 +3740,7 @@ describe('Control pre-first-lyric notes display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3769,7 +3769,7 @@ describe('Control pre-first-lyric notes display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3796,7 +3796,7 @@ describe('Control pre-first-lyric notes display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3873,7 +3873,7 @@ describe('Control pre-first-lyric intro display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3894,7 +3894,7 @@ describe('Control pre-first-lyric intro display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3915,7 +3915,7 @@ describe('Control pre-first-lyric intro display', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+      expect(standbyState()).toBe('READY_TO_ARM')
     })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3949,7 +3949,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3966,7 +3966,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -3992,7 +3992,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4021,7 +4021,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4048,7 +4048,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4097,7 +4097,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4135,7 +4135,7 @@ describe('§6 non-video armed screen', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4236,7 +4236,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
@@ -4255,7 +4255,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
@@ -4304,7 +4304,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(document.querySelector('.ctrl-display-row')).toBeNull()
@@ -4315,7 +4315,7 @@ describe('§6 Projection display-format toggle (Big/Small)', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(document.querySelector('.ctrl-display-row')).toBeNull()
@@ -4472,7 +4472,7 @@ describe('§17 C2 — Projection status text ignores a leftover screenSize key',
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(getProjectionSetupValueText()).toBe('Open')
@@ -4483,7 +4483,7 @@ describe('§17 C2 — Projection status text ignores a leftover screenSize key',
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -4555,7 +4555,7 @@ describe('§5 video armed screen — End Card absent', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     // Videoclip defaults to None — select Small screen so the video performance panel
     // actually renders once armed.
@@ -4591,7 +4591,7 @@ describe('§5 video armed screen — End Card absent', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     // Videoclip defaults to None — select Small screen so the video performance panel
     // actually renders once armed.
@@ -4691,7 +4691,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(screen.getByText('Videoclip')).toBeTruthy()
@@ -4723,7 +4723,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(screen.queryByText('Videoclip')).toBeNull()
@@ -4734,7 +4734,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
@@ -4747,7 +4747,7 @@ describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
@@ -4954,7 +4954,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -4969,7 +4969,7 @@ describe('§A1 Display mode broadcast resync at session start (fixes stale-broad
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
 
     await waitFor(() => {
@@ -5043,7 +5043,7 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -5074,7 +5074,7 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => {
       fireEvent.click(getArmButton())
@@ -5139,7 +5139,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
   async function armAndReachSetup() {
     render(<App initialHash="#/" />)
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toMatch(/Ready to Arm|Setup/)
+      expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
   }
 
@@ -5681,7 +5681,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       await act(async () => { dispatchStorageEvent() })
 
       await waitFor(() => {
-        expect(screen.getAllByText(/Ready to Arm/).length).toBeGreaterThan(0)
+        expect(standbyState()).toBe('READY_TO_ARM')
       })
 
       // Re-arm for the new song: must NOT inherit the first song's cue.
@@ -5846,19 +5846,37 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
   })
 
   /**
-   * The setup screen carries the masthead — the only place in the app that says what this is.
-   * Modelled on `bombista serve`'s, because the two are one suite and should look it.
+   * **The masthead carries the room's name and nothing else** (Jorge, 2026-09-05). The wordmark and
+   * the by-line came off: **the tool does not introduce itself to someone who did not choose it**,
+   * which is the argument that removed Bombista's header on 02/09 and Muralista's label on 04/09.
+   *
+   * Asserted as absences on purpose. **A test that only checked `Standby` is there would stay green
+   * the day someone puts a wordmark back beside it**, and this is the third time the branding has
+   * had to be argued off a screen.
    */
   describe('Setup screen masthead', () => {
-    it('names the app, the suite and the maker', async () => {
+    it('says the room and refuses to say anything else', async () => {
       setupControlViewWithReadinessPassing()
       await armAndReachSetup()
       const mast = document.querySelector('.control-masthead')
       expect(mast).toBeTruthy()
-      expect(mast!.textContent).toContain('Pregonero')
-      expect(mast!.textContent).toContain('Tramoya')
-      expect(mast!.textContent).toContain('Chango Pepper')
-      expect(mast!.textContent).toContain(APP_VERSION)
+      expect(mast!.textContent).toContain('Standby')
+      expect(mast!.textContent).not.toContain('Pregonero')
+      expect(mast!.textContent).not.toContain('Live lyric translation')
+      expect(mast!.textContent).not.toContain('Tramoya')
+      expect(mast!.textContent).not.toContain('Chango Pepper')
+      expect(mast!.textContent).not.toContain(APP_VERSION)
+    })
+
+    it('carries no `Performance: Setup` heading anywhere on Standby', async () => {
+      // **Gone for a second reason on top of the masthead's**: *Performance* and *Setup* now name
+      // the two halves of the split, so a label pairing them contradicts both. The state itself is
+      // still on the screen — `ARM`'s button is pressable exactly when it is `READY_TO_ARM`.
+      setupControlViewWithReadinessPassing()
+      await armAndReachSetup()
+      expect(document.body.textContent).not.toContain('Performance: Setup')
+      expect(document.body.textContent).not.toContain('Performance: Ready to Arm')
+      expect(standbyState()).not.toBeNull()
     })
 
     it('is gone once the song is armed — the stage view carries no branding', async () => {
@@ -6208,7 +6226,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /^Unarm/ }))
       })
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
 
       await act(async () => { fireEvent.click(getArmButton()) })
       expect(screen.queryByTestId('manual-override-badge')).toBeNull()
@@ -6283,7 +6301,7 @@ describe('the setlist is played once', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => { fireEvent.click(getArmButton()) })
     await navigateToLastLyric()
@@ -6306,7 +6324,7 @@ describe('the setlist is played once', () => {
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     await act(async () => { fireEvent.click(getArmButton()) })
 
@@ -6353,7 +6371,7 @@ describe('The contact panel condition is broadcast from the control window', () 
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
     // Nothing is armed, so the wall carries his details.
     expect(lit()).toBe(true)
@@ -6363,7 +6381,7 @@ describe('The contact panel condition is broadcast from the control window', () 
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
     await waitFor(() => {
-      expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Ready to Arm')
+      expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
 
     await act(async () => { fireEvent.click(getArmButton()) })

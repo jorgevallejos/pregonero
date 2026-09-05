@@ -219,14 +219,15 @@ html, body, #root {
 }
 
 /* ---- Masthead — setup screen only ----
-   The one place the app says what it is. Modelled on `bombista serve`'s masthead
-   because the two are one suite and should look it. Deliberately absent once the
-   song is armed: the stage view is an instrument, and an instrument does not
-   spend a line of a dark-room screen on its own name. */
+   **It carries the room's name and nothing else** (2026-09-05). The wordmark and the by-line came
+   off in `v0.68.0`: the tool does not introduce itself to someone who did not choose it, which is
+   the argument that removed Bombista's header on 02/09 and Muralista's label on 04/09. Still
+   deliberately absent once the song is armed — the stage view is an instrument, and an instrument
+   does not spend a line of a dark-room screen on its own name. */
 .control-masthead {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1.5em;
   flex-wrap: wrap;
   padding: 0.9em 1.25em 0.7em;
@@ -234,36 +235,9 @@ html, body, #root {
   border-bottom: 1px solid var(--rule);
 }
 
-.control-masthead-id {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.control-masthead-wordmark {
-  font-family: var(--font-ui);
-  font-size: 0.95em;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: -0.01em;
-  line-height: 1;
-  color: var(--text-primary);
-}
-
-.control-masthead-tagline {
-  margin-top: 0.3em;
-  font-family: var(--font-label);
-  font-size: 0.55em;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  line-height: 1;
-  color: var(--text-faint);
-}
-
 /* THE ROOM'S NAME (2026-09-04). `Standby` — the stage manager's call before a cue. Titled the way
-   Backstage is: same size, same weight, same paper. It takes the slack between the wordmark and the
-   by-line so it centres on the screen rather than on whatever is left after them, and it is laid
+   Backstage is: same size, same weight, same paper. It is the whole of the masthead now, so it
+   centres on the screen rather than on the slack between two blocks that are gone, and it is laid
    out in the flow rather than absolutely positioned, because this masthead has real height of its
    own where `.songs-top-bar` does not. */
 .control-room-name {
@@ -274,29 +248,6 @@ html, body, #root {
   font-weight: 600;
   line-height: 1;
   color: var(--text-primary);
-}
-
-.control-masthead-by {
-  display: flex;
-  flex-direction: column;
-  text-align: right;
-  font-family: var(--font-label);
-  font-size: 0.5em;
-  font-weight: 400;
-  line-height: 1.7;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-
-.control-masthead-by b {
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.control-masthead-tramoya {
-  color: var(--accent-dim);
 }
 
 /* ---- Main control screen ---- */
@@ -454,10 +405,6 @@ html, body, #root {
   padding-bottom: 2em;
 }
 
-.control-center-setup .control-state-label {
-  flex-shrink: 0;
-  margin-bottom: 0.25em;
-}
 
 /* Setup: one full-height column per rendered section = label (top) + value (middle 1fr) + extras + buttons (bottom) */
 .control-center-setup .control-performance-state {
@@ -555,18 +502,7 @@ html, body, #root {
   color: var(--text-muted);
 }
 
-.control-ready,
-.control-state-label {
-  margin-top: 0;
-  margin-bottom: 0;
-  font-size: 1.25em;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
-.control-center-setup .control-state-label {
-  margin-bottom: 0.25em;
-}
 
 .control-state-instruction {
   margin: 0.25em 0 0;

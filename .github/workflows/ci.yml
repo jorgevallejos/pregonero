@@ -33,3 +33,12 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # **CI did not build, and a broken `index.html` went green through it** (2026-09-06). The
+      # source `index.html` was overwritten with Vite's built output — the same file name, a
+      # different file — and lint, typecheck and the whole suite passed over it, because none of
+      # them opens the app's entry point. `npm run build` is the only check that reads it, it takes
+      # under a second, and it is the difference between finding that at the next `pack` and
+      # finding it at the commit.
+      - name: Build
+        run: npm run build
