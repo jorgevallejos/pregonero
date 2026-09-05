@@ -40,6 +40,7 @@ import { hasLyricLines } from './songState'
 import type { GigFile, SetupFingerprints } from './gigFile'
 import {
   resolveShapesForType,
+  doubledShapeLines,
   songIsCarried,
   songVideoAssets,
   type VisualsFile,
@@ -135,6 +136,20 @@ export type GigReadiness = {
    * which is an ordinary state and not a refusal — the difference is `steps[3].status`.
    */
   visualsRefusal: VisualsRefusalKind | null
+  /**
+   * **Where the room paints two of one kind at once, per mode.**
+   *
+   * **`null` is *there is no room to check*, and `[]` is *checked, and it says each thing once*.**
+   * Two different answers, and collapsing them into one empty list is exactly the false-answer
+   * class this repo has a rule about: the sign-off would print PASS over a gig with no mapping.
+   * The `belongs` line tells the same two states apart for the same reason.
+   *
+   * A field rather than something the sign-off screen works out, for the reason every other field
+   * here is one: **a screen forming its own opinion about what ready means is the second
+   * implementation this file exists to prevent.** It is also in `steps[3].missing`, because that is
+   * what makes it block; this is the same answer addressed by name so one line can render it.
+   */
+  doubledShapes: string[] | null
   /**
    * **Whether setup may be confirmed right now**, and it is a field rather than something a screen
    * assembles.
@@ -415,6 +430,8 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     contentResolves: true,
   }))
   return {
+    // No gig, so no room, so nothing to check — which is `null`, not an empty finding.
+    doubledShapes: null,
     folderPath: null,
     gigId: null,
     date: null,
@@ -591,6 +608,24 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     step3Missing.push('The gig has no lyrics shape. Every song needs one unless it names its own.')
   }
 
+  /**
+   * **THE DOUBLE-PAINT CHECK, PER MODE** (Jorge, 2026-09-05).
+   *
+   * **The failure it catches is the one named modes did NOT close.** Modes made the room exclusive
+   * between themselves by construction; the always group is not a mode and is deliberately not
+   * exclusive with anything. So **a no-mode lyrics shape and a mode's lyrics shape are both live at
+   * once**, on top of each other, and that is authorable by accident — drag a shape out of a group
+   * to look at something, forget to drag it back, and the room reads fine in Muralista.
+   *
+   * **It is `missing` and not a note**, because it is a fault in the GIG's own shapes, which is the
+   * line this step already draws: the gig's shapes block, the songs that deviate are notes.
+   */
+  const doubled = input.visuals === null ? null : doubledShapeLines(input.visuals)
+  if (doubled !== null && doubled.length > 0) {
+    if (step3Status === 'complete') step3Status = 'not-yet'
+    step3Missing.push(...doubled)
+  }
+
   // The optional half. Reassignment only — a song never holds its own geometry — so nothing new
   // lands in `gig.json` here, and a gig where no song deviates is done having done nothing.
   const notCarried = songs.filter(
@@ -677,6 +712,7 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   }
 
   return {
+    doubledShapes: doubled,
     folderPath: input.folderPath,
     gigId: input.gig?.id ?? null,
     date: input.gig?.date ?? null,

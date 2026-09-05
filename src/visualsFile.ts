@@ -100,45 +100,61 @@ export type VisualShape = {
   outline?: Point[] | null
   layer?: { type?: string } & Record<string, unknown>
   visible?: boolean
-  /** When this shape shows, if it does not always. See `shapeCondition`. */
-  visibleWhen?: { shape?: unknown; is?: unknown } | null
+  /** The mode this shape belongs to, if it belongs to one. See `shapeModeId`. */
+  mode?: unknown
   [key: string]: unknown
 }
 
-/** The two states a condition asks about. Content, never existence — see `shapeCondition`. */
+/** The two states a condition asks about. Content, never existence — see `modeCondition`. */
 export type ConditionState = 'filled' | 'empty'
 
 export type ShapeCondition = { shape: string; is: ConditionState }
 
 /**
- * **A shape's visibility condition, or null when it always shows.**
+ * **A NAMED MODE: a set of shapes that appear together, under a name and a condition.**
  *
- * ## Why it asks about another SHAPE
+ * ## Why it exists, and what it replaced
  *
- * Cowork proposed a flag on a `song-lyrics` shape saying *for songs with video / without*, and
- * **Jorge rejected it: that is domain knowledge Muralista does not have** (2026-09-04). Whether a
- * song has a video lives below Muralista's line — it reads `gig.json` and nothing else. **His
- * replacement asks about another shape, which is entirely Muralista's own vocabulary: Muralista
- * declares the relationship and Pregonero evaluates it**, because Pregonero is the one that knows
- * what content landed. Each tool says only what it can know.
+ * Until 2026-09-05 each shape carried its own `visibleWhen`, and the room's exclusivity was an
+ * **unwritten assumption that the two conditions partition**. Nothing enforced it: two independent
+ * rules can both be true or both be false, and the room then paints twice or not at all.
  *
- * ## It is about CONTENT, never EXISTENCE
+ * **Jorge named the two modes out loud** — `Song with lyrics`, `Song with video and lyrics` — and a
+ * name with nowhere to live is the symptom of a missing concept. **Exclusivity comes from the rule
+ * now:** modes are an ordered list, the first whose condition is true wins, and **when none matches
+ * no mode is live and only the no-mode shapes paint.**
  *
- * Shapes are gig level and always exist; what varies per song is whether they got content.
- * *Visible when that shape is empty for this song*, never *visible if that shape is not there*.
- * **Filled means an asset is assigned for that song** in `songVisuals.assets`.
+ * ## Why the condition still asks about another SHAPE
  *
- * ## One level, so cycles are impossible
+ * Cowork proposed a flag saying *for songs with video / without*, and **Jorge rejected it: that is
+ * domain knowledge Muralista does not have** (2026-09-04). Whether a song has a video lives below
+ * Muralista's line — it reads `gig.json` and nothing else. **Muralista declares the relationship
+ * and Pregonero evaluates it**, because Pregonero is the one that knows what content landed. That
+ * split is unchanged; only where the condition lives moved.
  *
- * A condition may only point at a shape that has none of its own — enforced in Muralista, on the
- * way into the file. **So this never recurses**: it reads the target's CONTENT, never the target's
- * visibility, and there is nothing here to detect or refuse.
+ * **It is about CONTENT, never EXISTENCE.** Shapes are gig level and always exist; what varies per
+ * song is whether they got content. **Filled means an asset is assigned for that song** in
+ * `songVisuals.assets`.
  *
- * **An object rather than a string**, so a `when` or an `after` can join it later without a
- * redesign. This is the condition, not an animation system.
+ * ## The list is honest or it is not a list
+ *
+ * Muralista's authoring surface seeds exactly two modes and offers no way to make a third. **The
+ * format says list, and so this reads a list** — any length, resolved in order. An implementation
+ * that quietly assumed two while the file promised more would be a value one side produces and the
+ * other refuses, which is the exact shape of the five contract mismatches of 02/09. See
+ * `visualsModes.test.ts` for the hand-written three-mode room that keeps that honest, and
+ * `mapper/modes.test.mjs` in Muralista for the same room resolved by the writer.
  */
-export function shapeCondition(shape: VisualShape): ShapeCondition | null {
-  const raw = shape.visibleWhen
+export type VisualMode = {
+  id: string
+  name: string
+  /** `null` is a mode with nothing to ask, and **a mode with no condition is never live.** */
+  when: ShapeCondition | null
+}
+
+/** A mode's condition, or null. The one reader, so there is one answer. */
+export function modeCondition(mode: { when?: unknown }): ShapeCondition | null {
+  const raw = mode.when
   if (!raw || typeof raw !== 'object') return null
   const target = (raw as { shape?: unknown }).shape
   const is = (raw as { is?: unknown }).is
@@ -147,24 +163,41 @@ export function shapeCondition(shape: VisualShape): ShapeCondition | null {
   return { shape: target, is }
 }
 
+/** The mode a shape belongs to, or null for a no-mode shape — which is on the wall in all of them. */
+export function shapeModeId(shape: VisualShape): string | null {
+  const raw = shape.mode
+  return typeof raw === 'string' && raw !== '' ? raw : null
+}
+
 /**
- * **Whether this shape shows for this song.** True for every unconditional shape, which is most of
- * them, and they pay nothing for the question.
+ * **The mode that is live for this song, or null when none is.**
  *
- * With **no song at all**, nothing is assigned to anything, so a target reads *empty*. That is the
- * honest answer rather than a special case: an asset is a per-song fact, and there is no song.
- * (`gig-contact` was the caller that asked that way, until it stopped being a type on 2026-09-04.
- * The behaviour stays, because gig visual setup still resolves with no song.)
+ * First in list order whose condition is true. **With no song at all** nothing is assigned to
+ * anything, so every target reads *empty* — the honest answer rather than a special case, since an
+ * asset is a per-song fact and there is no song. (Gig visual setup still resolves with no song.)
+ */
+export function activeModeFor(visuals: VisualsFile, songId: string | null): VisualMode | null {
+  for (const mode of visuals.modes) {
+    if (mode.when === null) continue
+    const filled = songAssetFor(visuals, songId, mode.when.shape) !== null
+    if (mode.when.is === 'filled' ? filled : !filled) return mode
+  }
+  return null
+}
+
+/**
+ * **Whether this shape shows for this song.** True for every no-mode shape, which is most of them,
+ * and they pay nothing for the question.
  */
 export function shapeShowsForSong(
   visuals: VisualsFile,
   shape: VisualShape,
   songId: string | null
 ): boolean {
-  const condition = shapeCondition(shape)
-  if (condition === null) return true
-  const filled = songAssetFor(visuals, songId, condition.shape) !== null
-  return condition.is === 'filled' ? filled : !filled
+  const mine = shapeModeId(shape)
+  if (mine === null) return true
+  const active = activeModeFor(visuals, songId)
+  return active !== null && active.id === mine
 }
 
 function isPoint(p: unknown): p is Point {
@@ -241,6 +274,8 @@ export type SongVisuals = {
 export type VisualsFile = {
   visualsVersion: number
   gigId: string
+  /** **Ordered.** First matching condition wins; none matching means no mode is live. */
+  modes: VisualMode[]
   shapes: VisualShape[]
   songVisuals: SongVisuals
 }
@@ -325,20 +360,33 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
     .filter((s) => isNonEmptyString(s.id))
     .map((s) => s as unknown as VisualShape)
 
-  // **The one-level rule is Muralista's to enforce and this repo's to survive.** A condition
-  // pointing at a shape that is not there, or at one that has a condition of its own, is dropped
-  // here — `shapeCondition` then reads null and the shape shows unconditionally. **A file this app
-  // did not write is arbitrary JSON**, and a lookup that recursed on it would be the cycle this
-  // design exists to make impossible.
-  const conditioned = new Set(
-    shapes.filter((shape) => shapeCondition(shape) !== null).map((shape) => shape.id)
-  )
+  // **A file this app did not write is arbitrary JSON**, so the mode list is rebuilt rather than
+  // trusted: an entry with no id cannot be pointed at and is not a mode, and a `when` that is not
+  // the one sentence reads as no condition, which is a mode that is never live.
+  //
+  // **The list is read at whatever length it comes in.** Muralista seeds two and offers no way to
+  // make a third; the format says list, and a reader that assumed two would be the half of a
+  // contract mismatch that refuses what the other side wrote.
+  const modes: VisualMode[] = []
+  const modeIds = new Set<string>()
+  for (const raw of Array.isArray(o.modes) ? o.modes : []) {
+    if (raw === null || typeof raw !== 'object') continue
+    const entry = raw as Record<string, unknown>
+    if (!isNonEmptyString(entry.id) || modeIds.has(entry.id)) continue
+    modeIds.add(entry.id)
+    modes.push({
+      id: entry.id,
+      name: isNonEmptyString(entry.name) ? entry.name : 'Mode',
+      when: modeCondition(entry),
+    })
+  }
+
+  // **Membership pointing at a mode the file does not hold is dropped**, and the shape becomes
+  // always-on. That is the safe direction and the visible one: the alternative is a shape live in
+  // no mode at all, which paints nothing on the night with nothing anywhere saying why.
   for (const shape of shapes) {
-    const condition = shapeCondition(shape)
-    if (condition === null) continue
-    const target = condition.shape
-    const known = shapes.some((s) => s.id === target)
-    if (!known || conditioned.has(target) || target === shape.id) delete shape.visibleWhen
+    const mine = shapeModeId(shape)
+    if (mine !== null && !modeIds.has(mine)) delete shape.mode
   }
 
   const sv = o.songVisuals !== null && typeof o.songVisuals === 'object' ? (o.songVisuals as Record<string, unknown>) : {}
@@ -368,6 +416,7 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
   return {
     visualsVersion: VISUALS_VERSION,
     gigId: o.gigId,
+    modes,
     shapes,
     songVisuals: { defaults: readAssignmentMap(sv.defaults), songs, assets },
   }
@@ -413,11 +462,17 @@ export function songVideoAssets(
  *
  * A resolved shape is not the same as a shape with something in it, and since the default became
  * three shapes the difference matters: **a song with no animation resolves the video shape and
- * leaves it empty, which is the designed state**, not a fault — the lyrics shape conditioned on
- * *video is empty* is what carries it.
+ * leaves it empty, which is the designed state**, not a fault — the lyrics shape in the
+ * *no video* mode is what carries it.
  *
  * So: a `song-lyrics` shape always paints, because the words come from the song file at render
  * time. **A `song-video` shape paints only when this song assigned it something.**
+ *
+ * **UNDER MODES IT ASKS ABOUT THE MODE THAT WILL BE LIVE FOR THIS SONG**, not about a shape's own
+ * condition (Jorge, 2026-09-05). The change is real and it is one level down: `resolveShapesForType`
+ * filters on `shapeShowsForSong`, which now resolves the mode. **This function did not have to
+ * move, and that is the design working rather than an oversight** — there has only ever been one
+ * lookup, so there was only one place for the rule to change.
  */
 export function songIsCarried(visuals: VisualsFile, songId: string): boolean {
   if (resolveShapesForType(visuals, 'song-lyrics', songId).length > 0) return true
@@ -463,4 +518,104 @@ export function resolveShapesForType(
         // to prevent.
         shapeShowsForSong(visuals, s, songId)
     )
+}
+
+/**
+ * **PER MODE, HOW MANY SHAPES OF EACH KIND ARE LIVE** (Jorge, 2026-09-05).
+ *
+ * ## The failure it catches, and it is the double-paint one coming back through another door
+ *
+ * A shape belonging to no mode is **always displayed**. So a no-mode lyrics shape and a mode's
+ * lyrics shape are **both live at once**, on top of each other, and **that is authorable by
+ * accident**: dragging a shape out of a group to see something and not dragging it back leaves a
+ * room that looks fine in Muralista and paints twice on the wall.
+ *
+ * Named modes made the room exclusive *by construction* between modes. **They did nothing about the
+ * always group**, because the always group is not a mode and is not meant to be exclusive with
+ * anything — a backdrop, a logo and a video frame all belong there correctly.
+ *
+ * ## Why it is a count and not a rule
+ *
+ * **The sign-off screen is already one line per thing that has to be true**, so this is one more
+ * line, not a new surface. And it is stated as *one of each kind* rather than as a refusal in
+ * Muralista, because **two lyrics shapes live at once is how a corner or a pillar gets spanned** —
+ * this repo has said that about `resolveShapesForType` since the day it was written, and capping it
+ * would remove a real thing to prevent an accident. **Reporting beats refusing** where the honest
+ * answer is *this is usually a mistake*.
+ *
+ * The count is per mode and includes the always shapes, because that is the room the wall shows:
+ * **the winning mode's shapes plus every no-mode shape.**
+ */
+export type ModeCensusRow = {
+  /** The mode, or null for the room a song matching no mode gets — the always shapes alone. */
+  mode: VisualMode | null
+  /** Counts by shape type, over the live room for that mode. Types with none are absent. */
+  live: Partial<Record<string, number>>
+  /** The types with more than one live shape, named for the report. */
+  doubled: string[]
+}
+
+export function modeCensus(visuals: VisualsFile): ModeCensusRow[] {
+  const rowFor = (mode: VisualMode | null): ModeCensusRow => {
+    const live: Partial<Record<string, number>> = {}
+    for (const type of SONG_AWARE_TYPES) {
+      const n = liveDefaultShapes(visuals, type, mode).length
+      if (n > 0) live[type] = n
+    }
+    const doubled = SONG_AWARE_TYPES.filter((type) => (live[type] ?? 0) > 1)
+    return { mode, live, doubled }
+  }
+  // **The no-mode room is a row too**, because *no mode matched* is a state the list has to answer
+  // and a song can land in it. It is last, where the fallback belongs.
+  return [...visuals.modes.map(rowFor), rowFor(null)]
+}
+
+/**
+ * **What a song with no reassignment gets in this mode**: the gig-level default for the type,
+ * filtered to what is visible and what that mode makes live.
+ *
+ * **Counting MEMBERSHIP instead was wrong, and the readiness fixtures caught it.** A room may hold
+ * two `song-lyrics` shapes where the gig-level default names one and a song reassigns to the other
+ * — that is reassignment working, and counting every shape of the type would have called it a
+ * double paint. **What is live is what `resolveShapesForType` returns**, and this is that lookup
+ * with the per-song half removed.
+ *
+ * **Per-song reassignment is deliberately not walked here.** A reassignment that lights two shapes
+ * is a fact about one song and belongs on that song's line, where `resolveShapesForType` already
+ * returns the set; this line is about **the room**, which is what the sign-off screen calls it.
+ */
+function liveDefaultShapes(
+  visuals: VisualsFile,
+  type: string,
+  mode: VisualMode | null
+): VisualShape[] {
+  const ids = visuals.songVisuals.defaults[type] ?? []
+  return ids
+    .map((id) => visuals.shapes.find((s) => s.id === id))
+    .filter(
+      (s): s is VisualShape =>
+        s !== undefined &&
+        shapeTypeOf(s) === type &&
+        shapeIsVisible(s) &&
+        shapeShowsInMode(s, mode)
+    )
+}
+
+/** The live room for a mode: its own shapes plus every no-mode shape. `null` is the fallback room. */
+function shapeShowsInMode(shape: VisualShape, mode: VisualMode | null): boolean {
+  const mine = shapeModeId(shape)
+  return mine === null || (mode !== null && mine === mode.id)
+}
+
+/** The census rows that report a doubled kind, as sentences. Empty when the room is clean. */
+export function doubledShapeLines(visuals: VisualsFile): string[] {
+  return modeCensus(visuals)
+    .filter((row) => row.doubled.length > 0)
+    .map((row) => {
+      const where = row.mode === null ? 'When no mode matches' : row.mode.name
+      const what = row.doubled
+        .map((type) => `${row.live[type]} ${type} shapes`)
+        .join(' and ')
+      return `${where}: ${what} live at once.`
+    })
 }

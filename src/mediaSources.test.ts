@@ -15,6 +15,7 @@ function visuals(
   return {
     visualsVersion: 1,
     gigId: 'g',
+    modes: [],
     shapes,
     songVisuals: { defaults: {}, songs: {}, assets },
   }

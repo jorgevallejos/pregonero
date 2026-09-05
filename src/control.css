@@ -3008,6 +3008,100 @@ html, body, #root {
   border-color: var(--state-warn);
 }
 
+/* ===== First run, screen two: who the artist is (2026-09-05) =====
+
+   **It borrows the folders screen's frame and not its layout.** Same title treatment, same centred
+   body, same padding — so the three screens read as one sequence — and **one question in the middle
+   of it**, because that is what it is. A column grid here would imitate a screen whose whole point
+   is that it holds more than one question. */
+.artist-name-screen .songs-top-bar {
+  border-bottom: none;
+  padding-top: 2em;
+  justify-content: center;
+}
+
+.artist-name-screen .songs-title {
+  position: static;
+  transform: none;
+}
+
+.songs-screen.artist-name-screen .songs-body.artist-name-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75em;
+  align-items: stretch;
+  max-width: 34em;
+  margin: 0 auto;
+  padding: 2em;
+}
+
+.artist-name-label {
+  font-family: var(--font-label);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* **The field is the loudest thing on the screen**, for the reason the path was on the folders
+   screen and the name is on its columns: it is the answer, and the answer is what somebody returns
+   here to check. */
+.artist-name-input {
+  font-family: var(--font-control);
+  font-size: 1.25em;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+  padding: 0.5em 0.6em;
+  width: 100%;
+}
+
+.artist-name-why {
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Same treatment as `Confirm` one screen later: a full-width rule above it, and the control at the
+   left edge, so the press that leaves reads the same on both screens. */
+.artist-name-foot {
+  border-top: 1px solid var(--rule-strong);
+  padding-top: 1.5em;
+  margin-top: 0.75em;
+}
+
+.artist-name-foot .gated-action {
+  align-items: flex-start;
+}
+
+.artist-name-foot .ctrl-btn.ctrl-setup-link {
+  width: auto;
+  max-width: none;
+}
+
+/* Preferences: the artist row's field and its hint. The row is the folders rows' shape with an
+   input where a path would be. */
+.folders-row-input {
+  display: block;
+  margin-top: 0.15em;
+  width: 100%;
+  font-family: var(--font-control);
+  font-size: 0.9375em;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--rule-faint);
+  padding: 0.3em 0.4em;
+}
+
+.folders-row-hint {
+  display: block;
+  margin-top: 0.3em;
+  color: var(--text-dim);
+  font-size: 0.875em;
+  line-height: 1.4;
+}
+
 /* `Confirm` sits below both, on the same grid: full-width rule above it, and the button itself at
    the left column's left edge, which is what makes it read as belonging to both answers rather
    than to the second one. */

@@ -2,10 +2,10 @@
   "module": "warp.js",
   "owner": "muralista",
   "path": "mapper/warp.js",
-  "tag": "v1.18.0",
+  "tag": "v1.19.0",
   "sha256": "17e3a25ef61074b622965c6df2e2b8ec7a50fc6f5ffb698c160eead701c15cb6",
   "test": "warp.test.mjs",
-  "testTag": "v1.18.0",
-  "vendoredOn": "2026-09-04",
-  "note": "Bumped from v1.4.0 to v1.6.0 on 2026-08-31 when the page was vendored: mapper.js imports ./warp.js, so the served page needs every file at one tag. warp.js and warp.test.mjs are BYTE-IDENTICAL across v1.4.0 through v1.18.0 — the sha256 below has never moved — so every bump here has been a label following the page's tag rather than a drift in the maths."
+  "testTag": "v1.19.0",
+  "vendoredOn": "2026-09-05",
+  "note": "Bumped from v1.4.0 to v1.6.0 on 2026-08-31 when the page was vendored: mapper.js imports ./warp.js, so the served page needs every file at one tag. warp.js and warp.test.mjs are BYTE-IDENTICAL across v1.4.0 through v1.19.0 \u2014 the sha256 below has never moved \u2014 so every bump here has been a label following the page's tag rather than a drift in the maths."
 }
