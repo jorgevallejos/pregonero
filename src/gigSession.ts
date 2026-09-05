@@ -55,6 +55,7 @@ import {
 } from './setlistStore'
 import { getGigsFolder, resolveSongPath } from './contentFolders'
 import { resolveMediaPath } from './mediaPathStore'
+import { collectMediaSources } from './mediaSources'
 import { digest } from './fingerprint'
 import * as platform from './platform'
 
@@ -180,23 +181,37 @@ function toProjection(entry: SetlistSongInput): SetlistProjection {
  * **Resolution itself is unchanged**: `resolveMediaPath` is still the one answer to *where is the
  * file called X*, and the file still travels as a name.
  */
+/**
+ * **EVERY NAME THE NIGHT WILL ASK FOR, WHICH IS NOT ONLY THE SONGS'** (2026-09-06).
+ *
+ * It walked the setlist's video assets and stopped, so **a static shape naming a file that resolves
+ * to nothing was checked by nothing** — the gig signed off clean with a logo that was never going
+ * to paint. `collectMediaSources` already gathers exactly these names; it had one caller, and that
+ * caller was Preferences. **The machine knew and the sign-off did not ask.**
+ */
 async function resolveMedia(
   setlist: readonly SetlistSongInput[],
   visuals: VisualsFile | null
 ): Promise<Record<string, MediaResolution>> {
   const out: Record<string, MediaResolution> = {}
   if (visuals === null) return out
-  for (const entry of setlist) {
-    for (const src of songVideoAssets(visuals, entry.id).named) {
-      if (out[src]) continue
-      const linkedPath = resolveMediaPath(src)
-      if (!linkedPath) {
-        out[src] = { linked: false, exists: false }
-        continue
-      }
-      out[src] = { linked: true, exists: await platform.fileExists(linkedPath) }
+
+  const resolveOne = async (src: string): Promise<void> => {
+    if (out[src]) return
+    const linkedPath = resolveMediaPath(src)
+    if (!linkedPath) {
+      out[src] = { linked: false, exists: false }
+      return
     }
+    out[src] = { linked: true, exists: await platform.fileExists(linkedPath) }
   }
+
+  for (const entry of setlist) {
+    for (const src of songVideoAssets(visuals, entry.id).named) await resolveOne(src)
+  }
+  // **The room's own names**, from the one reader that already knew about them. The library is not
+  // consulted here — a song's declared media is the setlist's question, answered above.
+  for (const source of collectMediaSources([], visuals)) await resolveOne(source.src)
   return out
 }
 

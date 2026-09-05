@@ -26,6 +26,10 @@ export type PickerName =
   | 'audio'
   | 'video'
   | 'json'
+  // **The visuals folder's still pictures.** It shares the shape picker with `video`, and both
+  // deliberately open in the visuals folder rather than where they were last — see
+  // `chooseVisualInsideFolder`, where the default path is the folder's and not a memory.
+  | 'image'
   | 'songs-folder'
   | 'gigs-folder'
   | 'media-folder'

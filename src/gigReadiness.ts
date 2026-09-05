@@ -37,6 +37,7 @@
 
 import type { LibrarySong } from './setlistStore'
 import { hasLyricLines } from './songState'
+import { collectMediaSources } from './mediaSources'
 import type { GigFile, SetupFingerprints } from './gigFile'
 import {
   resolveShapesForType,
@@ -150,6 +151,14 @@ export type GigReadiness = {
    * what makes it block; this is the same answer addressed by name so one line can render it.
    */
   doubledShapes: string[] | null
+  /**
+   * **The files the ROOM itself names that this machine cannot turn into bytes.** A logo, a
+   * picture, a static video — not a song's media, which is `songs[].missing`.
+   *
+   * **Reported, never blocking** (Jorge, 2026-09-05). The gig signing off with a missing file is
+   * correct; **it being invisible there was not.**
+   */
+  roomMediaMissing: string[]
   /**
    * **Whether setup may be confirmed right now**, and it is a field rather than something a screen
    * assembles.
@@ -432,6 +441,8 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
   return {
     // No gig, so no room, so nothing to check — which is `null`, not an empty finding.
     doubledShapes: null,
+    // No gig, so no room, so no files it names.
+    roomMediaMissing: [],
     folderPath: null,
     gigId: null,
     date: null,
@@ -633,6 +644,41 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
   )
   const step3Notes = notCarried.map((s) => `${s.title}: ${s.missing.join('; ')}`)
 
+  /**
+   * **THE ROOM'S OWN FILES, AND THIS ONE IS A NOTE** (Jorge, 2026-09-05).
+   *
+   * **The gig signed off with a named missing file.** A logo, a picture, a static video: a shape
+   * naming a file this machine cannot turn into bytes paints a failure note at a projector, and
+   * **nothing outside Preferences had ever asked.** `collectMediaSources` already gathered exactly
+   * these names and had one caller, which was that screen — the machine knew and the sign-off did
+   * not ask.
+   *
+   * **Reported, never blocking**, on Jorge's own rule: *name the mode, do not refuse the song.*
+   * Not blocking is correct and stays correct. **But sign-off is the moment he accepts what the
+   * machine cannot check**, so what it already knows has to be in front of him there — which is
+   * `notes`, this step's word for *reported and in the way of nothing*, plus a line of its own on
+   * the sign-off screen.
+   *
+   * **Read off the resolution map, never off a message** — the rule this file already keeps.
+   */
+  const roomMediaMissing: string[] =
+    input.visuals === null
+      ? []
+      : collectMediaSources([], input.visuals)
+          .filter((source) => {
+            const resolution = input.mediaResolution[source.src]
+            return !resolution || !resolution.linked || !resolution.exists
+          })
+          .map((source) => {
+            const resolution = input.mediaResolution[source.src]
+            const why =
+              !resolution || !resolution.linked
+                ? 'not linked on this machine'
+                : 'the file linked for it is not there'
+            return `${source.src} — ${why} (${source.uses.join(', ')})`
+          })
+  step3Notes.push(...roomMediaMissing)
+
   // Everything before the confirmation, as one verdict. A refusal anywhere above is a refusal
   // here: a confirmation made over an unreadable file would be a milestone about nothing.
   const earlier: StepStatus[] = [step1Status, step2Status, step3Status]
@@ -713,6 +759,7 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
 
   return {
     doubledShapes: doubled,
+    roomMediaMissing,
     folderPath: input.folderPath,
     gigId: input.gig?.id ?? null,
     date: input.gig?.date ?? null,
