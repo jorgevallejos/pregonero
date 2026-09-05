@@ -634,11 +634,15 @@ html, body, #root {
   justify-content: center;
   align-items: center;
   gap: 0.75em;
-  /* Wrap, because the buttons no longer shrink (see the min-width on .ctrl-btn below). Gig is
-     the only column with two of them, and two full-width labels do not fit one 6-column row on
-     a 1440 or 1920 screen. Wrapping stacks Setup above Folders at their real widths; the
-     alternative is a row that overflows the column and gets clipped by its overflow:hidden.
-     Row 4 is shared by every column, so the extra line keeps all the button blocks aligned. */
+  /* Wrap, because the buttons no longer shrink (see the min-width on .ctrl-btn below): two
+     full-width labels do not fit one 6-column row on a 1440 or 1920 screen, and the alternative
+     is a row that overflows the column and gets clipped by its overflow:hidden. Row 4 is shared
+     by every column, so the extra line keeps all the button blocks aligned.
+
+     **`Setup` and `Folders` were the pair this was written for, and `Folders` has gone.** Gig is
+     still the only column with two buttons — `Choose` and `Setup` since 2026-09-05 — but they are
+     two rows stacked by `.control-setup-buttons`, not one row wrapping. The wrap stays because
+     nothing guarantees a label pair will always fit, and it costs nothing when it does. */
   flex-wrap: wrap;
 }
 
