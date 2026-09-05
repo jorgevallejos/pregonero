@@ -2124,33 +2124,6 @@ html, body, #root {
 
 /* ── BeatCircle — shared beat indicator, sized like the gig-time circle ── */
 
-/* P9: performed-tempo field in the setup panel (pre-arm only). */
-.ctrl-performed-bpm {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-}
-
-.ctrl-performed-bpm-input {
-  font-family: var(--font-numeric);
-  width: 5.5em;
-  padding: 0.3em 0.4em;
-  border-radius: var(--radius-field);
-  border: 1px solid var(--control-border);
-  background: var(--control-bg);
-  color: var(--text-primary);
-  font-size: 1em;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Chromium reveals the spinner only on hover or focus. This is a stage control set with a
-   fingertip on a tablet, where there is no hover and finding out the arrows exist by touching
-   the field is a bad way to learn it — so they are always up. */
-.ctrl-performed-bpm-input::-webkit-inner-spin-button,
-.ctrl-performed-bpm-input::-webkit-outer-spin-button {
-  opacity: 1;
-}
-
 /* P6: shown mid-song once Next/Previous has dropped the song into Manual. Deliberately loud —
    the performer has to register "this is not driving itself any more" at a glance, mid-song. */
 .control-manual-override-badge {
