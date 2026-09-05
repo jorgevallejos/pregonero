@@ -39,7 +39,7 @@ describe('the room broadcast', () => {
   it('carries the shapes the Control window read', () => {
     installRoom()
     const visuals = getBroadcastVisuals()!
-    expect(visuals.shapes.map((s) => s.id)).toEqual(['video-1', 'lyrics-1', 'intro-1'])
+    expect(visuals.shapes.map((s) => s.id)).toEqual(['video-1', 'lyrics-1'])
     expect(visuals.songVisuals.defaults['song-lyrics']).toEqual(['lyrics-1'])
   })
 

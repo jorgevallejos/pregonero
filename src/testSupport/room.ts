@@ -80,16 +80,21 @@ function defaultsFor(shapes: readonly VisualShape[]): Record<string, string[]> {
 }
 
 /**
- * The default room: a video shape, a lyrics shape and an intro shape, all filling the frame.
+ * The default room: a video shape and a lyrics shape, both filling the frame.
  *
- * Three shapes over the same patch of wall is not how a room is really mapped — it is the smallest
+ * Two shapes over the same patch of wall is not how a room is really mapped — it is the smallest
  * arrangement in which every song-aware type has somewhere to land, so a test can assert *which*
  * shape a thing appeared in.
+ *
+ * **`intro-1` was a third shape here and went on 2026-09-06.** `song-intro` stopped being a type
+ * on 04/09; the shape stayed in this fixture and painted nothing, which made it a decoy in exactly
+ * the tests that ask where the intro card lands. **The card has no shape of its own: within the
+ * live mode it goes to the `song-video` shape if that mode has one, and to `song-lyrics`
+ * otherwise** — so in this room it goes to `video-1`.
  */
 export const DEFAULT_ROOM_SHAPES: VisualShape[] = [
   shape('video-1', 'song-video'),
   shape('lyrics-1', 'song-lyrics'),
-  shape('intro-1', 'song-intro'),
 ]
 
 /** Opens a gig and puts a room in it. Returns the shapes, in paint order. */
