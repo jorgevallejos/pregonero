@@ -27,6 +27,7 @@ import { useEffect, useState } from 'react'
 import { parseVisualsFile, type VisualsFile } from './visualsFile'
 import { getRememberedGigFolder } from './gigFolderStore'
 
+/** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 export const KEY_VISUALS_BROADCAST = 'pregoneroVisualsBroadcast'
 
 type Payload = {

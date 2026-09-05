@@ -28,6 +28,16 @@
 import { songFilesFolder } from './fileLayout'
 import { isAbsolutePath, joinPath } from './paths'
 
+/**
+ * **Every key below still says `pregonero` and none of them was renamed** (2026-09-06, the rename
+ * to Tramoya). **A storage key is an address, not a name.** Rewriting one does not rename
+ * anything: it points the app at a different, empty place, and the symptom is a machine that has
+ * answered its folders being asked for them again as though it never had.
+ *
+ * **The precedent is in this same file's neighbours.** The `liveLyric*` and `llt.*` keys survived
+ * the 2026-08-14 rename from Live Lyric Translator for exactly this reason and are still the
+ * addresses today. Nothing is migrated here either.
+ */
 export const SONGS_FOLDER_KEY = 'pregoneroSongsFolder'
 /**
  * **The visuals folder.** The stored key still says `media` and is deliberately not migrated: a

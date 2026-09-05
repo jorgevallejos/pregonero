@@ -32,6 +32,7 @@
 import { useEffect, useState } from 'react'
 import { getLastLyricIndex, type SongItem } from './songState'
 
+/** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 export const KEY_CONTACT_LIT_BROADCAST = 'pregoneroContactLit'
 
 export type ContactConditionInput = {

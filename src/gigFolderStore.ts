@@ -8,6 +8,7 @@
  * snapshot. One `localStorage` key, two readers, no cycle.
  */
 
+/** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 export const GIG_FOLDER_KEY = 'pregoneroGigFolder'
 
 export function getRememberedGigFolder(): string | null {

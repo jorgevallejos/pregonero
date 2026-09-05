@@ -18,6 +18,7 @@
  * reopens beside it rather than inside it.
  */
 
+/** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 const KEY = 'pregoneroPickerFolders'
 
 /** One key per picker. A new picker gets a new name here rather than borrowing one. */

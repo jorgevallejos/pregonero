@@ -1,6 +1,6 @@
 {
-  "name": "pregonero",
-  "version": "0.66.2",
+  "name": "tramoya",
+  "version": "0.67.0",
   "description": "Offline lyric/translation projection for macOS",
   "main": "electron/main.cjs",
   "author": "",
@@ -50,8 +50,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.changopepper.pregonero",
-    "productName": "Pregonero",
+    "appId": "com.changopepper.tramoya",
+    "productName": "Tramoya",
     "publish": null,
     "directories": {
       "output": "release",
@@ -74,8 +74,8 @@
     },
     "afterSign": "build/adhoc-sign.cjs",
     "dmg": {
-      "title": "Pregonero",
-      "artifactName": "Pregonero-${version}.${ext}"
+      "title": "Tramoya",
+      "artifactName": "Tramoya-${version}.${ext}"
     }
   }
 }
