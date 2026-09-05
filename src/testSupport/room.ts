@@ -46,6 +46,11 @@ export function shape(
 
 type RoomOptions = {
   shapes?: VisualShape[]
+  /**
+   * **The room's named modes, in resolution order.** Absent means a room with no modes, which is
+   * what every shape being always-on looks like and is what most of these tests want.
+   */
+  modes?: { id: string; name?: string; when?: { shape: string; is: 'filled' | 'empty' } }[]
   /** `{ type: [shapeId] }` at gig level. Defaults to every shape, under its own type. */
   defaults?: Record<string, string[]>
   /** Per-song reassignment: `{ songId: { type: [shapeId] } }`. */
@@ -95,6 +100,7 @@ export function installRoom(options: RoomOptions = {}): VisualShape[] {
   const visuals = {
     visualsVersion: options.visualsVersion ?? 1,
     gigId,
+    modes: options.modes ?? [],
     shapes,
     songVisuals: {
       defaults: options.defaults ?? defaultsFor(shapes),
