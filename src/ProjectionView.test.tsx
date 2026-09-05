@@ -1067,6 +1067,38 @@ describe('The lookup lights a set of shapes, and never caps it at one', () => {
     expect(document.querySelector('[data-shape-id="house"]')).toBeNull()
   })
 
+  /**
+   * **A STATIC SHAPE IN A MODE IS THE ONE PATH THE MODE RULE ESCAPED THROUGH** (found 2026-09-06).
+   *
+   * The mode is evaluated inside `resolveShapesForType`, **which only ever sees the song-aware
+   * types.** The loop that paints logos, pictures, text cards and fills skips those types and then
+   * painted everything else unconditionally — so **a logo dragged into `Song with video and lyrics`
+   * was live in every mode on Pregonero's wall and in one mode on Muralista's.** Two tools
+   * disagreeing about the same file, which is what having one lookup exists to prevent.
+   */
+  it('honours a mode on a static shape, which is not a song-aware type', async () => {
+    installRoom({
+      modes: [
+        { id: 'm-video', name: 'Song with video and lyrics', when: { shape: 'frame', is: 'filled' } },
+        { id: 'm-plain', name: 'Song with lyrics', when: { shape: 'frame', is: 'empty' } },
+      ],
+      shapes: [
+        shape('frame', 'song-video'),
+        shape('words', 'song-lyrics'),
+        // A logo that belongs to the *video* mode, and a song with no video assigned.
+        shape('logo', 'image', FULL_FRAME, { mode: 'm-video', layer: { type: 'image', src: 'logo.png' } }),
+        shape('always-logo', 'image', FULL_FRAME, { layer: { type: 'image', src: 'logo.png' } }),
+      ],
+      defaults: { 'song-video': ['frame'], 'song-lyrics': ['words'] },
+    })
+    await showFirstLyric()
+
+    // Nothing is assigned to `frame`, so `Song with lyrics` is the live mode.
+    expect(document.querySelector('[data-shape-id="logo"]')).toBeNull()
+    // A shape in no mode is on the wall in every mode, and pays nothing for the question.
+    expect(document.querySelector('[data-shape-id="always-logo"]')).toBeTruthy()
+  })
+
   it('paints in the file’s own order, because list order is paint order', async () => {
     installRoom({
       shapes: [
