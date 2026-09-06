@@ -40,7 +40,7 @@ import {
 import { installLibrary } from './testSupport/library'
 import { APP_VERSION } from './appVersion'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
-import { clearStoredDisplayMode, KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
+import { clearStoredDisplayMode } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
 import { installRoom, TEST_GIG_ID } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
@@ -4145,364 +4145,6 @@ describe('§6 non-video armed screen', () => {
   })
 })
 
-describe('§6 Projection display-format toggle (Big/Small)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    clearStorage()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    cleanup()
-    delete (window as unknown as { electronAPI?: unknown }).electronAPI
-  })
-
-  function setupWithVideoSong() {
-    const songWithVideo = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
-    }
-    installLibrary([songWithVideo])
-    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
-    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
-    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
-    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  function setupWithPlainSong() {
-    const plainSong = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-    }
-    installLibrary([plainSong])
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  it('shows the Videoclip segmented control in Projection row when song has a video, defaulting to No video', async () => {
-    setupWithVideoSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
-      .find((s) => s.querySelector('.control-setup-label')?.textContent === 'Projection')
-    expect(projectionSection).toBeTruthy()
-    // Default mode is None — the segment is active.
-    const noneBtn = within(projectionSection as HTMLElement).getByRole('button', { name: 'No video' })
-    expect(noneBtn).toBeTruthy()
-    expect(noneBtn.getAttribute('aria-pressed')).toBe('true')
-    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Small screen' })).toBeTruthy()
-    expect(within(projectionSection as HTMLElement).getByRole('button', { name: 'Big screen' })).toBeTruthy()
-  })
-
-  it('does not show the Videoclip toggle when song has no video', async () => {
-    setupWithPlainSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
-  })
-
-  /**
-   * **The display-size chain went on 2026-09-03, and this is what replaced three tests of it.**
-   *
-   * A sweep traced it end to end and found nothing at the end: `effectiveScreenSize` never reached
-   * the status text, `setActiveProfileId` was written and never read back, the WebSocket message
-   * was relayed and handled by nobody, and the Projection window discarded the broadcast in its
-   * own destructure. **A knob nobody has ever moved is a decision pretending to be a question**,
-   * and this one could not be moved at all.
-   *
-   * The Videoclip toggle itself stays: `DisplayMode` is a different thing, is also going, and
-   * waits on the drive-mode design.
-   */
-  it('writes no screen size and no display profile when the Videoclip toggle is used', async () => {
-    setupWithVideoSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
-    })
-
-    // The toggle still works, and it is the only thing that still happens.
-    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
-    expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
-    // And nothing writes the two keys that led nowhere.
-    expect(sessionStorage.getItem('liveLyricScreenSize')).toBeNull()
-    expect(localStorage.getItem('liveLyricScreenSizeBroadcast')).toBeNull()
-    expect(localStorage.getItem('liveLyricDisplayProfile')).toBeNull()
-  })
-
-  it('does not render the old Display profile row (ctrl-display-row) with a video song', async () => {
-    setupWithVideoSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(document.querySelector('.ctrl-display-row')).toBeNull()
-  })
-
-  it('does not render the old Display profile row (ctrl-display-row) with a plain song', async () => {
-    setupWithPlainSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(document.querySelector('.ctrl-display-row')).toBeNull()
-  })
-
-  // §10 — segmented control, all three options always visible, direct selection
-  it('the No video segment is active by default when song has a video and no mode stored, and Small/Big are present but inactive', async () => {
-    setupWithVideoSong()
-    sessionStorage.removeItem('liveLyricDisplayMode')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Small screen' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'Big screen' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('clicking the Small screen segment selects Small directly', async () => {
-    setupWithVideoSong()
-    sessionStorage.removeItem('liveLyricDisplayMode')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('starting from a stored Big mode, clicking No video selects None directly, and a further click on Small selects Small directly', async () => {
-    setupWithVideoSong()
-    sessionStorage.setItem('liveLyricDisplayMode', 'big')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
-    })
-
-    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-  })
-
-})
-
-/**
- * **A key left over from before the removal reaches nothing** (2026-09-03).
- *
- * `liveLyricScreenSize` is on real machines: it was written for months. It is seeded here on
- * purpose, because the removal is only true if a machine carrying it behaves as though it does
- * not — and the answer for a non-video song was always `Open`, which is what these still assert.
- */
-describe('§17 C2 — Projection status text ignores a leftover screenSize key', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    clearStorage()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    cleanup()
-    delete (window as unknown as { electronAPI?: unknown }).electronAPI
-  })
-
-  function setupWithVideoSong() {
-    const songWithVideo = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
-    }
-    installLibrary([songWithVideo])
-    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
-    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
-    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
-    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  /** Plain (non-video) song, but with a 'big' screenSize left over in sessionStorage from an
-   * earlier video song selected this same session (§C2 repro — see coordinator's root cause). */
-  function setupWithPlainSongAndLeftoverBigScreenSize() {
-    const plainSong = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      tempo: { bpm: 140, numerator: 3, denominator: 4, countInBars: 1 },
-    }
-    installLibrary([plainSong])
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    sessionStorage.setItem('liveLyricScreenSize', 'big')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  function getProjectionSetupValueText(): string | null | undefined {
-    const projectionSection = Array.from(document.querySelectorAll('.control-setup-section'))
-      .find((s) => s.querySelector('.control-setup-label')?.textContent === 'Projection')
-    return projectionSection?.querySelector('.control-setup-value')?.textContent
-  }
-
-  it('C2: setup-panel Projection value reads exactly "Open" for a non-video song, even with a leftover big screenSize', async () => {
-    setupWithPlainSongAndLeftoverBigScreenSize()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(getProjectionSetupValueText()).toBe('Open')
-  })
-
-  it('C2: header Projection summary reads exactly "Projection: Open" for a non-video song when armed, even with a leftover big screenSize', async () => {
-    setupWithPlainSongAndLeftoverBigScreenSize()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).toBe('READY_TO_ARM')
-    }, { timeout: WAIT_TIMEOUT })
-    await act(async () => {
-      fireEvent.click(getArmButton())
-    })
-
-    const header = screen.getByRole('banner')
-    const projectionLine = Array.from(header.querySelectorAll('.top-summary-line'))
-      .find((s) => s.textContent?.startsWith('Projection:'))
-    expect(projectionLine?.textContent).toBe('Projection: Open')
-  })
-
-  it('C2 regression: setup-panel Projection value still reads "Open, Big"/"Open, Small" for a video song once selected (default is "Open, No video")', async () => {
-    setupWithVideoSong()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(getProjectionSetupValueText()).toBe('Open, No video')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-
-    expect(getProjectionSetupValueText()).toBe('Open, Small')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
-    })
-
-    expect(getProjectionSetupValueText()).toBe('Open, Big')
-  })
-})
 
 describe('§5 video armed screen — End Card absent', () => {
   beforeEach(() => {
@@ -4542,11 +4184,8 @@ describe('§5 video armed screen — End Card absent', () => {
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
-    // Videoclip defaults to None — select Small screen so the video performance panel
-    // actually renders once armed.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
+    // **The drive mode defaults to the most capable available** (Jorge, 2026-09-03), so a song the
+    // room gives a video to is on `video` without anybody choosing it. Nothing is selected here.
     await act(async () => {
       fireEvent.click(getArmButton())
     })
@@ -4578,11 +4217,8 @@ describe('§5 video armed screen — End Card absent', () => {
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
-    // Videoclip defaults to None — select Small screen so the video performance panel
-    // actually renders once armed.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
+    // **The drive mode defaults to the most capable available** (Jorge, 2026-09-03), so a song the
+    // room gives a video to is on `video` without anybody choosing it. Nothing is selected here.
     await act(async () => {
       fireEvent.click(getArmButton())
     })
@@ -4598,391 +4234,13 @@ describe('§5 video armed screen — End Card absent', () => {
   })
 })
 
-
-describe('§13 Display mode: None/Small/Big 3-way toggle', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    clearStorage()
-    clearStoredDisplayMode()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    cleanup()
-    delete (window as unknown as { electronAPI?: unknown }).electronAPI
-  })
-
-  function setupWithVideoSong13() {
-    const songWithVideo = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
-    }
-    installLibrary([songWithVideo])
-    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
-    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
-    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
-    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  function setupWithPlainSong13() {
-    const plainSong = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-    }
-    installLibrary([plainSong])
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  it('T1: shows a "Videoclip" label above the display-mode toggle for a video song', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.getByText('Videoclip')).toBeTruthy()
-  })
-
-  it('the Videoclip segmented control renders text labels (None/Small/Big) for all three segments, not SVG icons', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    const noneBtn = screen.getByRole('button', { name: 'No video' })
-    expect(noneBtn.textContent).toBe('None')
-    expect(noneBtn.querySelector('svg')).toBeNull()
-
-    const smallBtn = screen.getByRole('button', { name: 'Small screen' })
-    expect(smallBtn.textContent).toBe('Small')
-    expect(smallBtn.querySelector('svg')).toBeNull()
-
-    const bigBtn = screen.getByRole('button', { name: 'Big screen' })
-    expect(bigBtn.textContent).toBe('Big')
-    expect(bigBtn.querySelector('svg')).toBeNull()
-  })
-
-  it('T1: does NOT show a "Videoclip" label for a plain (non-video) song', async () => {
-    setupWithPlainSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.queryByText('Videoclip')).toBeNull()
-  })
-
-  it('renders all three Videoclip segments together (None active by default) when song has a video', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('does NOT render the Videoclip toggle when song has no video', async () => {
-    setupWithPlainSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    expect(screen.queryByRole('button', { name: 'No video' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Small screen' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Big screen' })).toBeNull()
-  })
-
-  it('default is None for a video song with no mode stored', async () => {
-    setupWithVideoSong13()
-    sessionStorage.removeItem('liveLyricDisplayMode')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('clicking Small then Big then No video selects each mode directly, one click each', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
-    })
-    expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
-    })
-    expect(screen.getByRole('button', { name: 'No video' }).getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('clicking No video while on Big stores display mode "none" in sessionStorage', async () => {
-    setupWithVideoSong13()
-    sessionStorage.setItem('liveLyricDisplayMode', 'big')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Big screen' }).getAttribute('aria-pressed')).toBe('true')
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
-    })
-
-    expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('none')
-  })
-
-  it('selecting Small directly stores display mode "small"', async () => {
-    setupWithVideoSong13()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Small screen' })) })
-
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-    expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('small')
-  })
-
-  it('clicking Big while on Small switches to Big', async () => {
-    setupWithVideoSong13()
-    sessionStorage.setItem('liveLyricDisplayMode', 'small')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
-    })
-
-    expect(sessionStorage.getItem('liveLyricDisplayMode')).toBe('big')
-  })
-
-  // §13.GREEN — active segment carries the --active (green) class; inactive segments do not
-  it('the active segment carries ctrl-segment--active for Small/Big/None depending on selection', async () => {
-    setupWithVideoSong13()
-    sessionStorage.removeItem('liveLyricDisplayMode')
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    // Default is None — selected/green; Small/Big are not.
-    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(true)
-    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(false)
-
-    // Click Small screen — selected/green.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(true)
-    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(false)
-
-    // Click Big screen — still selected/green.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Big screen' }))
-    })
-    expect(screen.getByRole('button', { name: 'Big screen' }).classList.contains('ctrl-segment--active')).toBe(true)
-    expect(screen.getByRole('button', { name: 'Small screen' }).classList.contains('ctrl-segment--active')).toBe(false)
-
-    // Click No video — no longer selected/green on Big.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'No video' }))
-    })
-    expect(screen.getByRole('button', { name: 'No video' }).classList.contains('ctrl-segment--active')).toBe(true)
-    expect(screen.getByRole('button', { name: 'Big screen' }).classList.contains('ctrl-segment--active')).toBe(false)
-  })
-})
-
-describe('§A1 Display mode broadcast resync at session start (fixes stale-broadcast bug)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    clearStorage()
-    clearStoredDisplayMode()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    cleanup()
-    delete (window as unknown as { electronAPI?: unknown }).electronAPI
-  })
-
-  function setupWithVideoSongA1() {
-    const songWithVideo = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-      timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
-    }
-    installLibrary([songWithVideo])
-    // **THE VIDEO IS THE ROOM'S, NOT THE SONG'S** (Jorge, 2026-09-03). A song holds no media; the
-    // `song-video` shape on the wall is told what this song puts in it, in `visuals.json`.
-    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
-    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  function setupWithPlainSongA1() {
-    const plainSong = {
-      id: 'duelo',
-      title: 'Duelo',
-      items: VALID_LINES,
-    }
-    installLibrary([plainSong])
-    sessionStorage.setItem('liveLyricLaunched', '1')
-    sessionStorage.removeItem('liveLyricPerformanceArmed')
-    setSongLines(VALID_LINES)
-    setSongIndex(-1)
-    setBlank(true)
-    setCurrentSongId('duelo')
-    setProjectionLanguage('en')
-    setSingingLanguage('es')
-    window.location.hash = '#/'
-    const mockApi = {
-      isProjectionOpen: vi.fn().mockResolvedValue(true),
-      onProjectionOpened: vi.fn(() => vi.fn()),
-      onProjectionClosed: vi.fn(() => vi.fn()),
-      openProjection: vi.fn().mockResolvedValue(undefined),
-      closeProjection: vi.fn().mockResolvedValue(undefined),
-    }
-    ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
-    return mockApi
-  }
-
-  it('a stale "big" broadcast left over from a previous session is overwritten with the fresh session default ("none") for a video song', async () => {
-    // The default display mode is now always 'none' (Videoclip toggle opt-in), so a fresh
-    // launch (no sessionStorage selection yet) for a video song must resync a stale
-    // leftover broadcast value down to 'none', matching the freshly computed default.
-    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'big')
-    setupWithVideoSongA1()
-
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('none')
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('a stale "small" broadcast left over from a previous session is overwritten with "none" for a non-video song', async () => {
-    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
-    setupWithPlainSongA1()
-
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(standbyState()).not.toBeNull()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('none')
-    }, { timeout: WAIT_TIMEOUT })
-  })
-
-  it('toggle clicks still update the broadcast as before (regression guard)', async () => {
-    setupWithVideoSongA1()
-    render(<App initialHash="#/" />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
-    }, { timeout: WAIT_TIMEOUT })
-
-    await waitFor(() => {
-      expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('none')
-    }, { timeout: WAIT_TIMEOUT })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-
-    expect(localStorage.getItem(KEY_DISPLAY_MODE_BROADCAST)).toBe('small')
-  })
-})
-
-describe('§16 A2.2 — video song armed with display mode "none" behaves like a non-video song (performer view)', () => {
+/**
+ * **A video song driven by `manual` behaves like a non-video song** — the shape of §16's A2.2,
+ * under the control that replaced the display mode. **Choosing the drive mode is what makes the
+ * video run**, so choosing `manual` on a song the room gave a video is how you get the pedal flow
+ * on it.
+ */
+describe('§16 a video song driven by hand behaves like a non-video song (performer view)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearStorage()
@@ -5017,14 +4275,13 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
+      expect(screen.getByTestId('drive-mode-manual')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
 
-    // This timeline song defaults to Auto; select the Manual segment so we exercise the
-    // manual (non-video) performer flow with Next/Previous (T2: Auto would show
-    // Play/Pause transport instead).
+    // **The room gives this song a video, so it defaults to `video`.** Choose `manual` to exercise
+    // the pedal flow with Next/Previous — `clock` would show Play/Pause transport instead.
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
+      fireEvent.click(screen.getByTestId('drive-mode-manual'))
     })
 
     await waitFor(() => {
@@ -5044,19 +4301,19 @@ describe('§16 A2.2 — video song armed with display mode "none" behaves like a
     expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
   })
 
-  it('performer view shows VideoPerformancePanel (not manual flow) when the video song has display mode Small (explicitly selected)', async () => {
+  it('shows the video panel without anybody choosing it, because video is the most capable', async () => {
+    // **The default is the most capable available** — video, then clock, then manual — so the
+    // common case is that Jorge touches nothing. **This overturns `getDefaultDisplayMode`'s
+    // unconditional `'none'`**, whose reason was about the Videoclip control and did not survive
+    // it: choosing `video` is still an explicit opt-in, just a performance one rather than a
+    // format one.
     setupWithVideoSongDisplayNone()
     render(<App initialHash="#/" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'No video' })).toBeTruthy()
+      expect(screen.getByTestId('drive-mode-video')).toBeTruthy()
     }, { timeout: WAIT_TIMEOUT })
-
-    // Videoclip defaults to None — select Small screen directly.
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Small screen' }))
-    })
-    expect(screen.getByRole('button', { name: 'Small screen' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('drive-mode-video').getAttribute('aria-pressed')).toBe('true')
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -5141,95 +4398,108 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     await act(async () => { await Promise.resolve() })
   }
 
-  it('renders the Transitions segmented control (Manual, Auto) in the setup screen when the song has a timeline', async () => {
+  /**
+   * **DRIVE MODE REPLACED THE TRANSITIONS TOGGLE** (Jorge, 2026-09-03/04), and it replaced the
+   * Videoclip toggle in the same move: those were the two axes the one control is assembled from.
+   *
+   * **Always three buttons**, so the control keeps the same shape song to song and can be hit
+   * without looking — **only-the-possible was rejected**, because a control that changes shape per
+   * song is harder to use at distance than one with a dead button in it.
+   */
+  it('offers three modes, always three, whatever the song can do', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    // Defaults to Auto for a timeline song — both segments present, Auto active.
-    expect(screen.getByRole('button', { name: 'Auto' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Manual' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByText('Drive mode')).toBeTruthy()
+    for (const mode of ['video', 'clock', 'manual']) {
+      expect(screen.getByTestId(`drive-mode-${mode}`)).toBeTruthy()
+    }
+    expect(screen.queryByText('Transitions')).toBeNull()
+    expect(screen.queryByText('Videoclip')).toBeNull()
   })
 
-  it('T1: shows a "Transitions" label above the advance-mode toggle for a timeline song', async () => {
+  it('defaults to the most capable available: clock for a timeline song with no video', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    expect(screen.getByText('Transitions')).toBeTruthy()
+    expect(screen.getByTestId('drive-mode-clock').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('drive-mode-manual').getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByTestId('drive-mode-video').getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('C1: DOES render the Transitions toggle for a song with tempo but no timeline (Auto unavailable, dimmed + disabled)', async () => {
-    setupWithNoTimelineSong()
-    await armAndReachSetup()
-
-    // C1: a tempo-only song still gets the Transitions control so the performer can see it —
-    // Auto genuinely needs a timeline, which this song doesn't have, so Manual is active/green
-    // and Auto is dimmed and disabled, with a tooltip explaining why.
-    const manualBtn = screen.getByRole('button', { name: 'Manual' }) as HTMLButtonElement
-    expect(manualBtn).toBeTruthy()
-    expect(manualBtn.getAttribute('aria-pressed')).toBe('true')
-
-    const autoBtn = screen.getByRole('button', { name: 'Auto' }) as HTMLButtonElement
-    expect(autoBtn).toBeTruthy()
-    expect(autoBtn.getAttribute('aria-pressed')).toBe('false')
-    expect(autoBtn.disabled).toBe(true)
-    expect(autoBtn.title).toBe('Auto needs a timeline.')
-  })
-
-  it('C1: does NOT render the Transitions toggle when the song has neither tempo nor timeline', async () => {
+  it('defaults to manual when the song can do nothing else', async () => {
     setupWithNeitherTempoNorTimelineSong()
     await armAndReachSetup()
 
-    expect(screen.queryByRole('button', { name: 'Manual' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Auto' })).toBeNull()
-    expect(screen.queryByText('Transitions')).toBeNull()
-    expect(screen.queryByLabelText('Auto needs a timeline.')).toBeNull()
+    expect(screen.getByTestId('drive-mode-manual').getAttribute('aria-pressed')).toBe('true')
+    // Still three buttons: the shape does not change with what the song can do.
+    expect(screen.getByTestId('drive-mode-clock')).toBeTruthy()
+    expect(screen.getByTestId('drive-mode-video')).toBeTruthy()
   })
 
-  it('C1: clicking the disabled Auto segment on a tempo-no-timeline song does not switch to Auto (no-op)', async () => {
+  it('switches to a mode the song can do', async () => {
+    setupWithTimelineSong()
+    await armAndReachSetup()
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('drive-mode-manual'))
+    })
+    expect(screen.getByTestId('drive-mode-manual').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('drive-mode-clock').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  /**
+   * **A button that cannot act stays pressable and refuses, naming why in a popup** (Jorge,
+   * 2026-09-04) — exactly as `Arm` does when the gig is not ready. **A disabled control with
+   * nothing explaining it is forbidden, and an explanation is precisely what cannot be read across
+   * a dark room**, which is why the refusal is a popup rather than a tooltip or a line at the
+   * control. **No message ever appears in a control column.**
+   */
+  it('refuses a mode the song cannot do, in a popup, and changes nothing', async () => {
     setupWithNoTimelineSong()
     await armAndReachSetup()
+    expect(screen.getByTestId('drive-mode-manual').getAttribute('aria-pressed')).toBe('true')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Auto' }))
+      fireEvent.click(screen.getByTestId('drive-mode-clock'))
     })
 
-    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('defaults to Auto selected when the song has a non-empty timeline', async () => {
-    setupWithTimelineSong()
-    await armAndReachSetup()
-
-    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('clicking Manual switches selection to Manual even on a timeline song (default Auto)', async () => {
-    setupWithTimelineSong()
-    await armAndReachSetup()
+    expect(screen.getByTestId('drive-mode-refusal-message').textContent).toBe(
+      'This song has no timeline. Bombista makes one, in the song flow.'
+    )
+    expect(screen.getByTestId('drive-mode-manual').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('drive-mode-clock').getAttribute('aria-pressed')).toBe('false')
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Manual' }))
+      fireEvent.click(screen.getByTestId('drive-mode-refusal-close'))
     })
-
-    expect(screen.getByRole('button', { name: 'Manual' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Auto' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByTestId('drive-mode-refusal')).toBeNull()
   })
 
-  it('the Transitions toggle renders text labels ("Auto"/"Manual"), not SVG icons', async () => {
+  it('says what the song is missing, in words about the song', async () => {
+    // *This song has no video* is a fact he can act on — assign one in the room. *Unavailable* is
+    // not.
+    setupWithTimelineSong()
+    await armAndReachSetup()
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('drive-mode-video'))
+    })
+    expect(screen.getByTestId('drive-mode-refusal-message').textContent).toMatch(/no video/i)
+  })
+
+  it('renders text labels, not SVG icons', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    const autoBtn = screen.getByRole('button', { name: 'Auto' })
-    expect(autoBtn.textContent).toBe('Auto')
-    expect(autoBtn.querySelector('svg')).toBeNull()
-
-    const manualBtn = screen.getByRole('button', { name: 'Manual' })
-    expect(manualBtn.textContent).toBe('Manual')
-    expect(manualBtn.querySelector('svg')).toBeNull()
+    for (const [mode, label] of [
+      ['video', 'Video'],
+      ['clock', 'Clock'],
+      ['manual', 'Manual'],
+    ] as const) {
+      const button = screen.getByTestId(`drive-mode-${mode}`)
+      expect(button.textContent).toBe(label)
+      expect(button.querySelector('svg')).toBeNull()
+    }
   })
 
   it('Manual mode (unchanged): first lyric only appears on explicit Next, and count-in alone does not advance', async () => {

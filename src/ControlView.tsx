@@ -64,13 +64,20 @@ import { armWarnings, isSongReadyToArm, whySongCannotArm, type GigReadiness } fr
 import {
   getProjectionStatusText,
   getStoredDisplayMode,
-  setStoredDisplayMode,
   getDefaultDisplayMode,
   KEY_DISPLAY_MODE_BROADCAST,
   type DisplayMode,
 } from './screenSizeState'
 import type { LyricLine, SongItem } from './songState'
-import { computeAutoAdvanceIndex, isCueStartMode, resolveAdvanceMode, type AdvanceMode } from './autoAdvanceState'
+import { computeAutoAdvanceIndex, isCueStartMode, type AdvanceMode } from './autoAdvanceState'
+import {
+  DRIVE_MODES,
+  driveModeAvailable,
+  driveModeRefusal,
+  resolveDriveMode,
+  type DriveMode,
+  type SongDriveCapabilities,
+} from './driveMode'
 import './control.css'
 
 /** v0.5: labels from performance control state machine (SETUP | READY_TO_ARM | ARMED) */
@@ -286,15 +293,23 @@ export function ControlView() {
   const currentLibrarySong = currentSongId ? getLibrarySongById(currentSongId) : undefined
   const songIntro = currentLibrarySong?.intro?.[effectiveLang] ?? ''
 
-  // 3-way display mode: 'none' | 'small' | 'big'. Replaces the old 2-way Small/Big toggle.
-  const [selectedDisplayMode, setSelectedDisplayMode] = useState<DisplayMode | null>(() =>
-    getStoredDisplayMode()
-  )
+  /**
+   * **The stored display mode, read and never written any more** (2026-09-06). Nothing on this
+   * screen sets it since the Videoclip toggle went, and it is still read so a value left by an
+   * older build does not silently change what the Projection window is told. **The whole chain goes
+   * next**, which is where the stored key goes with it.
+   */
+  const selectedDisplayMode: DisplayMode | null = getStoredDisplayMode()
 
-  // Manual/Auto lyric-advance toggle. Default: auto when the song has a non-empty timeline,
-  // manual otherwise. Resets to null (defer to the per-song default) whenever the song changes,
-  // so switching songs doesn't carry over an explicit choice made for a previous song.
-  const [selectedAdvanceMode, setSelectedAdvanceMode] = useState<AdvanceMode | null>(null)
+  /**
+   * **The drive mode he has chosen for this song, or null for the default.**
+   *
+   * **Resets whenever the song changes**, so a choice made for one song does not carry into the
+   * next — the same rule the Transitions toggle it replaces lived under.
+   */
+  const [selectedDriveMode, setSelectedDriveMode] = useState<DriveMode | null>(null)
+  /** The refusal a pressed-but-unavailable mode is showing, or null. Popup, never inline. */
+  const [driveRefusal, setDriveRefusal] = useState<string | null>(null)
   // P6: set when the performer presses Next/Previous during Auto playback, dropping the song
   // into Manual for the REMAINDER of the song. Reset on the next song and the next arm (below),
   // and by the Restart handlers — never sticky across songs.
@@ -303,7 +318,7 @@ export function ControlView() {
   useEffect(() => {
     if (prevAdvanceModeSongIdRef.current !== currentSongId) {
       prevAdvanceModeSongIdRef.current = currentSongId
-      setSelectedAdvanceMode(null)
+      setSelectedDriveMode(null)
       setManualOverrideTaken(false)
     }
   }, [currentSongId])
@@ -338,20 +353,58 @@ export function ControlView() {
   useEffect(() => {
     try { localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, effectiveDisplayMode) } catch { /* unavailable in some envs */ }
   }, [effectiveDisplayMode])
-  // Lyric advance mode (non-video performer view only). Auto is only selectable when the
-  // song has a non-empty timeline to drive off.
   const songTimeline = currentLibrarySong?.timeline ?? []
   const hasTimeline = songTimeline.length > 0
-  const autoAdvanceAvailable = hasTimeline
-  const effectiveAdvanceMode: AdvanceMode = resolveAdvanceMode({
-    selected: selectedAdvanceMode,
-    hasTimeline,
+
+  /**
+   * **DRIVE MODE, AND IT IS ONE CONTROL NOW** (Jorge, 2026-09-03/04).
+   *
+   * `clock`, `video`, `manual`, assembled from the two axes that already existed: what the room
+   * assigns this song, and what the song file carries. **The default is the most capable
+   * available** — video, then clock, then manual — so the common case is that Jorge touches
+   * nothing.
+   */
+  const driveCaps: SongDriveCapabilities = { hasVideo: isVideoMode, hasTimeline }
+  const driveMode = resolveDriveMode({
+    selected: selectedDriveMode,
+    caps: driveCaps,
     manualOverrideTaken,
   })
+  /**
+   * **The advance mode is what drive mode *is*, on the non-video side.** It is kept as a derived
+   * value rather than a second control because everything under it — the auto-advance effect, the
+   * cue-start path, the transport — is written against it, and one control producing one value is
+   * the whole point of the concept.
+   */
+  const effectiveAdvanceMode: AdvanceMode = driveMode === 'clock' ? 'auto' : 'manual'
+
+  /**
+   * **A mode that cannot act says why when pressed** (Jorge, 2026-09-04), rather than sitting dead.
+   * **A disabled control with nothing explaining it is forbidden, and an explanation is precisely
+   * what cannot be read across a dark room** — so the refusal is a popup, which is what everything
+   * that has gone wrong at this screen is.
+   */
+  const chooseDriveMode = (mode: DriveMode) => {
+    const refusal = driveModeRefusal(mode, driveCaps)
+    if (refusal !== null) {
+      setDriveRefusal(refusal)
+      return
+    }
+    setSelectedDriveMode(mode)
+  }
   // The performer only gets the video panel when the song has a video AND it's actually
   // being shown (display mode isn't 'none'). In 'none' mode a video song behaves exactly
   // like a non-video song for the performer (manual Next/Previous/Restart).
-  const showVideoPerformance = isVideoMode && effectiveDisplayMode !== 'none'
+  /**
+   * **Choosing video as the drive mode is what makes the video run** (Jorge, 2026-09-03). It used
+   * to be `isVideoMode && effectiveDisplayMode !== 'none'` — a size control deciding whether the
+   * clip played at all, which is **format wearing a performance control's clothes.** Where the
+   * video lands was answered by the shapes weeks earlier.
+   *
+   * **The performer's own panel follows the same answer rather than needing one of its own**, which
+   * is a residual question Cowork raised and is not one.
+   */
+  const showVideoPerformance = driveMode === 'video'
   const armed = performanceState === 'armed' || performanceState === 'performing'
   const {
     controlState,
@@ -380,11 +433,6 @@ export function ControlView() {
     applyRemoteState,
     applyCommand,
   })
-
-  const handleSelectDisplayMode = (mode: DisplayMode) => {
-    setSelectedDisplayMode(mode)
-    setStoredDisplayMode(mode)
-  }
 
   /** Tracked user-facing config (storage); avoids false positives when only derived effectiveLang changes. */
   const prevUserConfigRef = useRef<{
@@ -742,14 +790,6 @@ export function ControlView() {
   // The clock does NOT auto-start on arm — it stays idle until the performer presses Start,
   // decoupled from lyric advance (Next). See CLAUDE.md / d-wire Prompt 5.
   const songTempo = currentLibrarySong?.tempo
-  // C1: the Transitions toggle is shown whenever there's *some* reason a performer would look
-  // for it (a timeline to drive Auto off of, or a tempo that suggests Auto might apply) — not
-  // only when Auto is actually available. When Auto can't be selected, the tooltip explains why
-  // (missing timeline is the only reason now that the beat indicator no longer gates Auto).
-  const showAdvanceModeToggle = hasTimeline || !!songTempo
-  const advanceAutoDisabledReason: string | null = !hasTimeline
-    ? 'Auto needs a timeline.'
-    : null
 
   // ── PREGONERO STORES NO TEMPO (Jorge, 2026-09-05) ────────────────────────────────────────
   //
@@ -925,8 +965,41 @@ export function ControlView() {
     return () => document.removeEventListener('pointerdown', onDocumentPointerDown)
   }, [timerActionsVisible])
 
+  /**
+   * **The refusal a drive-mode button gives when it cannot act.**
+   *
+   * **A popup, because this screen is read across a stage in the dark**, where a band of text at a
+   * control is invisible — the same reason arming errors are popups and the same overlay they use.
+   * **No message ever appears in a control column** (Jorge, 2026-09-05): a column shows a state.
+   */
+  const driveRefusalPopup = driveRefusal === null ? null : (
+    <div className="ctrl-timeline-save-overlay" data-testid="drive-mode-refusal">
+      <div
+        className="ctrl-timeline-save-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="That drive mode is not available for this song"
+      >
+        <p className="ctrl-timeline-save-message" data-testid="drive-mode-refusal-message">
+          {driveRefusal}
+        </p>
+        <div className="ctrl-timeline-save-actions">
+          <button
+            type="button"
+            className="ctrl-btn"
+            data-testid="drive-mode-refusal-close"
+            onClick={() => setDriveRefusal(null)}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="control-screen">
+      {driveRefusalPopup}
       {showSetupPanel && (
         <header className="control-masthead" role="banner">
           {/* **THE MASTHEAD IS THE ROOM'S NAME AND NOTHING ELSE** (Jorge, 2026-09-05). The
@@ -971,7 +1044,7 @@ export function ControlView() {
               Languages: {languagesDisplay || '—'}
             </span>
             <span className="top-summary-line">
-              Projection: {getProjectionStatusText(projectionOpen, isVideoMode ? effectiveDisplayMode : undefined)}
+              Projection: {getProjectionStatusText(projectionOpen)}
             </span>
             <span
               className="top-title top-title-state"
@@ -1104,37 +1177,37 @@ export function ControlView() {
                   ) : null}
                 </div>
                 <div className="control-setup-extras">
-                  {!showVideoPerformance && showAdvanceModeToggle && (
-                    <div className="control-setup-toggle-area">
-                      <div className="ctrl-toggle-group">
-                        <span className="ctrl-toggle-label">Transitions</span>
-                        <div className="ctrl-segmented" role="group" aria-label="Lyric advance mode">
+                  {/* **DRIVE MODE: THREE BUTTONS, ALWAYS THREE** (Jorge, 2026-09-04). The control
+                      keeps the same shape song to song and can be hit without looking. **Only-the-
+                      possible was rejected**: a control that changes shape per song is harder to
+                      use at distance than one with a dead button in it.
+
+                      **A button that cannot act stays pressable and refuses, naming why in a
+                      popup** — exactly as `Arm` does when the gig is not ready. That gives this
+                      screen one behaviour rather than two, and it is the rule for a surface read
+                      across a stage in the dark, where a band of text at a control is invisible.
+
+                      **It replaces the `Transitions` toggle**, which was one of the two axes this
+                      is assembled from; the other was `Videoclip`, and that one is gone with it. */}
+                  <div className="control-setup-toggle-area">
+                    <div className="ctrl-toggle-group">
+                      <span className="ctrl-toggle-label">Drive mode</span>
+                      <div className="ctrl-segmented" role="group" aria-label="Drive mode">
+                        {DRIVE_MODES.map((mode) => (
                           <button
+                            key={mode}
                             type="button"
-                            className={`ctrl-segment${effectiveAdvanceMode === 'manual' ? ' ctrl-segment--active' : ''}`}
-                            aria-pressed={effectiveAdvanceMode === 'manual'}
-                            onClick={() => setSelectedAdvanceMode('manual')}
+                            className={`ctrl-segment${driveMode === mode ? ' ctrl-segment--active' : ''}${driveModeAvailable(mode, driveCaps) ? '' : ' ctrl-segment--disabled'}`}
+                            aria-pressed={driveMode === mode}
+                            data-testid={`drive-mode-${mode}`}
+                            onClick={() => chooseDriveMode(mode)}
                           >
-                            Manual
+                            {mode === 'video' ? 'Video' : mode === 'clock' ? 'Clock' : 'Manual'}
                           </button>
-                          <button
-                            type="button"
-                            className={`ctrl-segment${effectiveAdvanceMode === 'auto' ? ' ctrl-segment--active' : ''}${!autoAdvanceAvailable ? ' ctrl-segment--disabled' : ''}`}
-                            aria-pressed={effectiveAdvanceMode === 'auto'}
-                            disabled={!autoAdvanceAvailable}
-                            title={advanceAutoDisabledReason ?? undefined}
-                            onClick={() => {
-                              if (autoAdvanceAvailable) {
-                                setSelectedAdvanceMode('auto')
-                              }
-                            }}
-                          >
-                            Auto
-                          </button>
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  )}
+                  </div>
                   {/* **THE PERFORMED-TEMPO BOX IS GONE** (Jorge, 2026-09-05). It let a song be
                       performed at a tempo other than the recording's, stored per song under
                       `llt.performedBpm.v1`. **Tempo has one home and it is the song file**, so
@@ -1150,12 +1223,13 @@ export function ControlView() {
                 <div className="control-setup-section">
                   <span className="control-setup-label">Projection</span>
                   <div className="control-setup-content">
-                    <SetupValue
-                      text={getProjectionStatusText(
-                        projectionOpen,
-                        isVideoMode ? effectiveDisplayMode : undefined
-                      )}
-                    />
+                    {/* **`Open` or `Closed`, and nothing about size** (2026-09-06). It read
+                        `Open, No video` / `Open, Small` / `Open, Big` off the display mode, and
+                        with the Videoclip toggle gone that was a status reporting a control that
+                        no longer exists — and reporting it wrongly, since **whether the video runs
+                        is the drive mode now.** The column says whether the window is open, which
+                        is the one thing this column is about. */}
+                    <SetupValue text={getProjectionStatusText(projectionOpen)} />
                     {/* **The fallback is visible, never silent.** A projection window that quietly
                         stayed on the laptop is otherwise discovered by looking at a blank wall. */}
                     {projectionOpen && placement.placed && placement.display !== null && (
@@ -1169,44 +1243,16 @@ export function ControlView() {
                       </span>
                     )}
                   </div>
-                  <div className="control-setup-extras">
-                    {isVideoMode && (
-                      <div className="control-setup-toggle-area">
-                        <div className="ctrl-toggle-group">
-                          <span className="ctrl-toggle-label">Videoclip</span>
-                          <div className="ctrl-segmented" role="group" aria-label="Videoclip display mode">
-                            <button
-                              type="button"
-                              className={`ctrl-segment${effectiveDisplayMode === 'none' ? ' ctrl-segment--active' : ''}`}
-                              aria-label="No video"
-                              aria-pressed={effectiveDisplayMode === 'none'}
-                              onClick={() => handleSelectDisplayMode('none')}
-                            >
-                              None
-                            </button>
-                            <button
-                              type="button"
-                              className={`ctrl-segment${effectiveDisplayMode === 'small' ? ' ctrl-segment--active' : ''}`}
-                              aria-label="Small screen"
-                              aria-pressed={effectiveDisplayMode === 'small'}
-                              onClick={() => handleSelectDisplayMode('small')}
-                            >
-                              Small
-                            </button>
-                            <button
-                              type="button"
-                              className={`ctrl-segment${effectiveDisplayMode === 'big' ? ' ctrl-segment--active' : ''}`}
-                              aria-label="Big screen"
-                              aria-pressed={effectiveDisplayMode === 'big'}
-                              onClick={() => handleSelectDisplayMode('big')}
-                            >
-                              Big
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  {/* **THE VIDEOCLIP TOGGLE IS GONE** (Jorge, 2026-09-03, built 2026-09-06).
+                      **Three things were tangled in one control**: format and placement, which are
+                      setup and Muralista's, decided at the wall; **whether the video runs tonight,
+                      which is the drive mode**; and size, which **was never a third thing** — it
+                      was format wearing a performance control's clothes.
+
+                      **Choosing `video` as the drive mode is what makes the video run**, and where
+                      it lands was answered by the shapes weeks earlier. The rest of `DisplayMode`
+                      is dead behind this and goes next. */}
+                  <div className="control-setup-extras" />
                   <div className="control-setup-buttons">
                     <ProjectionButton isOpen={projectionOpen} onToggle={handleToggleProjection} />
                   </div>
