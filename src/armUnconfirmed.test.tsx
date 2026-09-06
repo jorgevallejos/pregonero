@@ -13,6 +13,7 @@ import { render, screen, act, waitFor, cleanup, fireEvent } from '@testing-libra
 import type { SongItem } from './songState'
 import { dropLibraryCache, type LibrarySong } from './setlistStore'
 import { installLibrary } from './testSupport/library'
+import { VISUALS_VERSION } from './visualsFile'
 
 const readGigFolder = vi.fn()
 const writeGigFile = vi.fn()
@@ -101,7 +102,7 @@ function gigJson(setlist: string[]) {
 
 function visualsJson(defaults: Record<string, string[]>) {
   return JSON.stringify({
-    visualsVersion: 1,
+    visualsVersion: VISUALS_VERSION,
     gigId: GIG_ID,
     shapes: [{ id: 'lyr', name: 'Back wall', layer: { type: 'song-lyrics' } }],
     songVisuals: { defaults, songs: {} },

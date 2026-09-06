@@ -14,6 +14,8 @@ import {
   shapeOutline,
   shapeOutlineIsFrame,
   shapeTypeOf,
+  VISUALS_VERSION,
+  VisualsRefused,
   type Point,
   type VisualsFile,
 } from './visualsFile'
@@ -22,7 +24,9 @@ const GIG = 'k3f9x2abcd'
 
 function doc(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
-    visualsVersion: 1,
+    // Follows the constant for the same reason `testSupport/room.ts` does: a fixture that hardcodes
+    // the number tests the number against itself. The literal is pinned once, below.
+    visualsVersion: VISUALS_VERSION,
     gigId: GIG,
     shapes: [
       { id: 's1', name: 'Left wall', layer: { type: 'song-lyrics' } },
@@ -82,7 +86,7 @@ describe('parseVisualsFile', () => {
   })
 
   it('survives a file with no songVisuals at all — absence is the empty state', () => {
-    const v = parseVisualsFile(JSON.stringify({ visualsVersion: 1, gigId: GIG, shapes: [] }), GIG)
+    const v = parseVisualsFile(JSON.stringify({ visualsVersion: VISUALS_VERSION, gigId: GIG, shapes: [] }), GIG)
     expect(v.songVisuals).toEqual({ defaults: {}, songs: {}, assets: {} })
   })
 })
@@ -105,7 +109,7 @@ describe('song assets', () => {
   const withAssets = (assets: unknown) =>
     parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         shapes: [
           { id: 'v1', name: 'Frame', layer: { type: 'song-video' }, corners: QUAD, visible: true },
@@ -330,7 +334,7 @@ describe('named modes', () => {
   const room = (assets: Record<string, Record<string, string>> = {}) =>
     parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         modes: [
           { id: 'm-plain', name: 'Song with lyrics', when: { shape: 'frame', is: 'empty' } },
@@ -418,7 +422,7 @@ describe('named modes', () => {
     const threeModes = (assets: Record<string, Record<string, string>>) =>
       parseVisualsFile(
         JSON.stringify({
-          visualsVersion: 1,
+          visualsVersion: VISUALS_VERSION,
           gigId: GIG,
           modes: [
             { id: 'm-both', name: 'Video and translation', when: { shape: 'trans', is: 'filled' } },
@@ -456,7 +460,7 @@ describe('named modes', () => {
   it('lights no mode at all when nothing matches, and says so through songIsCarried', () => {
     const v = parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         modes: [{ id: 'm-a', name: 'Only with video', when: { shape: 'frame', is: 'filled' } }],
         shapes: [
@@ -476,7 +480,7 @@ describe('named modes', () => {
   it('never lights a mode whose condition is malformed', () => {
     const v = parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         modes: [{ id: 'm-a', name: 'Broken', when: { shape: 'frame', is: 'sometimes' } }],
         shapes: [
@@ -501,7 +505,7 @@ describe('named modes', () => {
   it('rebuilds the mode list rather than trusting it, and frees an orphaned shape', () => {
     const v = parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         modes: [
           { id: 'm-a', when: { shape: 'frame', is: 'empty' } },
@@ -556,7 +560,7 @@ describe('the per-mode census', () => {
     for (const shape of shapes) (defaults[shape.layer.type] ??= []).push(shape.id)
     return parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: GIG,
         modes: [
           { id: 'm-plain', name: 'Song with lyrics', when: { shape: 'frame', is: 'empty' } },
@@ -643,5 +647,57 @@ describe('the per-mode census', () => {
       { id: 'd', layer: { type: 'text' }, corners: QUAD, visible: true },
     ])
     expect(doubledShapeLines(v)).toEqual([])
+  })
+})
+
+/**
+ * **THE ONE PLACE THE LITERAL IS WRITTEN DOWN.**
+ *
+ * Every fixture in this repository follows `VISUALS_VERSION`, which is right — it means a bump does
+ * not need dozens of edits, and the next one cannot reintroduce the trap this round found. **But a
+ * fixture that follows the constant can never catch the constant being wrong.** The reader and the
+ * fixture would have to disagree for anything to break, and they cannot.
+ *
+ * So these pin the actual numbers. **`2` is what this build reads; `1` is what it must refuse.**
+ *
+ * `1` is not an arbitrary old number: it is the version every room mapping ever written declared,
+ * including the ones whose schema had already changed underneath it. **The refusal below is the
+ * thing that could not fire before 2026-09-06**, because nothing had ever declared anything else.
+ */
+describe('the version, written out rather than derived', () => {
+  it('is 2', () => {
+    expect(VISUALS_VERSION).toBe(2)
+  })
+
+  it('refuses a version-1 room, which is every room written before the modes change', () => {
+    let refusal: unknown
+    try {
+      parseVisualsFile(doc({ visualsVersion: 1 }), GIG)
+    } catch (e) {
+      refusal = e
+    }
+    expect(refusal).toBeInstanceOf(VisualsRefused)
+    expect((refusal as VisualsRefused).kind).toBe('unknown-version')
+  })
+
+  it('names both numbers in what it says, because the screen shows this sentence', () => {
+    // A refusal that says only "wrong version" leaves the reader nothing to act on. It has to say
+    // what the file is and what this build wants.
+    try {
+      parseVisualsFile(doc({ visualsVersion: 1 }), GIG)
+      expect.unreachable('a version-1 room must be refused')
+    } catch (e) {
+      expect((e as VisualsRefused).message).toContain('version 1')
+      expect((e as VisualsRefused).message).toContain('version 2')
+    }
+  })
+
+  it('refuses a version from the future too, not just an old one', () => {
+    try {
+      parseVisualsFile(doc({ visualsVersion: 3 }), GIG)
+      expect.unreachable('a version-3 room must be refused')
+    } catch (e) {
+      expect((e as VisualsRefused).kind).toBe('unknown-version')
+    }
   })
 })

@@ -15,6 +15,7 @@ import { dropLibraryCache, type LibrarySong } from './setlistStore'
 import { getPlayedSongs } from './playedSongsState'
 import { installLibrary } from './testSupport/library'
 import { standbyState } from './testSupport/standbyState'
+import { VISUALS_VERSION } from './visualsFile'
 
 const readGigFolder = vi.fn()
 const writeGigFile = vi.fn()
@@ -104,7 +105,7 @@ function gigJson(setlist: string[]) {
 
 function visualsJson(defaults: Record<string, string[]>, gigId = GIG_ID) {
   return JSON.stringify({
-    visualsVersion: 1,
+    visualsVersion: VISUALS_VERSION,
     gigId,
     shapes: [{ id: 'lyr', layer: { type: 'song-lyrics' } }],
     songVisuals: { defaults, songs: {} },
@@ -375,7 +376,7 @@ describe('the running order is derived against the playable setlist', () => {
         gigText: gigJson(setlist),
         visualsPresent: true,
         visualsText: JSON.stringify({
-          visualsVersion: 1,
+          visualsVersion: VISUALS_VERSION,
           gigId: GIG_ID,
           shapes: [{ id: 'lyr', layer: { type: 'song-lyrics' } }],
           songVisuals: { defaults: { 'song-lyrics': ['lyr'] }, songs: { vidas: { 'song-lyrics': ['deleted'] } } },
