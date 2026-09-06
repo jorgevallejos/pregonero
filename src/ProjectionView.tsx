@@ -33,6 +33,8 @@ import {
   isSection,
   getEffectiveProjectionLanguage,
   getCurrentSongId,
+  getCurrentSongTitle,
+  getSongDetails,
   getLyricText,
   getSingingLanguage,
   isLyricLine,
@@ -46,7 +48,6 @@ import { ShapeContact, hasContactContent, type ContactFields } from './ShapeCont
 import { useEffect, useState, useRef } from 'react'
 
 import { getAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
-import { getLibrarySongById } from './setlistStore'
 
 import { useVideoRuns } from './videoRunsBroadcast'
 import type { LyricLine } from './songState'
@@ -130,7 +131,17 @@ export function ProjectionView() {
   const renderedText = translation
 
   const currentSongId = getCurrentSongId()
-  const currentLibrarySong = currentSongId ? getLibrarySongById(currentSongId) : undefined
+  /**
+   * **What the wall knows about the playing song, and it all arrives on the wire.**
+   *
+   * This used to be `getLibrarySongById(currentSongId)`, and it was always `undefined` here: the
+   * library is an in-memory cache and `App.tsx` never hydrates it on the projection route, because
+   * *the player is handed a library that is already loaded* — which the Control window is, and a
+   * second `BrowserWindow` with its own module instances is not. **No intro card after arming, and
+   * an empty timeline in Video mode**, both silent. See `songState.SongDetails`.
+   */
+  const currentSongTitle = getCurrentSongTitle()
+  const songDetails = getSongDetails()
   const singingLang = getSingingLanguage()
 
   // **The room.** Read from the Control window's broadcast, never from the disk on this side: the
@@ -172,7 +183,7 @@ export function ProjectionView() {
 
   const isArmed = index === -1 && lines.length > 0
 
-  const showIntroScreen = isArmed && !performanceBlackout && !!currentLibrarySong
+  const showIntroScreen = isArmed && !performanceBlackout && currentSongTitle !== ''
   const showContent = index >= 0 && !blank && !isSectionMarker
 
   const [displayedText, setDisplayedText] = useState('')
@@ -312,8 +323,8 @@ export function ProjectionView() {
   })
   cueInputs.current = {
     lines,
-    timeline: currentLibrarySong?.timeline ?? [],
-    leadIn: currentLibrarySong?.leadIn,
+    timeline: songDetails.timeline ?? [],
+    leadIn: songDetails.leadIn,
     // **Zero, and it used to be `media.offset`.** That manual correction lived in the song's media
     // block, which no longer exists; `videoCueLookup` documents that 0 with no lead-in is
     // bit-for-bit the original formula.
@@ -354,14 +365,14 @@ export function ProjectionView() {
 
   // The three parts of the title card, and all three come from the song file. Pregonero fills
   // them; the template that arranges them is locked and has no formatting controls.
-  const introParts = showIntroScreen && currentLibrarySong
+  const introParts = showIntroScreen
     ? {
-        title: currentLibrarySong.title,
+        title: currentSongTitle,
         annotation:
           effectiveLang !== singingLang
-            ? currentLibrarySong.title_translations?.[effectiveLang]
+            ? songDetails.titleTranslations?.[effectiveLang]
             : undefined,
-        tagline: currentLibrarySong.intro?.[effectiveLang],
+        tagline: songDetails.intro?.[effectiveLang],
       }
     : null
 

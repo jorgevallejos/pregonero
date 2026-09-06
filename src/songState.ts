@@ -14,6 +14,7 @@ const KEY_SONG_INDEX = 'songIndex'
 const KEY_SONG_BLANK = 'songBlank'
 const KEY_CURRENT_SONG_ID = 'currentSongId'
 const KEY_CURRENT_SONG_TITLE = 'currentSongTitle'
+const KEY_SONG_DETAILS = 'songDetails'
 const KEY_PROJECTION_LANGUAGE = 'projectionLanguage'
 const KEY_SINGING_LANGUAGE = 'singingLanguage'
 
@@ -516,6 +517,52 @@ export function setCurrentSongTitle(title: string): void {
   }
 }
 
+/**
+ * **What the wall needs from the song file that is not a lyric line.**
+ *
+ * The lines have always crossed to the Projection window this way; these never did, and the
+ * Projection window read them out of `setlistStore`'s library instead. **That library is an
+ * in-memory cache, and the Projection window is a second `BrowserWindow` with its own module
+ * instances that `App.tsx` deliberately never hydrates** — *the player is handed a library that is
+ * already loaded*, which the Control window is and this window is not. So every read returned
+ * `undefined`: **no intro card after arming, and an empty timeline in Video mode**, both silent.
+ *
+ * **No new channel.** `songState` is one of the eight already and already carries the title; the
+ * translations, the tagline, the timeline and the lead-in are the same kind of thing out of the
+ * same file. A channel of their own would have been a second answer to *what is playing*.
+ */
+export type SongDetails = {
+  titleTranslations?: Record<string, string>
+  intro?: Record<string, string>
+  timeline?: TimelineEntry[]
+  leadIn?: TimelineLeadIn
+}
+
+/** Never throws: a key written by an older build, or half-written, reads as no details. */
+export function getSongDetails(): SongDetails {
+  const raw = localStorage.getItem(KEY_SONG_DETAILS)
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return parsed !== null && typeof parsed === 'object' ? (parsed as SongDetails) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function setSongDetails(details: SongDetails): void {
+  const kept: SongDetails = {}
+  if (details.titleTranslations) kept.titleTranslations = details.titleTranslations
+  if (details.intro) kept.intro = details.intro
+  if (details.timeline) kept.timeline = details.timeline
+  if (details.leadIn) kept.leadIn = details.leadIn
+  if (Object.keys(kept).length === 0) {
+    localStorage.removeItem(KEY_SONG_DETAILS)
+    return
+  }
+  localStorage.setItem(KEY_SONG_DETAILS, JSON.stringify(kept))
+}
+
 // ── The loaded song changes behind the view's back ─────────────────────────────────────────────
 // The session lives in `localStorage`; the control and projection views mirror it in React state.
 // `storage` events only reach *other* windows, so a write made in this one — the app choosing the
@@ -545,9 +592,35 @@ function notifyLoadedSong(): void {
  * lines and the position through their own setters and announcing each would let a listener read
  * a new song against the old song's index.
  */
-export function setLoadedSong(song: { id: string; title: string; items: SongItem[] }): void {
+export type CurrentSong = {
+  id: string
+  title: string
+  title_translations?: Record<string, string>
+  intro?: Record<string, string>
+  timeline?: TimelineEntry[]
+  leadIn?: TimelineLeadIn
+}
+
+/**
+ * **Which song is current — its id, its title and everything else the wall needs — in one act.**
+ *
+ * Setting the id alone was possible and was the shape of a real defect: the Projection window then
+ * had an id it could not turn into anything, because it has no library to look one up in. **An id
+ * is an address, not a song.**
+ */
+export function setCurrentSong(song: CurrentSong): void {
   setCurrentSongId(song.id)
   setCurrentSongTitle(song.title)
+  setSongDetails({
+    titleTranslations: song.title_translations,
+    intro: song.intro,
+    timeline: song.timeline,
+    leadIn: song.leadIn,
+  })
+}
+
+export function setLoadedSong(song: CurrentSong & { items: SongItem[] }): void {
+  setCurrentSong(song)
   setSongLines(song.items)
   setSongIndex(-1)
   setBlank(true)
@@ -558,6 +631,7 @@ export function setLoadedSong(song: { id: string; title: string; items: SongItem
 export function resetLoadedSongState(): void {
   setCurrentSongId('')
   setCurrentSongTitle('')
+  setSongDetails({})
   setSongLines([])
   setSongIndex(-1)
   setBlank(true)

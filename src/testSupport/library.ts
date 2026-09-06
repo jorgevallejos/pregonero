@@ -7,11 +7,13 @@
  * This is the same seam hydration uses, not a back door around it.
  */
 import { getSongsFolder, setSongsFolder } from '../contentFolders'
+import { setCurrentSong } from '../songState'
 import {
   DEFAULT_SETLIST_ID,
   SETLIST_STORE_VERSION,
   dropLibraryCache,
   ensureSongLibraryHydrated,
+  getLibrarySongById,
   saveSetlistStore,
   setLibraryEntries,
   type LibraryEntry,
@@ -87,4 +89,20 @@ export async function installCatalogue(
   // files. The resolved entries go back to what `installLibrary` put there, which is what reading
   // them would have produced.
   setLibraryEntries(entriesFor(songs))
+}
+
+/**
+ * **The Control window loading a song, as the Projection window sees it.**
+ *
+ * `setCurrentSongId` alone was what these tests used, and it is the shape of a real defect: the
+ * Projection window is a second `BrowserWindow` with its own module instances and **no library**,
+ * so an id on its own is an address it cannot resolve. A test that set only the id was quietly
+ * testing the Control window.
+ *
+ * The song is read out of the installed library, which is the Control window's legitimate source;
+ * an id with nothing behind it wires a titleless song, which is what the app would do.
+ */
+export function wireCurrentSong(id: string): void {
+  const song = getLibrarySongById(id)
+  setCurrentSong(song ?? { id, title: '' })
 }

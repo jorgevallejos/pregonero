@@ -22,6 +22,8 @@ import {
   getSongIndex,
   getBlank,
   getCurrentSongId,
+  getSongDetails,
+  setLoadedSong,
   getSongLines,
   parseSongFile,
 } from './songState'
@@ -1261,6 +1263,59 @@ describe('v0.5 control screen state machine integration', () => {
       const bottomBlock = css.match(/\.control-bottom-bar\s*\{([^}]*)\}/)
       expect(bottomBlock).toBeTruthy()
       expect(bottomBlock![1]).toMatch(/flex-shrink:\s*0/)
+    })
+
+    /**
+     * **STARTING THE NEXT SONG CARRIES EVERYTHING THE WALL NEEDS, NOT JUST THE ID AND THE TITLE**
+     * (2026-09-06).
+     *
+     * The Projection window has no song library — it is a second `BrowserWindow` with its own
+     * module instances and nothing hydrates it — so **what it cannot be told, it does not have.**
+     * This transition wrote the id and the title and left `songDetails` holding the *previous*
+     * song's tagline, translated title, timeline and lead-in: the wall would have carried one
+     * song's intro card into the next song, and, in Video mode, the wrong cue table.
+     *
+     * Loading a song anywhere else already goes through `setLoadedSong`; this was the one path
+     * that set the pieces by hand.
+     */
+    it('hands the wall the next song\u2019s own details, not the last song\u2019s', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      // Two songs the wall can tell apart. Installed after the setup so these entries win.
+      installLibrary([
+        { id: 'duelo', title: 'Duelo', items: VALID_LINES, intro: { en: 'A duel.' } },
+        { id: 'pimiento', title: 'Pimiento', items: VALID_LINES, intro: { en: 'A pepper.' } },
+      ] as never)
+      setLoadedSong({
+        id: 'duelo',
+        title: 'Duelo',
+        items: VALID_LINES,
+        intro: { en: 'A duel.' },
+      })
+      setSongIndex(-1)
+      expect(getSongDetails()).toEqual({ intro: { en: 'A duel.' } })
+
+      render(<App initialHash="#/" />)
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await act(async () => {
+        fireEvent.click(getArmButton())
+      })
+      await navigateToLastLyric()
+      act(() => {
+        vi.advanceTimersByTime(6_000)
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('next-song-tile'))
+      })
+
+      expect(getCurrentSongId()).toBe('pimiento')
+      // **The whole of the defect**: the id and the title moved and the details did not, so the
+      // wall would have carried Duelo's intro card into Pimiento.
+      expect(getSongDetails()).toEqual({ intro: { en: 'A pepper.' } })
+      vi.useRealTimers()
     })
 
     it('next-song tile reuses Setlist song-tile visual classes', async () => {

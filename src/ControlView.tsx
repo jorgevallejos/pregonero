@@ -19,8 +19,7 @@ import {
   isSection,
   getSongIndex,
   getBlank,
-  setCurrentSongId,
-  setCurrentSongTitle,
+  setCurrentSong,
   getEffectiveProjectionLanguage,
   getEffectiveSingingLanguage,
   getCurrentSongId,
@@ -651,9 +650,17 @@ export function ControlView() {
     // just because the user-facing song id changes.
     skipAutoUnarmOnNextSongTransitionRef.current = true
 
+    // **The whole song, not the id and the title — and BEFORE the lines.** The Projection window
+    // has no library to look the rest up in, so what it is not told it does not have: setting the
+    // pair by hand left the wall carrying the previous song's tagline, translated title, timeline
+    // and lead-in into this one.
+    //
+    // **The order is the other half of it.** `songDetails` is not a key that window listens on;
+    // what wakes it is the lines. Written after `loadLines`, the details would land after the
+    // announcement and the wall would draw the new song with the old song's card until something
+    // else happened to re-render it. `setLoadedSong` writes them in this order for the same reason.
+    setCurrentSong(nextSongForTile)
     loadLines(nextSongForTile.items)
-    setCurrentSongId(nextSongForTile.id)
-    setCurrentSongTitle(nextSongForTile.title)
     setShowNextSongTile(false)
   }
 

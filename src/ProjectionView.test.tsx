@@ -12,12 +12,13 @@ import {
   setSongLines,
   setSongIndex,
   setBlank,
-  setCurrentSongId,
+  setLoadedSong,
   setProjectionLanguage,
   setSingingLanguage,
 } from './songState'
+import { dropLibraryCache } from './setlistStore'
 import type { SongItem } from './songState'
-import { installLibrary } from './testSupport/library'
+import { installLibrary, wireCurrentSong } from './testSupport/library'
 import { closeRoom, installRoom, shape, FULL_FRAME } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
 import { KEY_ARMED_BROADCAST } from './performanceState'
@@ -84,7 +85,7 @@ function setupProjectionStorage(lines: SongItem[], index: number, blank: boolean
   setSongLines(lines)
   setSongIndex(index)
   setBlank(blank)
-  setCurrentSongId('test')
+  wireCurrentSong('test')
   setProjectionLanguage('en')
   window.location.hash = '#/projection'
 }
@@ -283,7 +284,7 @@ describe('Projection screen', () => {
     setSongLines(LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
     render(<App initialHash="#/projection" />)
@@ -320,7 +321,7 @@ describe('Projection screen', () => {
       notes: 'Capo 2. Soft intro.',
     })
     setupProjectionStorage(TWO_LINES, -1, true)
-    setCurrentSongId('with-notes')
+    wireCurrentSong('with-notes')
     render(<App initialHash="#/projection" />)
 
     await waitFor(() => {
@@ -337,7 +338,7 @@ describe('Projection screen', () => {
       notes: 'Capo 2. Soft intro.',
     })
     setupProjectionStorage(TWO_LINES, -1, true)
-    setCurrentSongId('with-notes')
+    wireCurrentSong('with-notes')
     render(<App initialHash="#/projection" />)
     simulateArm()
     await act(async () => { await Promise.resolve() })
@@ -369,7 +370,7 @@ function setupIntroScreenState(song: {
   setSongLines(song.items)
   setSongIndex(-1)
   setBlank(true)
-  setCurrentSongId(song.id)
+  wireCurrentSong(song.id)
   setProjectionLanguage('en')
   setSingingLanguage('es')
   window.location.hash = '#/projection'
@@ -410,7 +411,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     ])
     setSongIndex(3)
     setBlank(false)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -442,7 +443,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -478,7 +479,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -498,7 +499,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -541,7 +542,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -578,7 +579,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -615,7 +616,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId(PERF_SONG.id)
+    wireCurrentSong(PERF_SONG.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -630,6 +631,85 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
 
     await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull()
+  })
+})
+
+/**
+ * **THE PROJECTION WINDOW CANNOT READ THE SONG LIBRARY, AND MUST NOT ASK IT** (found on the wall,
+ * 2026-09-06).
+ *
+ * **Armed, before `next`, the wall showed nothing.** The first of a song's three states — *loaded,
+ * not yet cued* → the intro card, ruled 04/09 — never happened.
+ *
+ * **The cause is not the condition; every part of it was right.** `ProjectionView` built the card
+ * from `getLibrarySongById(currentSongId)`, and **the library is an in-memory cache** that
+ * `App.tsx` deliberately never hydrates on the projection route: *the player is handed a library
+ * that is already loaded* — which the Control window is, and a second `BrowserWindow` with its own
+ * module instances is not. So the lookup returned `undefined`, `showIntroScreen` was false, and
+ * the wall stayed dark with nothing saying why.
+ *
+ * **The suite could not see it because the suite is one browsing context.** Four tests below
+ * assert the intro card and pass — after calling `installLibrary`, which fills the very cache the
+ * real window cannot fill. **A test that installs state the real window cannot have is testing the
+ * other window.**
+ *
+ * **The rule: what the wall needs from the song file travels on the channel the lyrics already
+ * travel on.** The lines were never looked up — they are in `songState` — and the title, its
+ * translations, the tagline, the timeline and the lead-in are the same kind of thing from the same
+ * file. No new channel: `songState` is already one of the eight.
+ */
+describe('the wall, with no song library — which is the only way the wall ever runs', () => {
+  const SONG = {
+    id: 'tragedia',
+    title: 'Tragedia de cerdo asado',
+    title_translations: { en: 'Tragedy of Roasted Pig' },
+    intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
+    items: [{ languages: { es: 'Una línea', en: 'One line' } }] as SongItem[],
+  }
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom()
+    // **The real window's condition**: the Control window loaded the song, and this window has an
+    // empty library because nothing here can hydrate one.
+    setLoadedSong(SONG)
+    dropLibraryCache()
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    window.location.hash = '#/projection'
+  })
+
+  it('shows the intro card when a song is loaded and not yet cued', async () => {
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+    expect(screen.getByText('Tragedia de cerdo asado')).toBeTruthy()
+  })
+
+  it('carries the translated title and the tagline with it', async () => {
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await waitFor(() => {
+      expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+    }, { timeout: 3000 })
+    expect(screen.getByText('Tragedy of Roasted Pig')).toBeTruthy()
+    expect(screen.getByText('Fight your destiny.')).toBeTruthy()
+  })
+
+  it('asks the library for nothing, because there is no library to ask', () => {
+    // **A static guard, and it is the one that keeps this fixed.** The behaviour above can be made
+    // to pass again by any lookup that happens to work in a test; this fails on the import.
+    const source = readFileSync(resolve(__dirname, 'ProjectionView.tsx'), 'utf8')
+    expect(
+      /from '\.\/setlistStore'/.test(source),
+      'ProjectionView imports from setlistStore — the Projection window has no library to read'
+    ).toBe(false)
   })
 })
 
@@ -753,7 +833,7 @@ describe('The projection is a compositor (regression guard: no full-frame render
     setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
@@ -788,7 +868,7 @@ describe('The projection is a compositor (regression guard: no full-frame render
     setSongLines([{ languages: { es: 'Hola', en: 'Hello' } }])
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('no-video-song')
+    wireCurrentSong('no-video-song')
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -857,7 +937,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     setSongLines(song.items)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId(song.id)
+    wireCurrentSong(song.id)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -963,7 +1043,7 @@ describe('The wall is dark when there is no gig', () => {
     setSongLines(TWO_LINES)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
@@ -984,7 +1064,7 @@ describe('The wall is dark when there is no gig', () => {
     setSongLines(TWO_LINES)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
@@ -1019,7 +1099,7 @@ describe('The lookup lights a set of shapes, and never caps it at one', () => {
     setSongLines(TWO_LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
     render(<App initialHash="#/projection" />)
@@ -1160,7 +1240,7 @@ describe('The matrix is derived at the real output size, every render', () => {
     setSongLines(TWO_LINES)
     setSongIndex(0)
     setBlank(false)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
@@ -1231,7 +1311,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     setSongLines(LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('tragedia')
+    wireCurrentSong('tragedia')
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -1294,7 +1374,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     setSongLines(TWO_LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('tragedia')
+    wireCurrentSong('tragedia')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
@@ -1333,7 +1413,7 @@ describe('Typed shapes drive what appears where', () => {
     setSongLines(TWO_LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId(songId)
+    wireCurrentSong(songId)
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
@@ -1461,7 +1541,7 @@ describe('Shapes Pregonero does not coordinate', () => {
     setSongLines(TWO_LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId('test')
+    wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
     render(<App initialHash="#/projection" />)
@@ -1583,7 +1663,7 @@ describe('The contact panel, and what it replaced', () => {
     setSongLines(TWO_LINES)
     setSongIndex(-1)
     setBlank(true)
-    setCurrentSongId(songId)
+    wireCurrentSong(songId)
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
     render(<App initialHash="#/projection" />)

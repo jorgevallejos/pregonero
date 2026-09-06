@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { LyricLine, SectionMarker, SongItem } from './songState'
 import {
   GOLDEN_LEAD_IN,
@@ -28,6 +28,7 @@ import {
   parseSongRecordFromUnknown,
   prevIndex,
   resetLoadedSongState,
+  setLoadedSong,
   tryParseSongItemsArray,
   setCurrentSongId,
   setCurrentSongTitle,
@@ -424,6 +425,42 @@ describe('getEffectiveProjectionLanguage', () => {
       setProjectionLanguage('en')
       expect(getEffectiveProjectionLanguage(spanishOnly)).toBe('es')
     })
+  })
+})
+
+/**
+ * **THE DETAILS ARE IN PLACE BEFORE THE LINES ANNOUNCE THE SONG** (2026-09-06).
+ *
+ * The Projection window is woken by the lyric keys — `songLines` and the index — and reads
+ * everything else on the render that follows. `songDetails` is not a key it listens on, so a write
+ * that lands *after* the announcement is a write the wall does not see until something else
+ * happens to re-render it: the new song drawn with the old song's intro card, and in Video mode the
+ * old song's cue table.
+ *
+ * **This is the storage-event family the repo already documents**, seen from the other side: not a
+ * suppressed event, but the right event arriving before the data it needs.
+ */
+describe('the order a song is loaded in', () => {
+  it('writes the details before the lines, because the lines are the announcement', () => {
+    const written: string[] = []
+    const real = localStorage.setItem.bind(localStorage)
+    const spy = vi.spyOn(localStorage, 'setItem').mockImplementation((k: string, v: string) => {
+      written.push(k)
+      real(k, v)
+    })
+    try {
+      setLoadedSong({
+        id: 'duelo',
+        title: 'Duelo',
+        items: [{ languages: { es: 'una' } }],
+        intro: { en: 'A duel.' },
+      })
+    } finally {
+      spy.mockRestore()
+    }
+    expect(written).toContain('songDetails')
+    expect(written).toContain('songLines')
+    expect(written.indexOf('songDetails')).toBeLessThan(written.indexOf('songLines'))
   })
 })
 
