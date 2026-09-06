@@ -211,11 +211,32 @@ describe('Projection screen', () => {
     })
   })
 
-  it('projection lyric rule uses pre-line so JSON newline characters break lines', () => {
-    const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
-    const block = css.match(/\.projection-screen\s+\.projection-lyric\s*\{([^}]*)\}/)
-    expect(block).toBeTruthy()
-    expect(block![1]).toMatch(/white-space:\s*pre-line/)
+  /**
+   * **THE RULE THAT GOVERNS IS THE INLINE ONE, AND THIS TEST WAS READING THE OTHER** (2026-09-06).
+   *
+   * It asserted `white-space: pre-line` in `.projection-screen .projection-lyric`, which is the
+   * full-frame renderer's rule and **has not governed a lyric since the compositor** — the text is
+   * in `.shape-text-inner`, whose `white-space` is inline and wins. The two even disagreed:
+   * `pre-line` collapses runs of spaces, `pre-wrap` keeps them, and `pre-wrap` is what Muralista
+   * fits against. **A stylesheet assertion about a rule nothing reads is a green test about
+   * nothing** — the same shape as the face this stage fixed, which was inherited from the very
+   * block this test was inspecting.
+   */
+  it('keeps a phrase\u2019s own newlines, on the rule that actually governs the lyric', async () => {
+    setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, -1, true)
+    render(<App initialHash="#/projection" />)
+    simulateArm()
+    await flushEffects()
+    setSongIndex(0)
+    setBlank(false)
+    dispatchStorageUpdate()
+
+    await waitFor(() => {
+      expect(document.querySelector('.shape-text-inner')).toBeTruthy()
+    })
+    const inner = document.querySelector('.shape-text-inner') as HTMLElement
+    expect(inner.style.whiteSpace).toBe('pre-wrap')
+    expect(inner.textContent).toBe('First line\nSecond line')
   })
 
   it('preserves multiple consecutive newlines inside one phrase', async () => {

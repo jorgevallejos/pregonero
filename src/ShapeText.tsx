@@ -5,6 +5,10 @@ import {
   textLayoutInsetX,
   TEXT_INSET_Y,
   type TextFields,
+  TEXT_FONT_FAMILY,
+  TEXT_FONT_WEIGHT,
+  TEXT_LINE_HEIGHT,
+  TEXT_OVERFLOW_WRAP,
 } from './shapeTextLayout'
 
 type Props = {
@@ -107,11 +111,17 @@ export function ShapeText({
         className="shape-text-inner"
         style={{
           fontSize: `${fontSize}px`,
-          lineHeight: 1.15,
+          // **The face, the weight and the wrapping are stated, never inherited** (2026-09-06).
+          // Inherited, this element took `.projection-screen`'s EB Garamond at weight 600 — a
+          // serif at a lighter weight, rendering inside a boundary Muralista measured for a bold
+          // sans. See `TEXT_FONT_FAMILY` for why that is a contract and not a preference.
+          fontFamily: TEXT_FONT_FAMILY,
+          fontWeight: TEXT_FONT_WEIGHT,
+          lineHeight: TEXT_LINE_HEIGHT,
           textAlign: fields.align,
           color: fields.color,
           whiteSpace: 'pre-wrap',
-          overflowWrap: 'break-word',
+          overflowWrap: TEXT_OVERFLOW_WRAP,
           width: '100%',
           ...strokeStyle,
         }}

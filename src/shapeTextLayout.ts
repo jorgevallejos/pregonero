@@ -41,6 +41,34 @@
 import type { Point } from './visualsFile'
 import { UNIT_SIZE } from './vendor/warp.js'
 
+/**
+ * **THE FACE THE BOUNDARY WAS TUNED IN** (found on the wall, 2026-09-06).
+ *
+ * Muralista fits its stand-in in `.layer-text-inner` — `"Helvetica Neue", Helvetica, Arial,
+ * sans-serif` at weight 700 — and writes down a `maxSize` that is safe **for that rendering**.
+ * Pregonero set no face at all, so the lyric inherited `.projection-screen`'s
+ * `'EB Garamond', Georgia, serif` at weight 600 from `control.css`: **a serif at a lighter weight,
+ * rendering inside a boundary measured for a bold sans.**
+ *
+ * **This is not a preference, it is the contract.** A boundary is a promise about how much room a
+ * string needs, and two faces do not need the same room — so `maxSize` tuned at the wall means
+ * something else on the night. `worstCase.ts` measures the catalogue against the stand-in on the
+ * same assumption.
+ *
+ * **`overflow-wrap` is the same argument and it changes behaviour, not looks.** Muralista wraps on
+ * word boundaries and lets the auto-fit shrink a word that cannot wrap; Pregonero had
+ * `break-word`, which breaks the word instead — so `scrollWidth` never exceeded the box, the fit
+ * never shrank, and **a single long word was broken across two lines on the wall rather than the
+ * line being made smaller.** That is the one case `fitInBox` documents wrapping cannot help with.
+ *
+ * Transcribed from `projects/muralista/mapper/mapper.css` at `v1.21.0`, and asserted against those
+ * values in `muralistaTextContract.test.ts`.
+ */
+export const TEXT_FONT_FAMILY = '"Helvetica Neue", Helvetica, Arial, sans-serif'
+export const TEXT_FONT_WEIGHT = 700
+export const TEXT_LINE_HEIGHT = 1.15
+export const TEXT_OVERFLOW_WRAP = 'normal'
+
 /** The margin inside a lyric box, as a fraction of it. */
 export const TEXT_INSET = 0.06
 
