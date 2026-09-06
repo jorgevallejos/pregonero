@@ -43,7 +43,7 @@ import {
 import { resolveMediaPath } from './mediaPathStore'
 
 import { useArmedBroadcast } from './performanceState'
-import { useContactBroadcast } from './gigContactState'
+import { useContactBroadcast } from './cardBroadcast'
 import { ShapeContact, hasContactContent, type ContactFields } from './ShapeContact'
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 
@@ -179,7 +179,7 @@ export function ProjectionView() {
 
   // **The contact panel's condition, as answered by the Control window.** One boolean, because
   // every input to it is that window's — see `gigContactState.ts`.
-  // **The condition and the content, on one channel.** See `gigContactState`.
+  // **The condition and the content, on one channel.** See `cardBroadcast`.
   const contact = useContactBroadcast()
   const contactLit = contact.lit
 
@@ -497,27 +497,41 @@ export function ProjectionView() {
       </>
     )
   }
-  if (contactLit) {
-    const fields = contactFieldsForHost(contact.fields)
-    if (fields) {
-      for (const shape of hostShapes) {
-        overlayHost(
-          <ShapeContact
-            fields={fields}
-            boxWidth={textLayoutBoxWidth(shapeFrame(shape), 1, outputWidth, outputHeight)}
-          />
-        )(shape)
-      }
-    }
-  }
-  if (showIntro) {
+  /**
+   * **A SETUP PREVIEW WINS THE WALL WHILE IT IS UP** (Jorge, 2026-09-06). The Cards step puts the
+   * card on the projector so it is judged at real size in the real room — *the real thing on the
+   * real wall is the preview*, the same move that made Muralista's `2 OUTPUT` the photograph.
+   *
+   * **It is setup, not performance**, so nothing about the gig's state is consulted here: the
+   * chosen card is what shows, and clearing the preview hands the wall straight back.
+   */
+  const cardPreview = contact.preview
+  const cardBoxWidth = (shape: VisualShape) =>
+    textLayoutBoxWidth(shapeFrame(shape), 1, outputWidth, outputHeight)
+
+  if (cardPreview !== null) {
     for (const shape of hostShapes) {
       overlayHost(
-        <ShapeIntro
-          parts={introParts!}
-          boxWidth={textLayoutBoxWidth(shapeFrame(shape), 1, outputWidth, outputHeight)}
-        />
+        cardPreview.kind === 'intro' ? (
+          <ShapeIntro parts={cardPreview.parts} boxWidth={cardBoxWidth(shape)} />
+        ) : (
+          <ShapeContact fields={contact.fields} boxWidth={cardBoxWidth(shape)} />
+        )
       )(shape)
+    }
+  } else {
+    if (contactLit) {
+      const fields = contactFieldsForHost(contact.fields)
+      if (fields) {
+        for (const shape of hostShapes) {
+          overlayHost(<ShapeContact fields={fields} boxWidth={cardBoxWidth(shape)} />)(shape)
+        }
+      }
+    }
+    if (showIntro) {
+      for (const shape of hostShapes) {
+        overlayHost(<ShapeIntro parts={introParts!} boxWidth={cardBoxWidth(shape)} />)(shape)
+      }
     }
   }
 

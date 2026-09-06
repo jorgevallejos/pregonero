@@ -30,7 +30,7 @@ import {
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongs, addPlayedSong } from './playedSongsState'
-import { getContactLitBroadcast } from './gigContactState'
+import { getContactLitBroadcast } from './cardBroadcast'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {

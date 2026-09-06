@@ -5,14 +5,8 @@
  * as a list of events, and this file is where that claim is kept honest.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
-import {
-  isContactLit,
-  isPresenting,
-  getContactBroadcast,
-  getContactLitBroadcast,
-  setContactLitBroadcast,
-  KEY_CONTACT_LIT_BROADCAST,
-} from './gigContactState'
+import { isContactLit, isPresenting } from './gigContactState'
+import { getContactBroadcast, getContactLitBroadcast, setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } from './cardBroadcast'
 import type { SongItem } from './songState'
 
 const SONG: SongItem[] = [
@@ -148,6 +142,7 @@ describe('the broadcast', () => {
         handle: '@changopepper',
         message: 'Write to me.',
       },
+      preview: null,
     })
   })
 
@@ -155,20 +150,20 @@ describe('the broadcast', () => {
     // Outside a gig there is no card, and a lit shape with nothing pointed at it is exactly what
     // must not be reachable.
     localStorage.removeItem(KEY_CONTACT_LIT_BROADCAST)
-    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {}, preview: null })
   })
 
   it('reads an older build’s bare flag as its boolean and no content', () => {
     // **Not a migration.** The writer replaces the value on the first render of a gig, so this is
     // the width of one render.
     localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '0')
-    expect(getContactBroadcast()).toEqual({ lit: false, fields: {} })
+    expect(getContactBroadcast()).toEqual({ lit: false, fields: {}, preview: null })
     localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '1')
-    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {}, preview: null })
   })
 
   it('reads a damaged value as the power-up answer rather than throwing', () => {
     localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, 'not json')
-    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {}, preview: null })
   })
 })

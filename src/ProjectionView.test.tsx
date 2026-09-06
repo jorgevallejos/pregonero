@@ -1718,7 +1718,7 @@ describe("the wall is gated on the gig's state", () => {
 
   /** The Control window's answer, as it crosses: the value, then the event. */
   async function broadcastContact(lit: boolean) {
-    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
+    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./cardBroadcast')
     setContactLitBroadcast(lit, { url: 'changopepper.com', message: 'Write to me.' })
     window.dispatchEvent(new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST }))
   }
@@ -1906,7 +1906,7 @@ describe('The contact panel, and what it replaced', () => {
    * gig folder.
    */
   async function broadcastMessageHome(fields: Record<string, string>, lit = true) {
-    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
+    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./cardBroadcast')
     setContactLitBroadcast(lit, fields)
     await act(async () => {
       window.dispatchEvent(new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST }))
@@ -1932,7 +1932,7 @@ describe('The contact panel, and what it replaced', () => {
       shapes: [shape('lyrics-1', 'song-lyrics')],
       defaults: { 'song-lyrics': ['lyrics-1'] },
     })
-    const { setContactLitBroadcast } = await import('./gigContactState')
+    const { setContactLitBroadcast } = await import('./cardBroadcast')
     setContactLitBroadcast(true, { url: 'changopepper.com', message: 'Write to me.' })
     await mountProjection()
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
@@ -1945,7 +1945,7 @@ describe('The contact panel, and what it replaced', () => {
       shapes: [shape('lyrics-1', 'song-lyrics')],
       defaults: { 'song-lyrics': ['lyrics-1'] },
     })
-    const { setContactLitBroadcast } = await import('./gigContactState')
+    const { setContactLitBroadcast } = await import('./cardBroadcast')
     setContactLitBroadcast(true, { message: 'Write to me.' })
     await mountProjection()
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
@@ -1963,7 +1963,7 @@ describe('The contact panel, and what it replaced', () => {
       shapes: [shape('lyrics-1', 'song-lyrics')],
       defaults: { 'song-lyrics': ['lyrics-1'] },
     })
-    const { setContactLitBroadcast } = await import('./gigContactState')
+    const { setContactLitBroadcast } = await import('./cardBroadcast')
     setContactLitBroadcast(true, {})
     await mountProjection()
     expect(screen.queryByTestId('gig-contact-panel')).toBeNull()

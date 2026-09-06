@@ -4068,45 +4068,33 @@ html, body, #root {
    is are Muralista's, decided at the wall on the visuals step. The square below is the unit box the
    compositor lays content out in, scaled down — so what changes between here and the wall is the
    quad, and nothing else. */
-/* **THE TWO PREVIEWS STACK, EACH AT THE FULL WIDTH OF THE APP** (Jorge, 2026-09-06).
-   They were side by side, in blocks capped at 20em, each preview a fixed 320px
-   square — two small squares on a wide screen with the fields above them, which
-   is what made the step read as cramped. Everything else about it is good and is
-   untouched: the fields, the live preview, the song selector.
-
-   The card is drawn in a square unit box exactly as the compositor draws it, so
-   the preview is square; `aspect-ratio` keeps it square at any width, and the
-   scale is measured in `CardPreview` rather than written here, because *the full
-   width of the app* is not a number. */
-.gig-cards-previews {
+/* ── The Cards step's picker ───────────────────────────────────────────────
+   **THE TWO LARGE PREVIEWS BECAME A PICKER** (Jorge, 2026-09-06), and the card
+   is on the projector while the step is open: *the real thing at real size on
+   the real wall is the preview.* `.gig-cards-previews`, `.gig-cards-preview-block`
+   and `.gig-cards-preview` went with the in-page previews they styled — two
+   scaled-down simulations of a wall, on a screen, is what let the intro card's
+   translation line ship too small to read from the back of a room. */
+.gig-cards-showing {
   display: flex;
   flex-direction: column;
-  gap: 2.5em;
+  align-items: flex-start;
+  gap: 0.75em;
   margin-top: 1.5em;
 }
 
-.gig-cards-preview-block {
+.gig-cards-showing-choices {
   display: flex;
-  flex-direction: column;
-  gap: 0.5em;
+  flex-direction: row;
+  gap: 0.75em;
+  width: auto;
+  max-width: none;
 }
 
-/* The ink ground shows through wherever a card paints nothing, which is what a dark shape looks
-   like on the wall — so an empty card and an empty wall read the same here as they do there. */
-.gig-cards-preview {
-  width: 100%;
-  /* **MODEST, NOT FULL-BLEED** (Jorge, 2026-09-06). Stacking was right; the size was not. On a
-     real screen a full-width square preview is taller than the window, so reading this step meant
-     scrolling past two of them to reach the fields — and a preview is for reading the card, not
-     for filling the window. The cap is here rather than on the block so the label and the note
-     underneath stay part of a full-width column. */
-  max-width: 30em;
-  aspect-ratio: 1 / 1;
-  position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
-  border: 1px solid var(--rule);
-  background: #121211;
+/* **Narrow, because it holds one song title.** It was the full width of the
+   step, which is a field sized by its container rather than by what goes in it. */
+.gig-cards-song-field {
+  max-width: 22em;
 }
 
 /* THE IDENTITY, SHOWN AS IT IS DERIVED. It is what appears on Backstage and what names the folder,
