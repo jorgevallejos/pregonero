@@ -4023,6 +4023,38 @@ html, body, #root {
   max-width: 28em;
 }
 
+/* ---- The cards step: what the wall says when no song is running (2026-09-06) ----
+
+   **Two previews side by side, and they are the reason the step exists.** The card is seen before
+   the night rather than at it — and with every field optional, the preview is also how you see what
+   leaving one blank does: a rule nobody has to read, on the screen where the question arises.
+
+   **The geometry is not previewed and is not this screen's.** Where each card lands and how big it
+   is are Muralista's, decided at the wall on the visuals step. The square below is the unit box the
+   compositor lays content out in, scaled down — so what changes between here and the wall is the
+   quad, and nothing else. */
+.gig-cards-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2em;
+  margin-top: 1.5em;
+}
+
+.gig-cards-preview-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-width: 20em;
+}
+
+/* The ink ground shows through wherever a card paints nothing, which is what a dark shape looks
+   like on the wall — so an empty card and an empty wall read the same here as they do there. */
+.gig-cards-preview {
+  border: 1px solid var(--rule);
+  background: #121211;
+  flex: 0 0 auto;
+}
+
 /* THE IDENTITY, SHOWN AS IT IS DERIVED. It is what appears on Backstage and what names the folder,
    so meeting it for the first time in Finder is the failure this line prevents. */
 .gig-flow-identity {

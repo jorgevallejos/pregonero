@@ -31,13 +31,25 @@
  * the condition and no second opinion about it. Same reason `computeGigReadiness` has one home.
  *
  * The value is read at mount and on every `storage` event, so the missed-event problem the nonce
- * rule in `CLAUDE.md` exists for does not arise. **An absent key reads as lit**, which is the
- * power-up answer, so the wall carries the contact details before anything has written anything.
+ * rule in `CLAUDE.md` exists for does not arise.
+ *
+ * ## The channel carries the answer, and since 2026-09-06 the answer includes the content
+ *
+ * **The Projection window has no `electronAPI` and cannot read the gig folder**, so the four fields
+ * of the message home reach it the way the boolean always has — on this key, from the window that
+ * read them. **This is the same channel and not a second one**, which matters: a channel is what a
+ * framed player would have to carry, and there are seven.
+ *
+ * **An absent key reads as lit with nothing in it**, which is the power-up answer: outside a gig
+ * there is no card, and a lit shape with nothing pointed at it is exactly what must not be
+ * reachable. A value left by an older build reads as its boolean and no content, which needs no
+ * migration because the writer replaces it on the first render of a gig.
  */
 
 import { useEffect, useState } from 'react'
 import { getLastLyricIndex, type SongItem } from './songState'
 import { gigPhase, isOutsideSetlist, type GigPhase } from './gigPhase'
+import { readMessageHome, type MessageHome } from './gigFile'
 
 /** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 export const KEY_CONTACT_LIT_BROADCAST = 'pregoneroContactLit'
@@ -87,35 +99,59 @@ export function isPresenting(lines: readonly SongItem[], index: number): boolean
   return index < last
 }
 
-export function setContactLitBroadcast(lit: boolean): void {
+/** What crosses: whether the shape is lit, and what goes in it. */
+export type ContactBroadcast = { lit: boolean; fields: MessageHome }
+
+export function setContactLitBroadcast(lit: boolean, fields: MessageHome = {}): void {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, lit ? '1' : '0')
+    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, JSON.stringify({ lit, fields }))
   } catch {
     /* unavailable in some environments */
   }
 }
 
-export function getContactLitBroadcast(): boolean {
+export function getContactBroadcast(): ContactBroadcast {
+  const absent: ContactBroadcast = { lit: true, fields: {} }
   try {
-    if (typeof localStorage === 'undefined') return true
-    // Absent is lit: nothing is armed until something says so.
-    return localStorage.getItem(KEY_CONTACT_LIT_BROADCAST) !== '0'
+    if (typeof localStorage === 'undefined') return absent
+    const raw = localStorage.getItem(KEY_CONTACT_LIT_BROADCAST)
+    if (raw === null) return absent
+    // **An older build's `'1'` / `'0'` reads as its boolean and no content.** Not a migration: the
+    // writer replaces the value on the first render of a gig, so this is the width of one render.
+    if (raw === '0') return { lit: false, fields: {} }
+    if (raw === '1') return absent
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return absent
+    const o = parsed as { lit?: unknown; fields?: unknown }
+    return {
+      lit: o.lit !== false,
+      fields: readMessageHome(o.fields) ?? {},
+    }
   } catch {
-    return true
+    return absent
   }
 }
 
-export function useContactLit(): boolean {
-  const [lit, setLit] = useState(getContactLitBroadcast)
+/** Whether the shape is lit. The condition's answer, as it has always travelled. */
+export function getContactLitBroadcast(): boolean {
+  return getContactBroadcast().lit
+}
+
+export function useContactBroadcast(): ContactBroadcast {
+  const [value, setValue] = useState(getContactBroadcast)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY_CONTACT_LIT_BROADCAST || e.key === null) {
-        setLit(getContactLitBroadcast())
+        setValue(getContactBroadcast())
       }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
   }, [])
-  return lit
+  return value
+}
+
+export function useContactLit(): boolean {
+  return useContactBroadcast().lit
 }

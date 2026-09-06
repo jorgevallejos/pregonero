@@ -38,7 +38,7 @@
 import type { LibrarySong } from './setlistStore'
 import { hasLyricLines } from './songState'
 import { collectMediaSources } from './mediaSources'
-import type { GigFile, SetupFingerprints } from './gigFile'
+import type { GigFile, MessageHome, SetupFingerprints } from './gigFile'
 import {
   resolveShapesForType,
   doubledShapeLines,
@@ -114,6 +114,15 @@ export type GigReadiness = {
   /** The gig's own identity fields, carried so a caller can name the night without a second read. */
   date: string | null
   venue: { name?: string; city?: string } | null
+  /**
+   * **What the wall says after the setlist ends**, carried for the same reason the date and the
+   * venue are: this is the one read of the gig folder, and a second one would be a second answer.
+   *
+   * **The content travels in the gig** (Jorge, 2026-09-05) — the shell writes it at setup and the
+   * player reads it at performance, because a player that reads only the gig folder cannot read the
+   * shell's Preferences. Null when the step has not been filled in.
+   */
+  messageHome: MessageHome | null
   /**
    * `off` when no gig folder is open. There is no gig for a song to be un-ready against, so the
    * gate blocks nothing and the app behaves as it did before this stage. Round G's setup flow is
@@ -447,6 +456,8 @@ function readinessWithoutGig(setlist: readonly SetlistSongInput[]): GigReadiness
     gigId: null,
     date: null,
     venue: null,
+    // No gig, so no card. The wall is dark outside a gig, which is the rule the suite runs on.
+    messageHome: null,
     gate: 'off',
     // **Every step is about this gig now**, so with no gig open there is nothing any of them can
     // report. The library step that used to be real here belonged to the songs, and the song door
@@ -764,6 +775,7 @@ export function computeGigReadiness(input: GigReadinessInput): GigReadiness {
     gigId: input.gig?.id ?? null,
     date: input.gig?.date ?? null,
     venue: input.gig?.venue ?? null,
+    messageHome: input.gig?.messageHome ?? null,
     gate: 'on',
     steps: [
       { step: 1, name: STEP_NAMES[1]!, status: step1Status, missing: step1Missing, notes: [] },

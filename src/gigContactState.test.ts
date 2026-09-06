@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import {
   isContactLit,
   isPresenting,
+  getContactBroadcast,
   getContactLitBroadcast,
   setContactLitBroadcast,
   KEY_CONTACT_LIT_BROADCAST,
@@ -102,9 +103,53 @@ describe('the broadcast', () => {
 
   it('carries both answers across the window boundary', () => {
     setContactLitBroadcast(false)
-    expect(localStorage.getItem(KEY_CONTACT_LIT_BROADCAST)).toBe('0')
     expect(getContactLitBroadcast()).toBe(false)
     setContactLitBroadcast(true)
     expect(getContactLitBroadcast()).toBe(true)
+  })
+
+  /**
+   * **The content crosses on the same key as the condition** (2026-09-06). The Projection window
+   * has no `electronAPI` and cannot read the gig folder, so the window that read it hands over the
+   * four fields with the answer. **One channel, not two** — a channel is what a framed player would
+   * have to carry, and there are seven.
+   */
+  it('carries the message home’s four fields with the answer', () => {
+    setContactLitBroadcast(true, {
+      logo: 'logo.png',
+      url: 'changopepper.com',
+      handle: '@changopepper',
+      message: 'Write to me.',
+    })
+    expect(getContactBroadcast()).toEqual({
+      lit: true,
+      fields: {
+        logo: 'logo.png',
+        url: 'changopepper.com',
+        handle: '@changopepper',
+        message: 'Write to me.',
+      },
+    })
+  })
+
+  it('reads an absent key as lit with nothing in it, which is the power-up answer', () => {
+    // Outside a gig there is no card, and a lit shape with nothing pointed at it is exactly what
+    // must not be reachable.
+    localStorage.removeItem(KEY_CONTACT_LIT_BROADCAST)
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
+  })
+
+  it('reads an older build’s bare flag as its boolean and no content', () => {
+    // **Not a migration.** The writer replaces the value on the first render of a gig, so this is
+    // the width of one render.
+    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '0')
+    expect(getContactBroadcast()).toEqual({ lit: false, fields: {} })
+    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '1')
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
+  })
+
+  it('reads a damaged value as the power-up answer rather than throwing', () => {
+    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, 'not json')
+    expect(getContactBroadcast()).toEqual({ lit: true, fields: {} })
   })
 })

@@ -15,6 +15,7 @@ import {
   newGigId,
   hasAuthoredSetlist,
   parseGigFile,
+  readMessageHome,
   readGigSetlist,
   serializeGigFile,
   setlistMatches,
@@ -23,6 +24,7 @@ import {
   withSetup,
   type GigFile,
   type GigVenue,
+  type MessageHome,
   type SetlistProjection,
   type SetupFingerprints,
 } from './gigFile'
@@ -441,6 +443,37 @@ async function readGig(folderPath: string): Promise<{
  * `id` is not writable here on purpose: it is the folder's name, born with the gig, and
  * `visuals.json`'s `gigId` is compared against it.
  */
+/**
+ * **Writes the message home's four fields into the gig, and remembers them for the next one.**
+ *
+ * **The content travels in the gig** (Jorge, 2026-09-05): the shell writes it at setup and the
+ * player reads it at performance, because a player that reads only the gig folder cannot read the
+ * shell's Preferences. **Preferences is the authoring convenience** — where the values are kept so
+ * later gigs arrive prefilled — and it is written here in the same breath, from the one press that
+ * answered them.
+ *
+ * **All four blank removes the block rather than writing an empty one.** Nothing pointed at the
+ * shape and a block full of empty strings are the same state, and one representation of a state is
+ * easier to reason about than two.
+ */
+export async function saveMessageHome(fields: MessageHome): Promise<GigReadiness> {
+  const folderPath = getRememberedGigFolder()
+  if (folderPath === null) return refreshGigReadiness()
+
+  const state = await readGig(folderPath)
+  const gig = state.gig
+  if (gig === null) return publishFromFolder(folderPath, gig, state.gigProblem, state.read)
+
+  const next: GigFile = { ...gig }
+  const cleaned = readMessageHome(fields)
+  if (cleaned === null) delete next.messageHome
+  else next.messageHome = cleaned
+
+  const written = await platform.writeGigFile(folderPath, serializeGigFile(next))
+  if (!written.ok) return publishFromFolder(folderPath, gig, written.error, state.read)
+  return publishFromFolder(folderPath, next, state.gigProblem, state.read)
+}
+
 export async function saveGigIdentity(identity: {
   date: string
   venue: GigVenue

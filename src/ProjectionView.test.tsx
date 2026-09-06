@@ -1538,21 +1538,20 @@ describe('Shapes Pregonero does not coordinate', () => {
 })
 
 /**
- * **THE MESSAGE HOME LOST ITS SHAPE TYPE ON 2026-09-04**, and it lost more than a place: its line
- * of text and its QR file name were fields on that Muralista layer, so **its content has no home
- * anywhere right now.**
+ * **THE MESSAGE HOME LOST ITS SHAPE TYPE ON 2026-09-04**, and both of its blockers are now gone.
  *
- * **One of the two blockers is gone and the other is held on purpose.** The host rule landed on
- * 2026-09-05 — `introContactHostShapes` picks the video frame within the live mode, or the lyrics
- * shape — so the card has somewhere to land. **What it still has nowhere to come from is its
- * content**: the message home's own template and the gig-flow step that fills it are judged at a
- * wall rather than at a desk, and were deliberately not built in the 05/09 round.
+ * The host rule landed on 2026-09-05 — `introContactHostShapes` picks the video frame within the
+ * live mode, or the lyrics shape — and **the content landed on 2026-09-06**: four optional fields
+ * written into `gig.json` by the gig flow's own step and read out of it at performance. **The
+ * content travels in the gig** because a player that reads only the gig folder cannot read the
+ * shell's Preferences.
  *
- * **So `contactFieldsForHost` still answers null and the card still does not paint**, and the two
- * tests below stay parked — for the content, not for the place.
+ * **These two tests were parked for the content, not for the place**, and they come back with it —
+ * with their fixtures moved from a `gig-contact` shape, a type that no longer exists, to the gig
+ * block the card is actually filled from.
  *
- * The tests still running here are the ones that outlive all of that: the end card and the logo
- * fallback are gone and may not come back, and an old file's contact shape paints nothing.
+ * The tests around them outlive all of that: the end card and the logo fallback are gone and may
+ * not come back, and an old file's contact shape paints nothing.
  */
 describe('The contact panel, and what it replaced', () => {
   beforeEach(() => {
@@ -1566,6 +1565,19 @@ describe('The contact panel, and what it replaced', () => {
     layer: { type: 'gig-contact', text: 'changopepper.be' },
   })
 
+  /**
+   * **The four fields, as the Control window hands them over.** They cross on the contact channel
+   * with the answer to *is it lit*, because this window has no `electronAPI` and cannot read the
+   * gig folder.
+   */
+  async function broadcastMessageHome(fields: Record<string, string>, lit = true) {
+    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
+    setContactLitBroadcast(lit, fields)
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST }))
+    })
+  }
+
   async function mountProjection(songId = 'test') {
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(TWO_LINES)
@@ -1578,35 +1590,48 @@ describe('The contact panel, and what it replaced', () => {
     await flushEffects()
   }
 
-  it.skip('is lit when nothing is armed — the wall carries his details from power-up', async () => {
+  it('is lit when nothing is armed — the wall carries his details from power-up', async () => {
+    // **The card borrows a shape the room already has.** With no video frame in the room it goes to
+    // the lyrics shape, which is the fallback that always exists.
     installRoom({
-      shapes: [CONTACT_SHAPE, shape('lyrics-1', 'song-lyrics')],
-      defaults: { 'gig-contact': ['contact-1'], 'song-lyrics': ['lyrics-1'] },
+      shapes: [shape('lyrics-1', 'song-lyrics')],
+      defaults: { 'song-lyrics': ['lyrics-1'] },
     })
+    const { setContactLitBroadcast } = await import('./gigContactState')
+    setContactLitBroadcast(true, { url: 'changopepper.com', message: 'Write to me.' })
     await mountProjection()
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
-    expect(screen.getByText('changopepper.be')).toBeTruthy()
+    expect(screen.getByText('Write to me.')).toBeTruthy()
+    expect(screen.getByText('changopepper.com')).toBeTruthy()
   })
 
-  it.skip('goes dark when the Control window says the condition is false', async () => {
+  it('goes dark when the Control window says the condition is false', async () => {
     installRoom({
-      shapes: [CONTACT_SHAPE],
-      defaults: { 'gig-contact': ['contact-1'] },
+      shapes: [shape('lyrics-1', 'song-lyrics')],
+      defaults: { 'song-lyrics': ['lyrics-1'] },
     })
+    const { setContactLitBroadcast } = await import('./gigContactState')
+    setContactLitBroadcast(true, { message: 'Write to me.' })
     await mountProjection()
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
 
-    const { KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
-    localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, '0')
-    await act(async () => {
-      window.dispatchEvent(
-        new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST, newValue: '0' })
-      )
-    })
+    await broadcastMessageHome({ message: 'Write to me.' }, false)
 
     // Not blacked out and not declared empty — simply not there, like every other unlit shape.
     expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
-    expect(document.querySelector('[data-shape-id="contact-1"]')).toBeNull()
+  })
+
+  it('shows nothing at all when the gig names none of the four fields', async () => {
+    // **All four empty means nothing is pointed at the shape, so the shape is dark.** A blank lit
+    // rectangle at the end of a gig is worse than no card, and it must not be reachable.
+    installRoom({
+      shapes: [shape('lyrics-1', 'song-lyrics')],
+      defaults: { 'song-lyrics': ['lyrics-1'] },
+    })
+    const { setContactLitBroadcast } = await import('./gigContactState')
+    setContactLitBroadcast(true, {})
+    await mountProjection()
+    expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
   })
 
   /**

@@ -39,8 +39,8 @@ import {
 } from './songState'
 import { resolveMediaPath } from './mediaPathStore'
 
-import { useContactLit } from './gigContactState'
-import { ShapeContact, type ContactFields } from './ShapeContact'
+import { useContactBroadcast } from './gigContactState'
+import { ShapeContact, hasContactContent, type ContactFields } from './ShapeContact'
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 
 import { useEffect, useState, useRef } from 'react'
@@ -105,13 +105,20 @@ function introContactHostShapes(
 }
 
 /**
- * The message home's line and QR, once there is somewhere to read them from. Point 4 above: there
- * is not, and holding it is a decision rather than an omission. **Explicitly not read off the host
- * shape's layer** — a `song-lyrics` layer carries the preview text Muralista seeds it with, and a
- * card that painted that would be worse than a card that does not paint.
+ * **The message home's four fields, and whether there is a card at all.**
+ *
+ * They arrive on the contact channel with the answer to *is it lit* — this window has no
+ * `electronAPI` and cannot read the gig folder, so the window that read it hands over the content
+ * along with the condition. **Explicitly not read off the host shape's layer**: a `song-lyrics`
+ * layer carries the preview text Muralista seeds it with, and a card that painted that would be
+ * worse than a card that does not paint.
+ *
+ * **Null when every field is empty**, which is the rule this suite already runs on: nothing pointed
+ * at the shape means the shape is dark. **A blank lit rectangle at the end of a gig is worse than
+ * no card.**
  */
-function contactFieldsForHost(): ContactFields | null {
-  return null
+function contactFieldsForHost(fields: ContactFields): ContactFields | null {
+  return hasContactContent(fields) ? fields : null
 }
 
 export function ProjectionView() {
@@ -167,7 +174,9 @@ export function ProjectionView() {
 
   // **The contact panel's condition, as answered by the Control window.** One boolean, because
   // every input to it is that window's — see `gigContactState.ts`.
-  const contactLit = useContactLit()
+  // **The condition and the content, on one channel.** See `gigContactState`.
+  const contact = useContactBroadcast()
+  const contactLit = contact.lit
 
   const isArmed = index === -1 && lines.length > 0
 
@@ -443,7 +452,7 @@ export function ProjectionView() {
     )
   }
   if (contactLit) {
-    const fields = contactFieldsForHost()
+    const fields = contactFieldsForHost(contact.fields)
     if (fields) {
       for (const shape of hostShapes) {
         overlayHost(

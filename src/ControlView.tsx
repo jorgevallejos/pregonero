@@ -48,7 +48,7 @@ import { isContactLit, isPresenting, setContactLitBroadcast } from './gigContact
 import { gigPhase } from './gigPhase'
 
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
-import { gigLabelFrom } from './gigFile'
+import { gigLabelFrom, type MessageHome } from './gigFile'
 
 import { SetupValue } from './SetupValue'
 import { useEffect, useState, useRef } from 'react'
@@ -582,9 +582,14 @@ export function ControlView() {
     setlistDone,
     presenting: isPresenting(lines, index),
   })
+  // **The content travels with the answer, on the one channel that already exists.** The
+  // Projection window has no `electronAPI` and cannot read the gig folder, so the four fields go
+  // where the boolean goes — see `gigContactState`. Keyed on the serialised block so a re-render
+  // that changed nothing does not rewrite the key.
+  const messageHomeJson = JSON.stringify(gigReadiness.messageHome ?? {})
   useEffect(() => {
-    setContactLitBroadcast(contactLit)
-  }, [contactLit])
+    setContactLitBroadcast(contactLit, JSON.parse(messageHomeJson) as MessageHome)
+  }, [contactLit, messageHomeJson])
 
   // **Moment 12's other half, and it is the same fact as the one above.** A repeat plays from
   // `after` and stays in `after`, so once the setlist has closed there is no next song to offer —

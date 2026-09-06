@@ -27,7 +27,7 @@ import {
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongs, addPlayedSong } from './playedSongsState'
-import { KEY_CONTACT_LIT_BROADCAST } from './gigContactState'
+import { getContactLitBroadcast } from './gigContactState'
 import type { SongItem } from './songState'
 import { SONGS } from './songs'
 import {
@@ -6215,7 +6215,10 @@ describe('The contact panel condition is broadcast from the control window', () 
   })
 
   function lit(): boolean {
-    return localStorage.getItem(KEY_CONTACT_LIT_BROADCAST) !== '0'
+    // **The channel carries the answer and, since 2026-09-06, the content with it** — the
+    // Projection window cannot read the gig folder, so the four fields go where the boolean goes.
+    // Read through the module's own reader rather than re-parsing the key here.
+    return getContactLitBroadcast()
   }
 
   /**

@@ -45,6 +45,65 @@ export type GigFile = {
   setlist?: string[]
   /** The setup confirmation. Absent until setup has been confirmed at least once. */
   setup?: GigSetup
+  /** What the wall says after the setlist ends. Absent until the gig flow's step has been filled. */
+  messageHome?: MessageHome
+}
+
+/**
+ * **THE MESSAGE HOME'S CONTENT, AND IT TRAVELS IN THE GIG** (Jorge, 2026-09-05).
+ *
+ * **Ruled artist-level, kept in Preferences, asked at the first gig — and the split makes
+ * Preferences impossible as a *source*.** A player that reads only the gig folder cannot read the
+ * shell's Preferences. **So the content is written into `gig.json` by the shell at setup and read
+ * out of it by the player at performance.** Preferences stays as the shell's authoring convenience:
+ * where the values are kept and edited so later gigs arrive prefilled. **It is not where the player
+ * finds them.**
+ *
+ * **The rule it follows is the one already governing everything else: the gig folder is the
+ * contract.**
+ *
+ * **Every field is optional, and all four absent is a real state**: nothing is pointed at the
+ * shape, so the shape is dark. **A blank lit rectangle at the end of a gig is worse than no card.**
+ *
+ * **`message`, never `tagline`.** *Tagline* already means the intro card's third part, read from the
+ * song file's `intro`. Two different things called tagline, on two cards previewed on one screen,
+ * is the vocabulary slippage that cost five contract mismatches in two days.
+ *
+ * **`logo` is a name, never a path** — resolved against the visuals folder like every other name a
+ * shape draws from, so the file travels and the folder is a fact about one machine.
+ */
+export type MessageHome = {
+  /** A file name inside the visuals folder. */
+  logo?: string
+  /** The address the room is sent to, e.g. `changopepper.com`. */
+  url?: string
+  /** The Instagram handle, as it is written. */
+  handle?: string
+  /** The line — `If one person here writes, that's the night.` */
+  message?: string
+}
+
+/**
+ * The four fields, or null when the block holds none of them.
+ *
+ * **A block with every field blank reads as absent**, which is the same answer as never having
+ * filled the step in: there is nothing to point at the shape either way, and one answer is easier
+ * to reason about than two that mean the same thing.
+ */
+export function readMessageHome(value: unknown): MessageHome | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const o = value as Record<string, unknown>
+  const out: MessageHome = {}
+  if (isNonEmptyString(o.logo)) out.logo = o.logo.trim()
+  if (isNonEmptyString(o.url)) out.url = o.url.trim()
+  if (isNonEmptyString(o.handle)) out.handle = o.handle.trim()
+  if (isNonEmptyString(o.message)) out.message = o.message.trim()
+  return Object.keys(out).length > 0 ? out : null
+}
+
+/** Whether a block has anything to put on the wall. Absent and all-blank are one answer. */
+export function messageHomeHasContent(value: MessageHome | null | undefined): boolean {
+  return readMessageHome(value ?? null) !== null
 }
 
 /**
@@ -217,6 +276,8 @@ export function parseGigFile(text: string): GigFile {
   }
   const setup = readSetup(o.setup)
   if (setup !== null) gig.setup = setup
+  const messageHome = readMessageHome(o.messageHome)
+  if (messageHome !== null) gig.messageHome = messageHome
   return gig
 }
 
@@ -261,6 +322,7 @@ export function serializeGigFile(gig: GigFile): string {
   if (gig.songs !== undefined) ordered.songs = gig.songs
   if (gig.setlist !== undefined) ordered.setlist = gig.setlist
   if (gig.setup !== undefined) ordered.setup = gig.setup
+  if (gig.messageHome !== undefined) ordered.messageHome = gig.messageHome
   return `${JSON.stringify(ordered, null, 2)}\n`
 }
 
