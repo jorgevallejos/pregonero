@@ -5781,12 +5781,20 @@ describe('The contact panel condition is broadcast from the control window', () 
     expect(lit()).toBe(true)
   })
 
-  it('goes dark on arm and lit again on unarm', async () => {
+  /**
+   * **SUPERSEDED, 2026-09-06.** This asserted that unarming lit the message home again. It does
+   * not: *arming and unarming move Jorge between rooms; they never move the gig between states.*
+   * **The first arm enters the setlist and nothing takes that back**, so a mid-setlist unarm leaves
+   * the gig `during` and the wall black. **Cowork proposed the old behaviour and Jorge overruled
+   * it** — the message home returns when the last song ends, and only then.
+   */
+  it('goes dark on arm and STAYS dark on a mid-setlist unarm', async () => {
     setupControlViewWithReadinessPassing()
     render(<App initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
+    expect(lit()).toBe(true)
 
     await act(async () => { fireEvent.click(getArmButton()) })
     await waitFor(() => expect(lit()).toBe(false), { timeout: WAIT_TIMEOUT })
@@ -5797,7 +5805,8 @@ describe('The contact panel condition is broadcast from the control window', () 
     act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
     vi.useRealTimers()
 
-    expect(lit()).toBe(true)
+    // Still inside the setlist. Jorge left the room; the gig did not.
+    expect(lit()).toBe(false)
   })
 })
 

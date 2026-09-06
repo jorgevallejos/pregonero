@@ -11,9 +11,9 @@
  *
  * | Phase | When | What the wall does |
  * |---|---|---|
- * | `before` | The setlist has not been played through, and nothing is armed | Outside the setlist |
- * | `during` | Armed, and the setlist has not been played through | Inside it |
- * | `after` | The setlist has been played through | Outside the setlist |
+ * | `before` | The setlist has not been entered | The message home |
+ * | `during` | Entered, and not played through | The song — and black between songs, at the end of one, and on a mid-setlist unarm |
+ * | `after` | The setlist has been played through | The message home |
  *
  * **`after` is decided by the played log alone, and that is what makes it stick.** `setlistDone` is
  * *the last song of the playable setlist appears in the played log*, and the log only ever appends
@@ -21,10 +21,16 @@
  * `after` and stays in `after`, which is moment 12, and it now falls out of the phase rather than
  * being a rule anybody has to hold.
  *
- * **Unarming before the last song does not close the setlist. It returns the gig to `before`**,
- * which reads oddly for three songs in and is the honest answer: the setlist is not running and has
- * not been completed. **The phase can go back and it can never skip forward**, and that asymmetry
- * is the whole guarantee.
+ * **ARMING AND UNARMING MOVE JORGE BETWEEN ROOMS; THEY NEVER MOVE THE GIG BETWEEN STATES** (Jorge,
+ * 2026-09-06). This used to read `armed`, so unarming three songs in returned the gig to `before`
+ * and put the message home back on the wall — **which Cowork proposed and Jorge overruled.** A
+ * mid-setlist unarm leaves the wall black: the gig is still in its setlist, Jorge has simply left
+ * the room.
+ *
+ * **So the phase only ever moves forward**, and each step has exactly one thing that takes it: the
+ * first arm enters the setlist, the last song ending closes it. `setlistEntered` is
+ * `performanceState`'s — set on the first arm and never taken back — and `setlistDone` is the
+ * played log's.
  *
  * ## What `before` and `after` share, and why they are not one state
  *
@@ -45,19 +51,23 @@
 export type GigPhase = 'before' | 'during' | 'after'
 
 export type GigPhaseInput = {
-  /** The stored armed flag, never the control screen's label. */
-  armed: boolean
+  /**
+   * The setlist has been entered — `performanceState.getSetlistEntered`, true from the first arm
+   * of the session. **Not `armed`**: unarming leaves the room, not the setlist.
+   */
+  setlistEntered: boolean
   /** The setlist has been played through — `isSetlistComplete`, against the *playable* setlist. */
   setlistDone: boolean
 }
 
 /**
  * The phase. **`setlistDone` is asked first**, so once the setlist has closed nothing — arming,
- * unarming, a repeat — takes the gig back into it.
+ * unarming, a repeat — takes the gig back into it. And nothing takes it back out of `during`
+ * either: both inputs only ever turn on.
  */
-export function gigPhase({ armed, setlistDone }: GigPhaseInput): GigPhase {
+export function gigPhase({ setlistEntered, setlistDone }: GigPhaseInput): GigPhase {
   if (setlistDone) return 'after'
-  return armed ? 'during' : 'before'
+  return setlistEntered ? 'during' : 'before'
 }
 
 /** **Outside the setlist**: the condition 24/08 named, now read off the phase. */

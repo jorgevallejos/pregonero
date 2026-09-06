@@ -14,6 +14,23 @@ export interface PerformanceChecks {
 }
 
 const KEY_ARMED = 'liveLyricPerformanceArmed'
+/**
+ * **THE SETLIST HAS BEEN ENTERED**, which the first arm decides and nothing takes back.
+ *
+ * *Arming and unarming move Jorge between rooms; they never move the gig between states* (Jorge,
+ * 2026-09-06). Only the last song finishing moves it. So the gig's phase cannot be read off
+ * `armed` — a mid-setlist unarm would take it back to `before` and put the message home on the
+ * wall, which is exactly what Jorge overruled.
+ *
+ * **It is a new input, not a second opinion about the phase.** The played log cannot answer this:
+ * it appends when a song *ends*, so it is empty through the whole of the first song, and unarming
+ * inside that song would still read as *the gig has not started*.
+ *
+ * `sessionStorage`, like `KEY_ARMED` and the played log: a gig is a session, and a fresh launch is
+ * a fresh gig. Nothing clears it mid-session, which is the whole of what *never takes it back*
+ * means.
+ */
+const KEY_SETLIST_ENTERED = 'liveLyricSetlistEntered'
 // Written to localStorage (fires cross-window storage events) so the projection view can detect arm transitions.
 export const KEY_ARMED_BROADCAST = 'liveLyricArmedBroadcast'
 
@@ -47,6 +64,8 @@ function setArmedInStorage(armed: boolean): void {
   if (typeof sessionStorage === 'undefined') return
   if (armed) {
     sessionStorage.setItem(KEY_ARMED, '1')
+    // **The first arm enters the setlist, and nothing leaves it but the last song ending.**
+    sessionStorage.setItem(KEY_SETLIST_ENTERED, '1')
     if (typeof localStorage !== 'undefined') {
       // KEY_ARMED_BROADCAST must CHANGE on every arm, not just be truthy: it lives in
       // localStorage, which persists across app launches, while KEY_ARMED lives in
@@ -84,6 +103,42 @@ export function getPerformanceState(
   if (checks.allPass && armed) return 'armed'
   if (checks.allPass) return 'ready'
   return 'setup'
+}
+
+/** **Has this gig entered its setlist?** True from the first arm of the session onwards. */
+export function getSetlistEntered(): boolean {
+  if (typeof sessionStorage === 'undefined') return false
+  return sessionStorage.getItem(KEY_SETLIST_ENTERED) === '1'
+}
+
+/**
+ * **Whether the gig is armed, as it crosses to the Projection window.**
+ *
+ * That window has no `sessionStorage` of this window's and no library; what it has is this key.
+ * It was written as a *nonce* so the arm transition always fires an event, and its presence has
+ * always meant armed — this is the read side of it, which nothing used until the wall was gated
+ * on the gig's state (2026-09-06). Until then the Projection window guessed, with
+ * `index === -1 && lines.length > 0`, which is *a song is loaded and rewound* and not *armed*.
+ */
+export function getArmedBroadcast(): boolean {
+  if (typeof localStorage === 'undefined') return false
+  return localStorage.getItem(KEY_ARMED_BROADCAST) !== null
+}
+
+/**
+ * The armed flag on the far side of the channel, kept current by the `storage` event the nonce
+ * guarantees. Read at mount as well, so a window opened mid-gig is not waiting for a transition.
+ */
+export function useArmedBroadcast(): boolean {
+  const [armed, setArmed] = useState(getArmedBroadcast)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY_ARMED_BROADCAST || e.key === null) setArmed(getArmedBroadcast())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+  return armed
 }
 
 export function getStoredArmed(): boolean {

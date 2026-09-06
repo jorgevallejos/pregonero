@@ -41,6 +41,7 @@ import {
 } from './songState'
 import { resolveMediaPath } from './mediaPathStore'
 
+import { useArmedBroadcast } from './performanceState'
 import { useContactBroadcast } from './gigContactState'
 import { ShapeContact, hasContactContent, type ContactFields } from './ShapeContact'
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
@@ -181,10 +182,34 @@ export function ProjectionView() {
   const contact = useContactBroadcast()
   const contactLit = contact.lit
 
-  const isArmed = index === -1 && lines.length > 0
+  /**
+   * **THE WALL IS GATED ON THE GIG'S STATE, AND THIS IS THE GATE** (Jorge, 2026-09-06).
+   *
+   * | Gig state | The wall |
+   * |---|---|
+   * | Before the first arm | The message home |
+   * | In the setlist | The song — and **black** between songs, at the end of one, and on a mid-setlist unarm |
+   * | After the setlist ends | The message home |
+   *
+   * **This used to be `index === -1 && lines.length > 0`, which is not *armed* — it is *a song is
+   * loaded and rewound*.** The app auto-loads the first song of the active setlist on arrival, so
+   * that was true long before anything was armed, and **the intro card went up the instant a song
+   * was selected** and stayed up through an unarm. It also covered the message home, since both
+   * cards are hosted in the same shape and the intro is stacked second. **One cause, four
+   * symptoms** — Jorge's own diagnosis, and it was right.
+   *
+   * The armed flag has crossed on its own channel since the beginning; this window simply never
+   * read it. `performanceState.useArmedBroadcast` is that read.
+   */
+  const isArmed = useArmedBroadcast()
 
-  const showIntroScreen = isArmed && !performanceBlackout && currentSongTitle !== ''
-  const showContent = index >= 0 && !blank && !isSectionMarker
+  const showIntroScreen =
+    isArmed && index === -1 && lines.length > 0 && !performanceBlackout && currentSongTitle !== ''
+  /**
+   * **The song belongs to the armed gig, and nothing of it paints outside one.** Unarming mid-song
+   * used to leave the line hanging on the wall; between rooms the wall is black.
+   */
+  const showContent = isArmed && index >= 0 && !blank && !isSectionMarker
 
   const [displayedText, setDisplayedText] = useState('')
   const [isVisible, setIsVisible] = useState(false)

@@ -22,31 +22,50 @@ const SONG: SongItem[] = [
 ]
 
 describe('the contact condition, moment by moment', () => {
-  it('is lit at power-up, because nothing is armed', () => {
-    expect(isContactLit({ armed: false, setlistDone: false, presenting: false })).toBe(true)
+  it('is lit at power-up, because the setlist has not been entered', () => {
+    expect(
+      isContactLit({ armed: false, setlistEntered: false, setlistDone: false, presenting: false })
+    ).toBe(true)
   })
 
   it('is dark through the setlist, gaps included — a gap is inside the setlist', () => {
+    const during = { setlistEntered: true, setlistDone: false }
     // Mid-song.
-    expect(isContactLit({ armed: true, setlistDone: false, presenting: true })).toBe(false)
+    expect(isContactLit({ ...during, armed: true, presenting: true })).toBe(false)
     // Between two songs: nothing is presenting, and it stays dark anyway, because the setlist is
     // not done. This is the case a list of events gets wrong.
-    expect(isContactLit({ armed: true, setlistDone: false, presenting: false })).toBe(false)
+    expect(isContactLit({ ...during, armed: true, presenting: false })).toBe(false)
+  })
+
+  /**
+   * **AND ON A MID-SETLIST UNARM** (Jorge, 2026-09-06). *Arming and unarming move Jorge between
+   * rooms; they never move the gig between states.* This used to light — **Cowork proposed it and
+   * Jorge overruled it** — and the wall is black there now.
+   */
+  it('is dark on a mid-setlist unarm, which is the ruling of 2026-09-06', () => {
+    const during = { setlistEntered: true, setlistDone: false }
+    expect(isContactLit({ ...during, armed: false, presenting: true })).toBe(false)
+    expect(isContactLit({ ...during, armed: false, presenting: false })).toBe(false)
   })
 
   it('is dark while a repeat plays', () => {
-    expect(isContactLit({ armed: true, setlistDone: true, presenting: true })).toBe(false)
+    expect(
+      isContactLit({ armed: true, setlistEntered: true, setlistDone: true, presenting: true })
+    ).toBe(false)
   })
 
   it('is lit again the moment that repeat ends', () => {
     // The wall's attention belongs to the song; the instant it finishes the room is being asked
     // to leave with his details again.
-    expect(isContactLit({ armed: true, setlistDone: true, presenting: false })).toBe(true)
+    expect(
+      isContactLit({ armed: true, setlistEntered: true, setlistDone: true, presenting: false })
+    ).toBe(true)
   })
 
-  it('is lit once he unarms, whatever else is true', () => {
-    expect(isContactLit({ armed: false, setlistDone: true, presenting: true })).toBe(true)
-    expect(isContactLit({ armed: false, setlistDone: false, presenting: true })).toBe(true)
+  it('is lit once he unarms after the setlist has closed, whatever else is true', () => {
+    const after = { setlistEntered: true, setlistDone: true, armed: false }
+    expect(isContactLit({ ...after, presenting: true })).toBe(true)
+    expect(isContactLit({ ...after, presenting: false })).toBe(true)
   })
 })
 

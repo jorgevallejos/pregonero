@@ -114,9 +114,24 @@ function dispatchStorageUpdate() {
   window.dispatchEvent(new StorageEvent('storage', { key: null, newValue: null }))
 }
 
-/** Helper: fire the arm broadcast so ProjectionView sets hasSeenArmedSinceMount = true. */
+/**
+ * **Arming, as the Control window does it**: the nonce is written and then the event fires.
+ *
+ * It used to dispatch the event and write nothing, which was enough while this window only
+ * watched for the *transition*. **It reads the flag now** — the wall is gated on the gig's state,
+ * and `index === -1 && lines.length > 0` was never *armed* — so a helper that announces an arm
+ * without performing one is exactly the shape the kickoff warns about: a setup step with no
+ * counterpart in the running app.
+ */
 function simulateArm() {
+  localStorage.setItem(KEY_ARMED_BROADCAST, `${Date.now()}-${Math.random()}`)
   window.dispatchEvent(new StorageEvent('storage', { key: KEY_ARMED_BROADCAST, newValue: '1' }))
+}
+
+/** Unarming, as the Control window does it: the key is removed and the event fires. */
+function simulateUnarm() {
+  localStorage.removeItem(KEY_ARMED_BROADCAST)
+  window.dispatchEvent(new StorageEvent('storage', { key: KEY_ARMED_BROADCAST, newValue: null }))
 }
 
 describe('Projection screen', () => {
@@ -420,10 +435,16 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
    * It used to show the logo instead, and wait for the next arm transition to reveal anything —
    * which made sense while there was a logo to hold the wall. With that fallback gone, waiting
    * would mean a black wall until the performer unarmed and re-armed, in the middle of a song.
+   *
+   * **The gig is armed here, and it was not before 2026-09-06.** Mid-song with nothing armed is a
+   * state the running app cannot be in, and arranging it was the test standing in for a rule it
+   * was not exercising. **The claim is unchanged and is now stronger**: the flag is read at MOUNT,
+   * not on a transition, so seeding it without firing an event is the whole of the test.
    */
   it('shows the current lyric when reopened mid-song, without waiting for an arm', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1-mid-song')
     setSongLines([
       { languages: { es: 'L1', en: 'L1' } },
       { languages: { es: 'L2', en: 'L2' } },
@@ -634,6 +655,8 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
   it('comes back showing the song, not a logo, after an unmount and remount', async () => {
     installLibrary([PERF_SONG])
     sessionStorage.setItem('liveLyricLaunched', '1')
+    // Mid-song is armed. See the note on the reopened-mid-song test above.
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1-mid-song')
     setSongLines(PERF_SONG.items)
     setSongIndex(0)
     setBlank(false)
@@ -1654,6 +1677,155 @@ describe('Shapes Pregonero does not coordinate', () => {
  * The tests around them outlive all of that: the end card and the logo fallback are gone and may
  * not come back, and an old file's contact shape paints nothing.
  */
+/**
+ * **THE WALL IS GATED ON THE GIG'S STATE** (Jorge, 2026-09-06). Four reported symptoms, one cause.
+ *
+ * | Gig state | The wall |
+ * |---|---|
+ * | **Before the first arm** | The message home |
+ * | **In the setlist** | The song — and **black** between songs, at the end of a song, and on a mid-setlist unarm |
+ * | **After the setlist ends** | The message home |
+ *
+ * **Jorge's own diagnosis, confirmed here before anything was built:** a selected song wins the
+ * wall and puts its intro card up immediately, without waiting for arming. `isArmed` in this
+ * window was `index === -1 && lines.length > 0` — **which is not armed, it is *a song is loaded and
+ * rewound***. The armed flag crosses on its own channel and this window never read it.
+ *
+ * It accounts for all four: no message home before the first arm (the intro paints over it, since
+ * both are hosted in the same shape and the intro is stacked second); an intro card surviving an
+ * unarm; a song's intro appearing the instant it was selected; and the intro card being what
+ * remains after unarming.
+ *
+ * **And the rule underneath: arming and unarming move Jorge between rooms, they never move the gig
+ * between states.** Only the last song finishing does that. **Cowork proposed returning to the
+ * message home on a mid-gig unarm; Jorge overruled it.** That is why the wall goes black there and
+ * why `gigPhase` no longer takes `armed`.
+ */
+describe("the wall is gated on the gig's state", () => {
+  const LYRICS_ROOM = {
+    shapes: [shape('lyrics-1', 'song-lyrics')],
+    defaults: { 'song-lyrics': ['lyrics-1'] },
+  }
+
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom(LYRICS_ROOM)
+  })
+
+  /** The Control window's answer, as it crosses: the value, then the event. */
+  async function broadcastContact(lit: boolean) {
+    const { setContactLitBroadcast, KEY_CONTACT_LIT_BROADCAST } = await import('./gigContactState')
+    setContactLitBroadcast(lit, { url: 'changopepper.com', message: 'Write to me.' })
+    window.dispatchEvent(new StorageEvent('storage', { key: KEY_CONTACT_LIT_BROADCAST }))
+  }
+
+  async function mountWithSongLoaded() {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    // A titled song, because the intro card is the thing under test and a titleless one paints
+    // nothing for a different reason entirely.
+    installLibrary([{ id: 'test', title: 'Libertad', items: TWO_LINES }] as never)
+    setSongLines(TWO_LINES)
+    setSongIndex(-1)
+    setBlank(true)
+    wireCurrentSong('test')
+    setProjectionLanguage('en')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+  }
+
+  it('shows the message home before the first arm, and NOT the loaded song\u2019s intro card', async () => {
+    // The app auto-loads the first song of the active setlist on arrival, so a song is loaded and
+    // rewound long before anything is armed. **That is not a reason to put its card on the wall.**
+    await broadcastContact(true)
+    await mountWithSongLoaded()
+
+    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+  })
+
+  it('shows the intro card once armed, and the message home is gone', async () => {
+    await broadcastContact(true)
+    await mountWithSongLoaded()
+    // Arming is both things at once: the flag crosses, and the condition the Control window
+    // computes goes false because the gig is now `during`.
+    await broadcastContact(false)
+    await act(async () => {
+      simulateArm()
+    })
+    await waitFor(() => expect(screen.getByTestId('song-intro-screen')).toBeTruthy())
+    expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
+  })
+
+  it('goes black on a mid-setlist unarm \u2014 not back to the message home', async () => {
+    await broadcastContact(false)
+    await mountWithSongLoaded()
+    await act(async () => {
+      simulateArm()
+    })
+    await waitFor(() => expect(screen.getByTestId('song-intro-screen')).toBeTruthy())
+
+    // Unarming removes the broadcast key. The gig stays `during`, so the Control window keeps
+    // saying the message home is not lit — and with nothing armed, nothing of the song paints.
+    await act(async () => {
+      simulateUnarm()
+    })
+
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    expect(screen.queryByTestId('gig-contact-panel')).toBeNull()
+  })
+
+  it('paints no lyric at all while nothing is armed', async () => {
+    // **The song belongs to the armed gig.** Unarming mid-song used to leave the line hanging;
+    // the wall is black between rooms.
+    await broadcastContact(false)
+    await mountWithSongLoaded()
+    await act(async () => {
+      simulateArm()
+    })
+    await act(async () => {
+      setSongIndex(0)
+      setBlank(false)
+      dispatchStorageUpdate()
+    })
+    await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy())
+
+    await act(async () => {
+      simulateUnarm()
+    })
+    // The line fades rather than snapping out — 500ms, the same fade every line leaves by — and
+    // what matters is where it ends up.
+    await waitFor(
+      () => {
+        expect(document.querySelector('.shape-text-inner')?.textContent ?? '').toBe('')
+      },
+      { timeout: 3000 }
+    )
+  })
+
+  it('shows the message home again once the setlist has ended', async () => {
+    await broadcastContact(false)
+    await mountWithSongLoaded()
+    await act(async () => {
+      simulateArm()
+    })
+    await waitFor(() => expect(screen.getByTestId('song-intro-screen')).toBeTruthy())
+
+    // The last song ends: the Control window's condition goes true again, and it is `after` rather
+    // than `before` — a state arming cannot take the gig back out of.
+    await act(async () => {
+      await broadcastContact(true)
+      simulateUnarm()
+    })
+
+    expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+  })
+})
+
 describe('The contact panel, and what it replaced', () => {
   beforeEach(() => {
     cleanup()

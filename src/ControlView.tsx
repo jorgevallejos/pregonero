@@ -31,7 +31,9 @@ import {
 } from './songState'
 import { resolveMediaPath } from './mediaPathStore'
 import { VideoPerformancePanel } from './VideoPerformancePanel'
-import { usePerformanceState } from './performanceState'
+import { usePerformanceState,
+  getSetlistEntered,
+} from './performanceState'
 import { useWebSocket } from './useWebSocket'
 import { useProjectionOpenState } from './useProjectionOpenState'
 import { useProjectionPlacement } from './useProjectionPlacement'
@@ -596,10 +598,13 @@ export function ControlView() {
    * 12 somewhere to attach**, and both of the things it decides below used to be separate readings
    * of `setlistDone` that nothing tied together.
    *
-   * **The stored armed flag, not the control screen's label**: with the projection window closed an
-   * armed performance reports `setup`, and he is still armed.
+   * **NOT THE ARMED FLAG** (Jorge, 2026-09-06). *Arming and unarming move Jorge between rooms;
+   * they never move the gig between states.* Read off `armed`, unarming three songs in took the
+   * gig back to `before` and put the message home on the wall — which Cowork proposed and Jorge
+   * overruled. What enters the setlist is the first arm, and nothing takes that back.
    */
-  const phase = gigPhase({ armed: armedFlag, setlistDone })
+  const setlistEntered = armedFlag || getSetlistEntered()
+  const phase = gigPhase({ setlistEntered, setlistDone })
 
   // **The message home's one condition**, evaluated here because every input is this window's: the
   // armed flag, the played log and the playable setlist. The Projection window is handed the
@@ -611,6 +616,7 @@ export function ControlView() {
   // session's own state (the A1 rule in CLAUDE.md).
   const contactLit = isContactLit({
     armed: armedFlag,
+    setlistEntered,
     setlistDone,
     presenting: isPresenting(lines, index),
   })

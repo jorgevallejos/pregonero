@@ -11,7 +11,7 @@
  * | Moment | Why the condition answers it |
  * |---|---|
  * | Power-up | `before`, and outside the setlist. |
- * | Through the setlist, gaps included | `during`. A gap is inside the setlist. |
+ * | Through the setlist, gaps included | `during`. A gap is inside the setlist — **and so is a mid-setlist unarm**, since 2026-09-06. |
  * | While a repeat plays | `after`, armed, and a song is presenting. |
  * | The instant that repeat ends | `after`, nothing presenting — the room is being asked to leave with his details again. |
  *
@@ -21,7 +21,8 @@
  * **`!armed` lights it in both outside states**, and that is one rule rather than two: nothing is
  * being performed, so there is nothing for the wall's attention to belong to. It is why unarming
  * mid-song after the setlist has closed lights the shape rather than leaving a stranded lyric under
- * a dark one.
+ * a dark one. **Inside the setlist it lights nothing**, because the phase is `during` there
+ * whatever the arm is doing.
  *
  * ## Where it is evaluated, and why it travels as one boolean
  *
@@ -56,6 +57,8 @@ export const KEY_CONTACT_LIT_BROADCAST = 'pregoneroContactLit'
 
 export type ContactConditionInput = {
   armed: boolean
+  /** The setlist has been entered — the first arm, and nothing takes it back. See `gigPhase`. */
+  setlistEntered: boolean
   /** The setlist is played once, and this is round D's predicate, against the *playable* setlist. */
   setlistDone: boolean
   /** A loaded song that has not yet reached its end. */
@@ -69,11 +72,18 @@ export type ContactConditionInput = {
  * is the repeat: `after` is where a requested song is played from, and the wall belongs to that
  * song while it runs.
  *
- * **Equivalent to the `!armed || (setlistDone && !presenting)` it replaced**, case for case — the
- * phase is a name for what that expression was computing, not a change to it.
+ * **It is no longer equivalent to the `!armed || (setlistDone && !presenting)` it once replaced,
+ * and that is the ruling of 2026-09-06**: a mid-setlist unarm used to light this and now leaves the
+ * wall black. *Arming and unarming move Jorge between rooms; they never move the gig between
+ * states.* Cowork proposed the old behaviour and Jorge overruled it — see `gigPhase`.
  */
-export function isContactLit({ armed, setlistDone, presenting }: ContactConditionInput): boolean {
-  return isOutsideSetlist(gigPhase({ armed, setlistDone })) && (!armed || !presenting)
+export function isContactLit({
+  armed,
+  setlistEntered,
+  setlistDone,
+  presenting,
+}: ContactConditionInput): boolean {
+  return isOutsideSetlist(gigPhase({ setlistEntered, setlistDone })) && (!armed || !presenting)
 }
 
 /**
@@ -81,7 +91,10 @@ export function isContactLit({ armed, setlistDone, presenting }: ContactConditio
  * where the rest of the app already looks for the question *what is the gig doing* — the same
  * reason `gigSession` re-exports the folder memory.
  */
-export function contactGigPhase(input: { armed: boolean; setlistDone: boolean }): GigPhase {
+export function contactGigPhase(input: {
+  setlistEntered: boolean
+  setlistDone: boolean
+}): GigPhase {
   return gigPhase(input)
 }
 
