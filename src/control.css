@@ -119,8 +119,6 @@
   --text-played:            #8b8478;
   --control-text-soft:      #8b8478;
   --control-text-disabled:  #635d54;
-  --segment-text:           #8b8478;
-  --segment-text-hover:     #e6dfd1;
 
   /* ---- Selection ---------------------------------------------------------
      A choice is a bright hairline box, not a colour. Status colour is
@@ -131,7 +129,6 @@
   --state-selected-bg-hover:      #2c2a26;
   --state-selected-border-hover:  #e6dfd1;
   --state-selected-text:          #e6dfd1;
-  --segment-active-text:          #e6dfd1;
 
   /* ---- Armed / live ------------------------------------------------------
      Bombista mutes --high #4f7d63 on purpose — there, 18 rows of 19 are HIGH
@@ -778,63 +775,90 @@ html, body, #root {
   grid-row: 3;
 }
 
-/* ── Segmented controls (Transitions, Videoclip) ──────────────────────────
-   All options visible side by side; the active one filled green, inactive
-   muted. Fixed px sizing (not em) so it doesn't rescale with the fluid
-   column font — matches the fixed-height convention the single toggle
-   buttons used to follow. */
-.ctrl-segmented {
+/* ── Icon choices (Drive mode) ─────────────────────────────────────────────
+   **THREE SQUARES, ONE ICON EACH, NO TEXT** (Jorge, 2026-09-06). This replaced
+   `.ctrl-segmented` / `.ctrl-segment`, which had exactly one caller left and was
+   a toolbar control on a surface read across a stage in the dark: three words at
+   12.5px sharing a 34px-tall box in a column a quarter of the panel wide.
+
+   SIZED FOR THE PANEL, NOT FOR A TOOLBAR, and sized by the column rather than by
+   a number: the row is the column's full width, each button takes a third of it
+   and is kept square by `aspect-ratio`. The cap stops them looking absurd on a
+   wide window; the floor is what a finger needs. Between the two they shrink on a
+   narrow surface instead of clipping — the same failure this panel chooses
+   everywhere else (see the fold note above).
+
+   The icons are cream on their own ink ground, a shade darker than the panel, so
+   the square IS the button face and no background is painted under it. State is
+   carried by the border and by opacity:
+     active       — full strength, a cream rule around it
+     available    — dimmed, a faint rule
+     unavailable  — dimmer still, and STILL PRESSABLE: it refuses in a popup
+                    rather than sitting dead (`aria-disabled`, never `disabled`).
+   `not-allowed` is deliberately NOT used: the pointer would say *nothing will
+   happen here*, and something does. */
+.ctrl-icon-choices {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  border: 0.5px solid var(--rule);
+  gap: 10px;
+  width: 100%;
+  max-width: 260px;
+  min-width: 0;
+}
+
+.ctrl-icon-choice {
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  max-width: 76px;
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 1.5px solid var(--rule);
   border-radius: var(--radius-tile);
   overflow: hidden;
-  flex: 0 0 auto;
-}
-
-.ctrl-segment {
-  flex: 0 0 auto;
-  appearance: none;
-  border: none;
-  border-right: 0.5px solid var(--rule);
-  background: transparent;
-  color: var(--segment-text);
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 7px 13px;
-  margin: 0;
   cursor: pointer;
   touch-action: manipulation;
-  white-space: nowrap;
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ctrl-segment:last-child {
-  border-right: none;
+.ctrl-icon-choice img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
 }
 
-.ctrl-segment:hover:not(:disabled):not(.ctrl-segment--active) {
-  color: var(--segment-text-hover);
+.ctrl-icon-choice:hover:not(.ctrl-icon-choice--active) {
+  opacity: 0.75;
 }
 
-.ctrl-segment--active {
-  background: var(--state-selected-bg);
-  color: var(--segment-active-text);
+.ctrl-icon-choice--active {
+  opacity: 1;
+  border-color: var(--state-selected-border);
 }
 
-.ctrl-segment--active:hover:not(:disabled) {
-  background: var(--state-selected-bg-hover);
+/* Unavailable, not disabled. Dim enough to read as *not this one tonight* and
+   bright enough to be found and pressed for the reason. */
+.ctrl-icon-choice--unavailable {
+  opacity: 0.22;
+  border-color: var(--rule);
 }
 
-.ctrl-segment:disabled,
-.ctrl-segment.ctrl-segment--disabled {
-  cursor: not-allowed;
-  color: var(--text-disabled);
+.ctrl-icon-choice--unavailable:hover {
+  opacity: 0.35;
 }
 
-.ctrl-segment:disabled.ctrl-segment--active,
-.ctrl-segment.ctrl-segment--disabled.ctrl-segment--active {
-  color: var(--text-dim);
+.ctrl-icon-choice--unavailable.ctrl-icon-choice--active {
+  opacity: 0.5;
 }
 
 .ctrl-setup-link {

@@ -73,7 +73,33 @@ import {
   type DriveMode,
   type SongDriveCapabilities,
 } from './driveMode'
+import iconClock from './icons/icon-clock.png'
+import iconManual from './icons/icon-manual.png'
+import iconVideo from './icons/icon-video.png'
 import './control.css'
+
+/**
+ * **ONE ICON PER DRIVE MODE, AS SUPPLIED** (Jorge, 2026-09-06) — a clock face, a pressing finger,
+ * a film frame. **Imported, not read out of `public/`**: a bare `/icons/...` string in a component
+ * is the one asset reference Vite leaves alone, and the packaged app loads over `file://`, where
+ * an absolute URL resolves to the filesystem root. Three empty squares with nothing in the console
+ * is the same silent failure `#/folders` exists to make visible for song media.
+ */
+const DRIVE_MODE_ICONS: Record<DriveMode, string> = {
+  clock: iconClock,
+  manual: iconManual,
+  video: iconVideo,
+}
+
+/**
+ * The accessible name, which the text used to carry. Every test that reaches a mode by
+ * `getByRole('button', { name: 'Manual' })` reads this now.
+ */
+const DRIVE_MODE_NAMES: Record<DriveMode, string> = {
+  clock: 'Clock',
+  manual: 'Manual',
+  video: 'Video',
+}
 
 /** v0.5: labels from performance control state machine (SETUP | READY_TO_ARM | ARMED) */
 const CONTROL_STATE_LABELS: Record<'SETUP' | 'READY_TO_ARM' | 'ARMED', string> = {
@@ -1232,18 +1258,27 @@ export function ControlView() {
                   <div className="control-setup-toggle-area">
                     <div className="ctrl-toggle-group">
                       <span className="ctrl-toggle-label">Drive mode</span>
-                      <div className="ctrl-segmented" role="group" aria-label="Drive mode">
+                      {/* **THREE SQUARES, NOT A SEGMENTED STRIP** (Jorge, 2026-09-06). The strip
+                          was a toolbar control on a panel read across a stage in the dark: three
+                          words at 12.5px inside one 34px box, in a column a quarter of the panel
+                          wide. **The glyph is the label now.** The buttons flex to the column and
+                          cap at a size, so a narrow surface shrinks them rather than clipping
+                          them — the same failure choice the rest of this panel makes. */}
+                      <div className="ctrl-icon-choices" role="group" aria-label="Drive mode">
                         {DRIVE_MODES.map((mode) => (
                           <button
                             key={mode}
                             type="button"
-                            className={`ctrl-segment${driveMode === mode ? ' ctrl-segment--active' : ''}${driveModeAvailable(mode, driveCaps) ? '' : ' ctrl-segment--disabled'}`}
+                            className={`ctrl-icon-choice${driveMode === mode ? ' ctrl-icon-choice--active' : ''}${driveModeAvailable(mode, driveCaps) ? '' : ' ctrl-icon-choice--unavailable'}`}
                             aria-pressed={driveMode === mode}
                             aria-disabled={!driveModeAvailable(mode, driveCaps)}
+                            aria-label={DRIVE_MODE_NAMES[mode]}
                             data-testid={`drive-mode-${mode}`}
                             onClick={() => chooseDriveMode(mode)}
                           >
-                            {mode === 'video' ? 'Video' : mode === 'clock' ? 'Clock' : 'Manual'}
+                            {/* Decorative: the button carries the name, so the image must not
+                                repeat it to a screen reader. */}
+                            <img src={DRIVE_MODE_ICONS[mode]} alt="" draggable={false} />
                           </button>
                         ))}
                       </div>

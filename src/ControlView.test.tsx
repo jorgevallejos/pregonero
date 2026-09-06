@@ -4675,19 +4675,49 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     expect(screen.getByTestId('drive-mode-refusal-message').textContent).toMatch(/no video/i)
   })
 
-  it('renders text labels, not SVG icons', async () => {
+  /**
+   * **THREE SQUARE BUTTONS, ONE ICON EACH, NO TEXT LABELS** (Jorge, 2026-09-06). The segmented
+   * strip this replaces was a toolbar control on a surface read across a stage in the dark: three
+   * words at 12.5px inside a shared 34px-tall box, in a column that is a quarter of the panel.
+   * **The glyph is the label now**, and the button is a square big enough to hit without looking.
+   *
+   * **The icons are Jorge's own files and are used as supplied, never redrawn** — a lookalike
+   * drawn here would be a second copy of a decision that already has an owner. They are imported
+   * as modules rather than referenced out of `public/`, because a bare `/icons/...` string in a
+   * component is the one asset reference Vite does not rewrite, and the packaged app loads over
+   * `file://` where an absolute URL resolves to the filesystem root. **The failure would be
+   * silent**: three empty squares, nothing in the console, exactly the shape of the missing-logo
+   * bug that `#/folders` exists to make visible.
+   *
+   * **The accessible name survives the text going away.** Every other test in this file that
+   * reaches a mode by `getByRole('button', { name: 'Manual' })` still works, because `aria-label`
+   * carries what the text used to.
+   */
+  it('renders one icon per button, no text, and keeps the accessible name', async () => {
     setupWithTimelineSong()
     await armAndReachSetup()
 
-    for (const [mode, label] of [
+    for (const [mode, name] of [
       ['video', 'Video'],
       ['clock', 'Clock'],
       ['manual', 'Manual'],
     ] as const) {
       const button = screen.getByTestId(`drive-mode-${mode}`)
-      expect(button.textContent).toBe(label)
+      expect(button.textContent).toBe('')
+      expect(button.getAttribute('aria-label')).toBe(name)
+
+      const icons = button.querySelectorAll('img')
+      expect(icons.length).toBe(1)
+      // Its own file, not one icon reused three times.
+      expect(icons[0]!.getAttribute('src')).toMatch(new RegExp(`icon-${mode}\\.png`))
+      // Decorative: the button already carries the name, so the image must not repeat it.
+      expect(icons[0]!.getAttribute('alt')).toBe('')
       expect(button.querySelector('svg')).toBeNull()
     }
+
+    // Three separate squares, not one strip: the segmented container is gone from the screen.
+    expect(document.querySelector('.ctrl-segmented')).toBeNull()
+    expect(screen.getAllByTestId(/^drive-mode-(video|clock|manual)$/).length).toBe(3)
   })
 
   it('Manual mode (unchanged): first lyric only appears on explicit Next, and count-in alone does not advance', async () => {
