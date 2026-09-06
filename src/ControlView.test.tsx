@@ -4617,6 +4617,41 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
     expect(screen.getByRole('button', { name: /^restart$/i })).toBeTruthy()
   })
 
+  /**
+   * **A SONG ENDS IN ALL THREE DRIVE MODES** (Jorge, 2026-09-06). `v0.94.0` found one fault with
+   * two faces and **both faces were `clock` and `manual`** — a song driven by its video reached
+   * neither, because the clock's ending is in an effect that returns early in Video mode and
+   * manual's is a press this mode does not make.
+   *
+   * **So `tragedia`'s last phrase stayed on the wall, the song was never marked finished, and the
+   * setlist could never end** — the same two moments blocked for three rounds.
+   *
+   * `endCurrentSong` is the one act, and this is the third path into it.
+   */
+  it('a song driven by its video ends when the video passes its last cue', async () => {
+    setupWithVideoSongDisplayNone()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(standbyState()).toBe('READY_TO_ARM')
+    }, { timeout: WAIT_TIMEOUT })
+    await act(async () => { fireEvent.click(getArmButton()) })
+
+    const video = document.querySelector('.video-perf-panel video') as HTMLVideoElement
+    expect(video, 'the video panel is not on screen').toBeTruthy()
+    expect(getSongEnded()).toBe(false)
+
+    // The cue table is [0,1) and [1,2) seconds; the video runs out.
+    Object.defineProperty(video, 'currentTime', { value: 2.0, configurable: true })
+    await act(async () => { fireEvent(video, new Event('timeupdate')) })
+
+    expect(getSongEnded()).toBe(true)
+    // And the performance is logged by the ending itself, so the setlist can close.
+    expect(playedSongIds()).toEqual(['duelo'])
+    // The footer knows it too: in Video mode the index never reaches the last line, so this used
+    // to stay `Unarm`-with-a-hold and the next-song tile never appeared.
+    expect(screen.getByRole('button', { name: /^Unarm/ }).textContent).toBe('Unarm')
+  })
+
   it('shows the video panel without anybody choosing it, because video is the most capable', async () => {
     // **The default is the most capable available** — video, then clock, then manual — so the
     // common case is that Jorge touches nothing. **This overturns `getDefaultDisplayMode`'s

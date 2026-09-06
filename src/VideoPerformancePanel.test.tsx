@@ -600,3 +600,62 @@ describe('VideoPerformancePanel — transport broadcasts', () => {
     expect(setVideoTransportCommandMock).toHaveBeenCalledWith('play')
   })
 })
+
+/**
+ * **A SONG ENDS IN ALL THREE DRIVE MODES, AND THIS IS THE THIRD** (Jorge, 2026-09-06).
+ *
+ * `v0.94.0` found one fault with two faces — **and both faces were `clock` and `manual`.** A song
+ * driven by its video reached neither: the clock's ending is in an effect that returns early in
+ * Video mode, and manual's is a press that Video mode does not make. **So `tragedia`'s last phrase
+ * stayed on the wall, the song was never marked finished, and the setlist could never end** — the
+ * same two moments blocked for three rounds.
+ *
+ * **Why the phrase stayed rather than clearing.** Past the last cue the lookup answers `-1`, which
+ * would have cleared it — but a `<video>` that reaches its end stops firing `timeupdate`, so the
+ * last index computed is the last index there is. **Nothing was wrong with the lookup; nothing
+ * asked it again.**
+ *
+ * **The predicate is the one the clock already uses.** `isPastLastCue` is not reimplemented here:
+ * what differs between the modes is which clock is read, and that difference is irreducible — each
+ * mode has its own. What must not differ is the answer, or the act that follows it.
+ */
+describe('the end of a song, in Video mode', () => {
+  async function playPast(seconds: number, onSongEnded = vi.fn()) {
+    const Panel = await importPanel()
+    const { container } = render(<Panel {...defaultProps({ onSongEnded })} />)
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'currentTime', { value: seconds, configurable: true })
+    await act(async () => {
+      fireEvent(video, new Event('timeupdate'))
+    })
+    return { onSongEnded, video }
+  }
+
+  it('says nothing while a cue is still running', async () => {
+    const { onSongEnded } = await playPast(1.2)
+    expect(onSongEnded).not.toHaveBeenCalled()
+  })
+
+  it('says nothing before the first cue, where the index is also -1', async () => {
+    // The two ends of a timeline both answer `-1`, which is what made this invisible.
+    const { onSongEnded } = await playPast(-1)
+    expect(onSongEnded).not.toHaveBeenCalled()
+  })
+
+  it('ends the song once the video is past the last cue', async () => {
+    const { onSongEnded } = await playPast(2.0)
+    expect(onSongEnded).toHaveBeenCalledTimes(1)
+  })
+
+  it('says it once, however many times the clock ticks past the end', async () => {
+    const onSongEnded = vi.fn()
+    const { video } = await playPast(2.0, onSongEnded)
+    for (const t of [2.5, 3.0, 9.0]) {
+      Object.defineProperty(video, 'currentTime', { value: t, configurable: true })
+      await act(async () => {
+        fireEvent(video, new Event('timeupdate'))
+      })
+    }
+    expect(onSongEnded).toHaveBeenCalledTimes(1)
+  })
+})

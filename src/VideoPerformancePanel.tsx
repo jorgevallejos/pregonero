@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { CSSProperties } from 'react'
 import { getBeatPhase, type SongTempo, type BeatPhaseResult } from './beatScheduler'
 import { absolutePathToMediaUrl } from './mediaPathStore'
-import { resolveVideoCueIndex } from './videoCueLookup'
+import { resolveVideoSongTime, videoCueLookup } from './videoCueLookup'
+import { isPastLastCue } from './autoAdvanceState'
 import { setVideoTransportCommand } from './videoTransport'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
@@ -21,6 +22,22 @@ interface Props {
    * to `Unarm`. The beat indicator stops here (Jorge, 2026-09-05); nothing else uses it.
    */
   songFinished?: boolean
+  /**
+   * **The video has passed the last cue: the song is over.**
+   *
+   * `v0.94.0` gave a song an ending in `clock` and in `manual`, and **Video mode reached neither**
+   * — the clock's ending lives in an effect that returns early here, and manual's is a press this
+   * mode does not make. So the last phrase stayed on the wall, the song was never marked finished,
+   * and the setlist could never end.
+   *
+   * **The panel reports; it does not decide.** Ending a song is one act and it lives in
+   * `ControlView.endCurrentSong`, which owns the played log — the same act the other two modes
+   * reach. What differs per mode is only which clock is read, and that difference is irreducible.
+   *
+   * **Fired once**, because a video that reaches its end keeps the last `timeupdate` it fired and
+   * a paused one can be scrubbed past the end again.
+   */
+  onSongEnded?: () => void
   onUnarm: () => void
   onSeek: (targetTime: number) => void
 }
@@ -46,6 +63,7 @@ export function VideoPerformancePanel({
   singingLang,
   tempo,
   songFinished = false,
+  onSongEnded,
   onUnarm,
   onSeek,
 }: Props) {
@@ -244,6 +262,14 @@ export function VideoPerformancePanel({
 
   const [activeCueIndex, setActiveCueIndex] = useState(-1)
 
+  // **Reported once per song.** Reset when the timeline changes, which is what a new song is here.
+  const endedReportedRef = useRef(false)
+  useEffect(() => {
+    endedReportedRef.current = false
+  }, [timeline])
+  const onSongEndedRef = useRef(onSongEnded)
+  onSongEndedRef.current = onSongEnded
+
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -251,7 +277,16 @@ export function VideoPerformancePanel({
       // **The panel is only ever mounted in Video mode**, which is what makes `true` the honest
       // answer here: `showVideoPerformance` gates it on `isVideoMode`, and that is now *a video is
       // assigned to this song for this gig*. The contract's table, read where it can be answered.
-      setActiveCueIndex(resolveVideoCueIndex(timeline, video.currentTime, offset, leadIn, true))
+      const songTime = resolveVideoSongTime(video.currentTime, offset, leadIn, true)
+      setActiveCueIndex(videoCueLookup(timeline, songTime))
+      // **The same predicate the clock's ending uses**, against this mode's own clock. Past the
+      // last cue the lookup answers `-1`, which would have cleared the phrase — but a video that
+      // reaches its end stops firing `timeupdate`, so the last index computed is the last index
+      // there is. **Nothing was wrong with the lookup; nothing asked it again.**
+      if (!endedReportedRef.current && isPastLastCue(timeline, songTime * 1000)) {
+        endedReportedRef.current = true
+        onSongEndedRef.current?.()
+      }
     }
     video.addEventListener('timeupdate', onTimeUpdate)
     return () => video.removeEventListener('timeupdate', onTimeUpdate)

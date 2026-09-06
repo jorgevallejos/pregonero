@@ -685,13 +685,23 @@ export function ControlView() {
       : null
   const [showNextSongTile, setShowNextSongTile] = useState(false)
 
+  /**
+   * **The song is over**, which is one question with two ways of being answered.
+   *
+   * The index reaches the last lyric line in `clock` and `manual`, where this window's index *is*
+   * the song's position. **In Video mode it never does** — the panel keeps the video's cue in its
+   * own state and `songState`'s index stays where arming left it — so the footer never flipped to
+   * `Unarm`, the next-song tile never appeared and the beat indicator never stopped. `songEnded` is
+   * the answer that all three modes reach; the index is the one that two of them do.
+   */
   const isEndOfSong =
     controlState === 'ARMED' &&
-    lines.length > 0 &&
-    index >= 0 &&
-    index < lines.length &&
-    isLyricLine(lines[index]) &&
-    index === getLastLyricIndex(lines)
+    (songEnded ||
+      (lines.length > 0 &&
+        index >= 0 &&
+        index < lines.length &&
+        isLyricLine(lines[index]) &&
+        index === getLastLyricIndex(lines)))
   const nextDisabled = nextDisabledFromControlState
 
   /**
@@ -1484,6 +1494,9 @@ export function ControlView() {
             // beat indicator starts on, written once rather than as a second `next` path here.
             key={currentSongId}
             songFinished={isEndOfSong}
+            // **The third ending, reaching the one act.** `endCurrentSong` is what the clock and
+            // the pedal already reach; Video mode reached neither until 2026-09-06.
+            onSongEnded={endCurrentSong}
             absolutePath={resolvedVideoPath}
             timeline={currentLibrarySong!.timeline ?? []}
             leadIn={currentLibrarySong!.leadIn}
