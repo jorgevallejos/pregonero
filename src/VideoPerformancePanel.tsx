@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react'
 import { getBeatPhase, type SongTempo, type BeatPhaseResult } from './beatScheduler'
 import { absolutePathToMediaUrl } from './mediaPathStore'
 import { resolveVideoSongTime, videoCueLookup } from './videoCueLookup'
-import { isPastLastCue } from './autoAdvanceState'
 import { setVideoTransportCommand } from './videoTransport'
 import { useHoldToConfirm } from './useHoldToConfirm'
 import { BeatCircle } from './BeatCircle'
@@ -277,19 +276,39 @@ export function VideoPerformancePanel({
       // **The panel is only ever mounted in Video mode**, which is what makes `true` the honest
       // answer here: `showVideoPerformance` gates it on `isVideoMode`, and that is now *a video is
       // assigned to this song for this gig*. The contract's table, read where it can be answered.
-      const songTime = resolveVideoSongTime(video.currentTime, offset, leadIn, true)
-      setActiveCueIndex(videoCueLookup(timeline, songTime))
-      // **The same predicate the clock's ending uses**, against this mode's own clock. Past the
-      // last cue the lookup answers `-1`, which would have cleared the phrase — but a video that
-      // reaches its end stops firing `timeupdate`, so the last index computed is the last index
-      // there is. **Nothing was wrong with the lookup; nothing asked it again.**
-      if (!endedReportedRef.current && isPastLastCue(timeline, songTime * 1000)) {
-        endedReportedRef.current = true
-        onSongEndedRef.current?.()
-      }
+      setActiveCueIndex(
+        videoCueLookup(timeline, resolveVideoSongTime(video.currentTime, offset, leadIn, true))
+      )
+    }
+    /**
+     * **A MEDIA ELEMENT REACHING ITS END IS AN ENDING** (Jorge, 2026-09-06), and in Video mode it
+     * is the only one. **The video is the clock; the timeline defers to it.**
+     *
+     * `v0.99.0` ended the song when the clock passed the last cue's `end`, which is the right
+     * predicate for `clock` and the wrong authority here. **Measured:**
+     * `Tragedia de Cerdo Asado.mp4` is **159.49s** and its last cue ends at **159.78s** — the
+     * clock stops 0.29s short, so *past the last cue* was never true, correctly, by its own
+     * definition. Nothing was broken; **the clock ran out short.**
+     *
+     * **Never require a timeline and a media file to agree to the centisecond.** They come from
+     * different places — the timeline was aligned against the audio, the video exported separately
+     * — and the same folder holds both errors: two of `tragedia`'s five exports **outlast** its
+     * timeline by ~20s, which under the old rule would have blacked the wall on the last twenty
+     * seconds of the clip.
+     *
+     * **Fired once**, because a paused video can be scrubbed past its end again.
+     */
+    const onEnded = () => {
+      if (endedReportedRef.current) return
+      endedReportedRef.current = true
+      onSongEndedRef.current?.()
     }
     video.addEventListener('timeupdate', onTimeUpdate)
-    return () => video.removeEventListener('timeupdate', onTimeUpdate)
+    video.addEventListener('ended', onEnded)
+    return () => {
+      video.removeEventListener('timeupdate', onTimeUpdate)
+      video.removeEventListener('ended', onEnded)
+    }
     // Depend on leadIn's primitive fields, not the object itself — `leadIn` is derived from the
     // library song and may be a fresh object every render (see the "Hook stability gotcha" in
     // CLAUDE.md).

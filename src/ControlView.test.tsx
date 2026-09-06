@@ -4640,9 +4640,13 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
     expect(video, 'the video panel is not on screen').toBeTruthy()
     expect(getSongEnded()).toBe(false)
 
-    // The cue table is [0,1) and [1,2) seconds; the video runs out.
-    Object.defineProperty(video, 'currentTime', { value: 2.0, configurable: true })
+    // **The media ends, with the timeline still to run.** `Tragedia de Cerdo Asado.mp4` is 159.49s
+    // against a last cue ending at 159.78s — the clock stops short, so *past the last cue* is never
+    // true and the song could never end. A media element reaching its end IS an ending.
+    Object.defineProperty(video, 'currentTime', { value: 1.5, configurable: true })
     await act(async () => { fireEvent(video, new Event('timeupdate')) })
+    expect(getSongEnded()).toBe(false)
+    await act(async () => { fireEvent(video, new Event('ended')) })
 
     expect(getSongEnded()).toBe(true)
     // And the performance is logged by the ending itself, so the setlist can close.
@@ -4650,6 +4654,48 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
     // The footer knows it too: in Video mode the index never reaches the last line, so this used
     // to stay `Unarm`-with-a-hold and the next-song tile never appeared.
     expect(screen.getByRole('button', { name: /^Unarm/ }).textContent).toBe('Unarm')
+  })
+
+  /**
+   * **The three things that follow an ending, checked in Video mode** — where none of them used to
+   * happen, because `isEndOfSong` read an index that never moves here.
+   *
+   * **Two of the three now do. The third does not exist in this branch at all**: the next-song tile
+   * is rendered inside `showArmedShell && !showVideoPerformance`, so a video song has never had
+   * one, before or after this round. **Reported rather than added** — where a tile sits on a
+   * screen the video panel fills is a placement decision on the performing surface, and that is
+   * Jorge's. Asserted here so the absence is recorded rather than assumed.
+   */
+  it('flips the footer and stops the beat when a video song ends — and has no tile to offer', async () => {
+    vi.useFakeTimers()
+    installLibrary([
+      { id: 'duelo', title: 'Duelo', items: VALID_LINES, timeline: [{ start: 0, end: 1 }, { start: 1, end: 2 }] },
+      { id: 'pimiento', title: 'Pimiento', items: VALID_LINES },
+    ] as never)
+    installRoom({ assets: { duelo: { 'video-1': 'test.mp4' } } })
+    localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
+    setActiveSetlistSongIds(['duelo', 'pimiento'])
+    setupControlViewWithReadinessPassing()
+    render(<App initialHash="#/" />)
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { fireEvent.click(getArmButton()) })
+
+    const video = document.querySelector('.video-perf-panel video') as HTMLVideoElement
+    expect(video).toBeTruthy()
+    // Before the end: the beat is running and there is no tile however long you wait.
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.queryByTestId('next-song-tile')).toBeNull()
+
+    await act(async () => { fireEvent(video, new Event('ended')) })
+
+    expect(screen.getByRole('button', { name: /^Unarm/ }).textContent).toBe('Unarm')
+    // `songFinished` is fed from `isEndOfSong`, so the indicator stops with the rest of it.
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+    // **The gap this round reports and does not close.** The tile is in the non-video branch only.
+    act(() => { vi.advanceTimersByTime(6_000) })
+    expect(screen.queryByTestId('next-song-tile')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('shows the video panel without anybody choosing it, because video is the most capable', async () => {

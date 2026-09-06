@@ -620,40 +620,64 @@ describe('VideoPerformancePanel — transport broadcasts', () => {
  * mode has its own. What must not differ is the answer, or the act that follows it.
  */
 describe('the end of a song, in Video mode', () => {
-  async function playPast(seconds: number, onSongEnded = vi.fn()) {
+  async function panelWith(onSongEnded = vi.fn()) {
     const Panel = await importPanel()
     const { container } = render(<Panel {...defaultProps({ onSongEnded })} />)
-    const video = container.querySelector('video')!
+    return { onSongEnded, video: container.querySelector('video')! }
+  }
+
+  async function tickAt(video: HTMLVideoElement, seconds: number) {
     Object.defineProperty(video, 'currentTime', { value: seconds, configurable: true })
     await act(async () => {
       fireEvent(video, new Event('timeupdate'))
     })
-    return { onSongEnded, video }
   }
 
   it('says nothing while a cue is still running', async () => {
-    const { onSongEnded } = await playPast(1.2)
+    const { onSongEnded, video } = await panelWith()
+    await tickAt(video, 1.2)
     expect(onSongEnded).not.toHaveBeenCalled()
   })
 
-  it('says nothing before the first cue, where the index is also -1', async () => {
-    // The two ends of a timeline both answer `-1`, which is what made this invisible.
-    const { onSongEnded } = await playPast(-1)
+  /**
+   * **THE CLOCK RAN OUT SHORT, AND THAT IS THE WHOLE FINDING** (measured, 2026-09-06).
+   *
+   * `Tragedia de Cerdo Asado.mp4` is **159.49s**; its last cue ends at **159.78s**. So *past the
+   * last cue* was never true — **correctly, by its own definition** — and the phrase stayed on the
+   * wall, the song was never finished and the gig never ended. **Nothing was broken.** Three
+   * rounds looked for a fault in the asking and there was none in the answering.
+   *
+   * `TIMELINE` here ends at 2.0s; the video stops at 1.9s. **The fixture is short by a fraction,
+   * because that is the case in the room.**
+   */
+  it('ends the song when the media ends, even with the timeline still to run', async () => {
+    const { onSongEnded, video } = await panelWith()
+    await tickAt(video, 1.9)
     expect(onSongEnded).not.toHaveBeenCalled()
-  })
 
-  it('ends the song once the video is past the last cue', async () => {
-    const { onSongEnded } = await playPast(2.0)
+    await act(async () => {
+      fireEvent(video, new Event('ended'))
+    })
     expect(onSongEnded).toHaveBeenCalledTimes(1)
   })
 
-  it('says it once, however many times the clock ticks past the end', async () => {
-    const onSongEnded = vi.fn()
-    const { video } = await playPast(2.0, onSongEnded)
-    for (const t of [2.5, 3.0, 9.0]) {
-      Object.defineProperty(video, 'currentTime', { value: t, configurable: true })
+  /**
+   * **The other half of the same fault, and the same folder holds both.** Two of `tragedia`'s five
+   * exports **outlast** its timeline by ~20s. Ending the song at the last cue would have blacked
+   * the wall on the last twenty seconds of the clip. **The video is the clock; the timeline defers
+   * to it.**
+   */
+  it('does not end the song when the timeline runs out before the media does', async () => {
+    const { onSongEnded, video } = await panelWith()
+    for (const t of [2.0, 5.0, 20.0]) await tickAt(video, t)
+    expect(onSongEnded).not.toHaveBeenCalled()
+  })
+
+  it('says it once, however many times the element reports it', async () => {
+    const { onSongEnded, video } = await panelWith()
+    for (let i = 0; i < 3; i++) {
       await act(async () => {
-        fireEvent(video, new Event('timeupdate'))
+        fireEvent(video, new Event('ended'))
       })
     }
     expect(onSongEnded).toHaveBeenCalledTimes(1)
