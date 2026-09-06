@@ -47,7 +47,7 @@ import { useContactBroadcast } from './cardBroadcast'
 import { ShapeContact, hasContactContent, type ContactFields } from './ShapeContact'
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 
-import { useEffect, useState, useRef } from 'react'
+import { Fragment, useEffect, useState, useRef } from 'react'
 
 import { getAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 
@@ -216,9 +216,25 @@ export function ProjectionView() {
    */
   const songEnded = getSongEnded()
 
+  /**
+   * **THE GATE, AND IT IS ONE GATE.** *The gate belongs where the wall is decided, not inside each
+   * thing that paints it* (Jorge, 2026-09-06).
+   *
+   * `v0.93.0` put this condition on the intro card and `v0.94.0` put it on the lyric, and **the
+   * video path was never behind either** — `playVideo` was `isVideoMode && videoRuns`, and neither
+   * of those consults the gig's state. So **selecting a song that has a video painted its first
+   * frame, paused, on an unarmed wall**, and unarming mid-song left it up. Same root as the intro
+   * card: a selected song winning the wall.
+   *
+   * **Gating the video as a second special case would have left a third painter free**, so the
+   * gate is applied ONCE, where the song's content is merged into the compositor — see
+   * `songLayers` below. Every painter that answers to the song goes into that map; nothing that
+   * does not is in it.
+   */
+  const songIsOnTheWall = isArmed && !songEnded
+
   const showIntroScreen =
-    isArmed &&
-    !songEnded &&
+    songIsOnTheWall &&
     index === -1 &&
     lines.length > 0 &&
     !performanceBlackout &&
@@ -227,7 +243,7 @@ export function ProjectionView() {
    * **The song belongs to the armed gig, and nothing of it paints outside one.** Unarming mid-song
    * used to leave the line hanging on the wall; between rooms the wall is black.
    */
-  const showContent = isArmed && !songEnded && index >= 0 && !blank && !isSectionMarker
+  const showContent = songIsOnTheWall && index >= 0 && !blank && !isSectionMarker
 
   const [displayedText, setDisplayedText] = useState('')
   const [isVisible, setIsVisible] = useState(false)
@@ -427,6 +443,25 @@ export function ProjectionView() {
   // the only place the z-order is authored. Grouping by type here would silently reorder the wall.
   const contentByShapeId = new Map<string, ReactNode>()
 
+  /**
+   * **EVERYTHING THE PLAYING SONG PUTS ON THE WALL**, kept apart until the gate is applied.
+   *
+   * The video, the lyric and the title card all answer to the same question — *is the song on the
+   * wall* — and each of them used to ask it for itself, which is how the video came to be the one
+   * that did not. **A painter added here is behind the gate for free**; a painter that writes into
+   * `contentByShapeId` directly is saying it is not the song's, which is true of exactly two
+   * things and both are named where they are written.
+   *
+   * A list per shape rather than one node, because the title card goes OVER what its host already
+   * holds: the video is the clock and has to stay mounted under it.
+   */
+  const songLayers = new Map<string, ReactNode[]>()
+  const paintForSong = (shapeId: string, node: ReactNode) => {
+    const layers = songLayers.get(shapeId)
+    if (layers) layers.push(node)
+    else songLayers.set(shapeId, [node])
+  }
+
   // Song-aware shapes: **a shape is a place that can hold content, not a thing that is on.** It is
   // lit only when the playing song points something at it, and one whose song is not playing is
   // simply not here. Absence is the empty state; nothing is ever declared empty, and the gap
@@ -443,7 +478,7 @@ export function ProjectionView() {
     if (!path) continue
     if (clockShapeId === null) clockShapeId = shape.id
     const isClock = shape.id === clockShapeId
-    contentByShapeId.set(
+    paintForSong(
       shape.id,
       <ShapeVideo
         absolutePath={path}
@@ -454,7 +489,7 @@ export function ProjectionView() {
   }
   for (const shape of lyricShapes) {
     const fields = readTextFields(shape.layer)
-    contentByShapeId.set(
+    paintForSong(
       shape.id,
       <ShapeText
         text={lyricText}
@@ -497,6 +532,45 @@ export function ProjectionView() {
       </>
     )
   }
+  const cardPreview = contact.preview
+  const cardBoxWidth = (shape: VisualShape) =>
+    textLayoutBoxWidth(shapeFrame(shape), 1, outputWidth, outputHeight)
+
+  /**
+   * **The song's own card**, so it goes through the gate with the rest of the song rather than
+   * carrying a copy of the condition. A setup preview replaces it — that is not performance and
+   * the gate has nothing to say about it.
+   */
+  if (cardPreview === null && showIntro) {
+    for (const shape of hostShapes) {
+      paintForSong(shape.id, <ShapeIntro parts={introParts!} boxWidth={cardBoxWidth(shape)} />)
+    }
+  }
+
+  /**
+   * **THE GATE, APPLIED ONCE.** Everything the song puts on the wall reaches the compositor here
+   * and nowhere else, so a painter cannot forget to ask — which is exactly what the video path had
+   * been doing since before `v0.93.0`.
+   *
+   * **Before the cards below, so the message home still stacks on top of the song.** There is one
+   * moment where both are live: the last line of a repeat, in `after`, where `isPresenting` has
+   * already gone false and the room is being asked to leave with his details again.
+   */
+  if (songIsOnTheWall) {
+    for (const [shapeId, layers] of songLayers) {
+      const beneath = contentByShapeId.get(shapeId)
+      contentByShapeId.set(
+        shapeId,
+        <>
+          {beneath}
+          {layers.map((layer, i) => (
+            <Fragment key={i}>{layer}</Fragment>
+          ))}
+        </>
+      )
+    }
+  }
+
   /**
    * **A SETUP PREVIEW WINS THE WALL WHILE IT IS UP** (Jorge, 2026-09-06). The Cards step puts the
    * card on the projector so it is judged at real size in the real room — *the real thing on the
@@ -505,10 +579,6 @@ export function ProjectionView() {
    * **It is setup, not performance**, so nothing about the gig's state is consulted here: the
    * chosen card is what shows, and clearing the preview hands the wall straight back.
    */
-  const cardPreview = contact.preview
-  const cardBoxWidth = (shape: VisualShape) =>
-    textLayoutBoxWidth(shapeFrame(shape), 1, outputWidth, outputHeight)
-
   if (cardPreview !== null) {
     for (const shape of hostShapes) {
       overlayHost(
@@ -526,11 +596,6 @@ export function ProjectionView() {
         for (const shape of hostShapes) {
           overlayHost(<ShapeContact fields={fields} boxWidth={cardBoxWidth(shape)} />)(shape)
         }
-      }
-    }
-    if (showIntro) {
-      for (const shape of hostShapes) {
-        overlayHost(<ShapeIntro parts={introParts!} boxWidth={cardBoxWidth(shape)} />)(shape)
       }
     }
   }

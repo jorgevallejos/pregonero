@@ -362,7 +362,10 @@ describe('Projection screen', () => {
     render(<App initialHash="#/projection" />)
 
     await waitFor(() => {
-      expect(document.querySelector('.projection-lyric')?.textContent).toBe('')
+      // **No lyric on the wall**, and since 2026-09-06 not even an empty one: nothing armed means
+      // nothing of the song is painted at all, so the shape is simply not there. *Absence is the
+      // empty state* — the same rule a shape with nothing assigned to it has always followed.
+      expect(document.querySelector('.shape-text-inner')?.textContent ?? '').toBe('')
     })
     expect(screen.queryByText('Capo 2. Soft intro.')).toBeNull()
   })
@@ -1835,6 +1838,136 @@ describe("the wall is gated on the gig's state", () => {
  * up.** In `manual` there was no end at all and the last line stayed. One boolean on the channel
  * the lyrics already travel on — see `songState.KEY_SONG_ENDED`.
  */
+/**
+ * **THE GATE BELONGS WHERE THE WALL IS DECIDED, NOT INSIDE EACH THING THAT PAINTS IT** (Jorge,
+ * 2026-09-06).
+ *
+ * **`v0.93.0` gated the card and not the wall.** Selecting a song that has a video painted the
+ * video's first frame, paused, on an unarmed wall — reproduced three ways in one walk: unarming
+ * during `tragedia` left the frame up, selecting `libertad` correctly went black, and selecting
+ * `tragedia` painted the frame the instant it was selected. **Same root as the intro card: a
+ * selected song winning the wall** — `playVideo` was `isVideoMode && videoRuns`, and neither of
+ * those consults the gig's state.
+ *
+ * **Gating the video path as a second special case would leave a third painter free**, so the gate
+ * is applied once, where the song's content is merged into the compositor. **This describe is the
+ * enumeration the kickoff asked for**: every painter that can reach the wall, checked against the
+ * gate, whether or not it has been seen misbehaving.
+ *
+ * **Two of them are deliberately outside it and must stay outside**: a static shape and a fill are
+ * *up from power-up to teardown* — Pregonero does not decide when they appear, and painting them
+ * unconditionally is the absence of a rule rather than a rule. **The message home is outside it
+ * too, in the other direction**: it is the gig's card and it paints when the song is not on the
+ * wall.
+ */
+describe('every painter passes through the gate', () => {
+  const SONG = { id: 'test', title: 'Libertad', items: TWO_LINES }
+
+  /** One shape of every kind the compositor knows, so nothing is checked by omission. */
+  function installEveryKindOfShape() {
+    installRoom({
+      shapes: [
+        shape('video-1', 'song-video'),
+        shape('lyrics-1', 'song-lyrics'),
+        shape('logo-1', 'image', FULL_FRAME, { layer: { type: 'image', src: 'logo.png' } }),
+        shape('mask-1', 'fill', FULL_FRAME, { layer: { type: 'fill', color: '#000000' } }),
+      ],
+      defaults: { 'song-video': ['video-1'], 'song-lyrics': ['lyrics-1'] },
+      assets: { test: { 'video-1': 'test.mp4' } },
+    })
+  }
+
+  beforeEach(async () => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installEveryKindOfShape()
+    const { MEDIA_PATH_STORE_KEY } = await import('./mediaPathStore')
+    localStorage.setItem(
+      MEDIA_PATH_STORE_KEY,
+      JSON.stringify({ 'test.mp4': '/fake/path/test.mp4', 'logo.png': '/fake/path/logo.png' })
+    )
+    // The drive mode says the video runs tonight. **This is true from the moment the song is
+    // selected** — it defaults to the most capable available — which is the whole of the finding.
+    localStorage.setItem(KEY_VIDEO_RUNS_BROADCAST, '1')
+  })
+
+  async function mount({ armed, index }: { armed: boolean; index: number }) {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    installLibrary([SONG] as never)
+    setSongLines(TWO_LINES)
+    setSongIndex(index)
+    setBlank(index < 0)
+    wireCurrentSong('test')
+    setProjectionLanguage('en')
+    setSingingLanguage('es')
+    if (armed) localStorage.setItem(KEY_ARMED_BROADCAST, '1-armed')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+  }
+
+  it('paints nothing of the song on an unarmed wall — video, lyric and card alike', async () => {
+    await mount({ armed: false, index: -1 })
+    // **The finding**: the video's first frame, paused, on an unarmed wall.
+    expect(screen.queryByTestId('shape-video')).toBeNull()
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+    expect(document.querySelector('.shape-text-inner')?.textContent ?? '').toBe('')
+  })
+
+  it('paints nothing of the song mid-song either, which is the unarm case', async () => {
+    await mount({ armed: false, index: 0 })
+    expect(screen.queryByTestId('shape-video')).toBeNull()
+    expect(document.querySelector('.shape-text-inner')?.textContent ?? '').toBe('')
+  })
+
+  it('paints the video once the gig is armed, so the gate is a gate and not a wall', async () => {
+    await mount({ armed: true, index: -1 })
+    await waitFor(() => expect(screen.getByTestId('shape-video')).toBeTruthy())
+  })
+
+  /**
+   * **The two that are deliberately outside the gate.** A static shape and a fill are the wall's,
+   * not the song's: Pregonero does not start them, stop them or decide when they appear, and if it
+   * painted nothing for them nothing would — the wall would be fully black between songs, which
+   * the design explicitly says it is not.
+   */
+  it('keeps painting what is not the song\u2019s: a static shape and a fill', async () => {
+    await mount({ armed: false, index: -1 })
+    expect(screen.getByTestId('shape-static-logo-1')).toBeTruthy()
+    expect(screen.getByTestId('shape-fill-mask-1')).toBeTruthy()
+  })
+})
+
+/**
+ * **A TEST COUNTS THE SITES, BECAUSE COUNTING THEM IS THE ONLY WAY THIS RULE SURVIVES.**
+ *
+ * The same device `SONG_DOORS` and `GatedAction` use, for the same reason. The behaviour tests
+ * above enumerate the painters that exist **today**; this one is what makes a painter added
+ * tomorrow have to answer the question. **Gating one painter leaves every other painter free**, and
+ * that is how the video path stayed outside the gate through two rounds that both thought they had
+ * fixed this.
+ */
+describe('nothing reaches the compositor without saying whose it is', () => {
+  it('writes into it in exactly three places, and each is accounted for', () => {
+    const source = readFileSync(resolve(__dirname, 'ProjectionView.tsx'), 'utf8')
+    const sites = source.match(/contentByShapeId\.set\(/g) ?? []
+    expect(
+      sites.length,
+      'a new write into contentByShapeId is a painter that has not said whether it is the song\u2019s'
+    ).toBe(3)
+
+    // 1. The gate, where everything the song puts on the wall is merged in.
+    expect(source).toMatch(/if \(songIsOnTheWall\) \{[\s\S]{0,400}contentByShapeId\.set\(/)
+    // 2. `overlayHost`, for the gig's card — which paints when the song is NOT on the wall.
+    expect(source).toMatch(/const overlayHost[\s\S]{0,400}contentByShapeId\.set\(/)
+    // 3. The static shapes and fills, which are the wall's rather than the song's: up from
+    //    power-up to teardown, and painting them unconditionally is the absence of a rule.
+    expect(source).toMatch(/if \(!isStaticType\(type\)\) continue[\s\S]{0,200}contentByShapeId\.set\(/)
+  })
+})
+
 describe('a song that has ended paints nothing', () => {
   beforeEach(() => {
     cleanup()
