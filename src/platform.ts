@@ -19,12 +19,19 @@ import type {
   ProjectorPlacement,
   SongValidationResult,
 } from './electronApi'
+import { bridge } from './bridge'
 import { getBombistaPath, getVisualsFolder } from './contentFolders'
 import { gigsSetupFolder, songFilesFolder } from './fileLayout'
 import { lastPickerFolder, rememberPickerFolder, type PickerName } from './pickerMemory'
 
+/**
+ * **The machine, reached through `bridge()` so it works from inside a frame too.**
+ *
+ * A framed page has no preload of its own and reaches its embedder's window directly — which needs
+ * no flag and cannot leak to the vendored tools' cross-origin pages. See `bridge.ts`.
+ */
 function api() {
-  return typeof window !== 'undefined' ? window.electronAPI : undefined
+  return bridge()
 }
 
 /** Whether a native folder picker can be reached at all. False in a browser and in tests. */

@@ -4384,3 +4384,17 @@ html, body, #root {
   min-width: 1.5em;
   text-align: right;
 }
+
+/* ── Pregonero, framed ─────────────────────────────────────────────────────
+   **The player is its own page and the shell draws a frame around it**
+   (2026-09-06), the same shape Bombista's and Muralista's pages have. It fills
+   the window: the shell contributes no chrome around the performing surface,
+   which is read across a stage and has never had any. */
+.player-frame {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  margin: 0;
+  background: var(--app-bg);
+}

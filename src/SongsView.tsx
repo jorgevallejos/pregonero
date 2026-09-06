@@ -7,6 +7,7 @@
  */
 
 import { setLoadedSong, getCurrentSongId } from './songState'
+import { goToShellRoom } from './bridge'
 
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 
@@ -130,7 +131,7 @@ export function SongsView() {
                 className="ctrl-btn"
                 data-testid="setlist-go-backstage"
                 onClick={() => {
-                  window.location.hash = '#/setup'
+                  goToShellRoom('#/setup')
                 }}
               >
                 Backstage
@@ -155,7 +156,7 @@ export function SongsView() {
               className="ctrl-btn"
               data-testid="setlist-go-gig"
               onClick={() => {
-                window.location.hash = '#/gig'
+                goToShellRoom('#/gig')
               }}
             >
               Set up the gig

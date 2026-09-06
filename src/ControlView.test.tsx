@@ -9,7 +9,7 @@ import { render, screen, act, waitFor, within, cleanup } from '@testing-library/
 import { fireEvent } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import App from './App'
+import { PlayerRoot } from './PlayerRoot'
 import {
   setSongLines,
   setSongIndex,
@@ -295,7 +295,7 @@ describe('First launch (empty persisted library)', () => {
       closeProjection: vi.fn().mockResolvedValue(undefined),
     }
     window.location.hash = '#/songs'
-    render(<App initialHash="#/songs" />)
+    render(<PlayerRoot initialHash="#/songs" />)
 
     await waitFor(
       () => {
@@ -327,7 +327,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('1. Initial screen is Performance: Setup', async () => {
     setupControlViewInitial()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -347,7 +347,7 @@ describe('v0.5 control screen state machine integration', () => {
       ...api.electronAPI!,
       isProjectionOpen: vi.fn().mockResolvedValue(false),
     } as unknown as typeof api.electronAPI
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -382,7 +382,7 @@ describe('v0.5 control screen state machine integration', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(
       () => {
         expect(standbyState()).toBe('SETUP')
@@ -401,7 +401,7 @@ describe('v0.5 control screen state machine integration', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(
       () => {
         expect(standbyState()).toBe('SETUP')
@@ -419,7 +419,7 @@ describe('v0.5 control screen state machine integration', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -438,7 +438,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('2c. In Ready to Arm state, old top navigation shell and bottom transport are not rendered', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -461,7 +461,7 @@ describe('v0.5 control screen state machine integration', () => {
     setCurrentSongId('duelo')
     setSingingLanguage('es')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -499,7 +499,7 @@ describe('v0.5 control screen state machine integration', () => {
     setCurrentSongId('duelo')
     setSingingLanguage('')
     setProjectionLanguage('')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -523,7 +523,7 @@ describe('v0.5 control screen state machine integration', () => {
     setCurrentSongId('duelo')
     setSingingLanguage('es')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -545,7 +545,7 @@ describe('v0.5 control screen state machine integration', () => {
     setSingingLanguage('')
     setProjectionLanguage('')
     window.location.hash = '#/languages'
-    render(<App initialHash="#/languages" />)
+    render(<PlayerRoot initialHash="#/languages" />)
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Languages' })).toBeTruthy()
@@ -577,7 +577,7 @@ describe('v0.5 control screen state machine integration', () => {
     setupControlViewWithReadinessPassing()
     setCurrentSongId('soy-una-puerta')
     setCurrentSongTitle('Soy una puerta')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -599,7 +599,7 @@ describe('v0.5 control screen state machine integration', () => {
   it('2g. Setup has no Next button even when no song is selected', async () => {
     setActiveSetlistSongIds(['pimiento', 'duelo'])
     setupControlViewInitial()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -616,7 +616,7 @@ describe('v0.5 control screen state machine integration', () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('pimiento')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -631,7 +631,7 @@ describe('v0.5 control screen state machine integration', () => {
   it('2h2. Setup song section button row contains only Setlist', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -655,7 +655,7 @@ describe('v0.5 control screen state machine integration', () => {
   it('2i. Setup navigation to Setlist remains available', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -676,7 +676,7 @@ describe('v0.5 control screen state machine integration', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -694,7 +694,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('4. When all prerequisites are satisfied, status becomes READY_TO_ARM and Arm is enabled', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -726,7 +726,7 @@ describe('v0.5 control screen state machine integration', () => {
     }
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -741,7 +741,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('4c. Setup/ready screen displays language pair as singing → translation (ES → EN)', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -756,7 +756,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('5. Pressing Arm switches the UI to ARMED state', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -773,7 +773,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('6. In ARMED state, show Previous, Next, Restart, Unarm', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -794,7 +794,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('7. In ARMED state, show header summary with Song, Languages, Projection state', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -815,7 +815,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('8. Pressing Unarm returns to READY_TO_ARM', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -843,7 +843,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('8a. Unarm button requires hold-to-confirm (single click does not unarm)', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -865,7 +865,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('8b. Unarm does not clear setup values: song, languages, projection remain', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -921,7 +921,7 @@ describe('v0.5 control screen state machine integration', () => {
     window.location.hash = '#/'
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -948,7 +948,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('8d. Close: single click closes projection (no hold required)', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -975,7 +975,7 @@ describe('v0.5 control screen state machine integration', () => {
 
   it('9. Navigation controls are only available in ARMED state', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(
       () => {
@@ -999,7 +999,7 @@ describe('v0.5 control screen state machine integration', () => {
   describe('End-of-song behaviour', () => {
     it('when armed and current phrase is the last lyric phrase, Unarm button uses same green style as Arm (ctrl-arm)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1020,7 +1020,7 @@ describe('v0.5 control screen state machine integration', () => {
     it('when armed and at last lyric phrase, single click on Unarm unarms immediately (no hold required)', async () => {
       setupControlViewWithReadinessPassing()
       setActiveSetlistSongIds(['duelo'])
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1044,7 +1044,7 @@ describe('v0.5 control screen state machine integration', () => {
     it('when armed and not at last lyric phrase, Unarm keeps normal style and requires hold-to-confirm', async () => {
       setupControlViewWithReadinessPassing()
       setSongIndex(0)
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1068,7 +1068,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     it('when armed at last phrase then user restarts, Unarm returns to normal style and hold-to-confirm', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1108,7 +1108,7 @@ describe('v0.5 control screen state machine integration', () => {
 
     it('when armed at last phrase then user goes Previous, Unarm returns to normal style and hold-to-confirm', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1151,7 +1151,7 @@ describe('v0.5 control screen state machine integration', () => {
     it('shows the last phrase immediately, and Next ends the song rather than sitting dead', async () => {
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(
         () => {
@@ -1185,7 +1185,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1226,7 +1226,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1317,7 +1317,7 @@ describe('v0.5 control screen state machine integration', () => {
       setSongIndex(-1)
       expect(getSongDetails()).toEqual({ intro: { en: 'A duel.' } })
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
       await act(async () => {
         await Promise.resolve()
       })
@@ -1343,7 +1343,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1384,7 +1384,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
       await act(async () => { await Promise.resolve() })
       await act(async () => { fireEvent.click(getArmButton()) })
       await navigateToLastLyric()
@@ -1419,7 +1419,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1449,7 +1449,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -1489,7 +1489,7 @@ describe('v0.5 control screen state machine integration', () => {
       vi.useFakeTimers()
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1519,7 +1519,7 @@ describe('v0.5 control screen state machine integration', () => {
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       setSongIndex(1)
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await act(async () => {
         await Promise.resolve()
@@ -1569,7 +1569,7 @@ describe('ControlView performer state flow', () => {
 
   it('1. when readiness checks pass, the UI shows Ready to Arm', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1578,7 +1578,7 @@ describe('ControlView performer state flow', () => {
 
   it('2. pressing Arm changes the UI to Ready to Perform', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1593,7 +1593,7 @@ describe('ControlView performer state flow', () => {
 
   it('3. pressing Next from Ready to Perform reveals the first line and enters Performing', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1615,7 +1615,7 @@ describe('ControlView performer state flow', () => {
 
   it('4. Restart from ARMED keeps state ARMED and resets only song position', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1650,7 +1650,7 @@ describe('ControlView performer state flow', () => {
 
   it('4b. Unarm from ARMED returns to READY_TO_ARM without clearing setup values', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1677,7 +1677,7 @@ describe('ControlView performer state flow', () => {
 
   it('5. Next is not shown when the app is not armed (transport only in Armed state)', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -1688,7 +1688,7 @@ describe('ControlView performer state flow', () => {
 
   it('6. Arm is unavailable when readiness checks fail', async () => {
     setupControlViewWithReadinessFailing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(screen.getAllByText(/Setup/).length).toBeGreaterThan(0)
@@ -1703,7 +1703,7 @@ describe('ControlView performer state flow', () => {
   describe('reset behavior when configuration changes during a session', () => {
     it('1. changing song while armed resets the session', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1729,7 +1729,7 @@ describe('ControlView performer state flow', () => {
 
     it('2. changing song while performing resets the session', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1775,7 +1775,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1815,7 +1815,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1872,7 +1872,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -1949,7 +1949,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2004,7 +2004,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2061,7 +2061,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2101,7 +2101,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2165,7 +2165,7 @@ describe('ControlView performer state flow', () => {
 
     it('1. advancing to next line sends command with currentIndex and blank matching control state after goNext', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2192,7 +2192,7 @@ describe('ControlView performer state flow', () => {
 
     it('2. restart sends setIndex with currentIndex -1 and blank true', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2229,7 +2229,7 @@ describe('ControlView performer state flow', () => {
 
     it('3. setIndex (restart path) sends payload consistent with control state', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2257,7 +2257,7 @@ describe('ControlView performer state flow', () => {
     it('4. blank/index state sent to projection matches control state (prev and blankToggle)', async () => {
       setupControlViewWithReadinessPassing()
       setActiveSetlistSongIds(['duelo'])
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2297,7 +2297,7 @@ describe('ControlView performer state flow', () => {
   describe('keyboard shortcut behavior', () => {
     it('1. Next shortcut triggers navigation when allowed (armed)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2319,7 +2319,7 @@ describe('ControlView performer state flow', () => {
 
     it('2. Restart shortcut triggers restart when allowed (after hold)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2356,7 +2356,7 @@ describe('ControlView performer state flow', () => {
 
     it('3. Arm shortcut changes state when allowed (ready)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2371,7 +2371,7 @@ describe('ControlView performer state flow', () => {
 
     it('4. Unarm shortcut changes state when allowed (armed)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2393,7 +2393,7 @@ describe('ControlView performer state flow', () => {
 
     it('5. Next shortcut does nothing when not allowed (ready, not armed)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2410,7 +2410,7 @@ describe('ControlView performer state flow', () => {
     it('6. Next shortcut does nothing when at last line (performing)', async () => {
       setupControlViewWithReadinessPassing()
       setActiveSetlistSongIds(['duelo'])
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2439,7 +2439,7 @@ describe('ControlView performer state flow', () => {
 
     it('7. Restart shortcut does nothing without hold (does not bypass safety)', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2467,7 +2467,7 @@ describe('ControlView performer state flow', () => {
 
     it('8. Arm shortcut does nothing when not allowed (setup)', async () => {
       setupControlViewWithReadinessFailing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(screen.getAllByText(/Setup/).length).toBeGreaterThan(0)
@@ -2506,7 +2506,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App />)
+      render(<PlayerRoot />)
     }
 
     /** Opens Songs screen with no active song (selection not pre-filled). */
@@ -2530,7 +2530,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App />)
+      render(<PlayerRoot />)
     }
 
     it('when entering Songs screen with an active song, that song is already selected and Confirm is enabled', async () => {
@@ -2641,7 +2641,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App />)
+      render(<PlayerRoot />)
     }
 
     it('shows only songs from the active setlist', async () => {
@@ -2820,7 +2820,7 @@ describe('ControlView performer state flow', () => {
   describe('Played song indicator', () => {
     it('when performer unarms at end-of-song, current song is marked as played', async () => {
       setupControlViewWithReadinessPassing()
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2845,7 +2845,7 @@ describe('ControlView performer state flow', () => {
     it('when performer unarms before end-of-song (hold-to-confirm), song is NOT marked as played', async () => {
       setupControlViewWithReadinessPassing()
       setSongIndex(0)
-      render(<App initialHash="#/" />)
+      render(<PlayerRoot initialHash="#/" />)
 
       await waitFor(() => {
         expect(standbyState()).toBe('READY_TO_ARM')
@@ -2893,7 +2893,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App initialHash="#/songs" />)
+      render(<PlayerRoot initialHash="#/songs" />)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
@@ -2923,7 +2923,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App initialHash="#/songs" />)
+      render(<PlayerRoot initialHash="#/songs" />)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
@@ -2955,7 +2955,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App initialHash="#/songs" />)
+      render(<PlayerRoot initialHash="#/songs" />)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Duelo/ })).toBeTruthy()
@@ -3009,7 +3009,7 @@ describe('ControlView performer state flow', () => {
         openProjection: vi.fn().mockResolvedValue(undefined),
         closeProjection: vi.fn().mockResolvedValue(undefined),
       }
-      render(<App />)
+      render(<PlayerRoot />)
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
       })
@@ -3121,7 +3121,7 @@ describe('ControlView performer state flow', () => {
       }
       ;(window as unknown as { electronAPI?: unknown }).electronAPI = mockApi
 
-      render(<App />)
+      render(<PlayerRoot />)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Setlist' })).toBeTruthy()
@@ -3261,7 +3261,7 @@ describe('Control next-line preview', () => {
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3284,7 +3284,7 @@ describe('Control next-line preview', () => {
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3315,7 +3315,7 @@ describe('Control next-line preview', () => {
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3342,7 +3342,7 @@ describe('Control next-line preview', () => {
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3374,7 +3374,7 @@ describe('Control next-line preview', () => {
     setCurrentSongId('duelo')
     setProjectionLanguage('en')
     setSingingLanguage('es')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3428,7 +3428,7 @@ describe('Control performance timer/status button', () => {
   it("is visible only in performing view, starts with 0', and floats outside top bar", async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3457,7 +3457,7 @@ describe('Control performance timer/status button', () => {
   it('renders minute-only musical format and does not render legacy timer text', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3475,7 +3475,7 @@ describe('Control performance timer/status button', () => {
   it('increments elapsed time once per minute', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3500,7 +3500,7 @@ describe('Control performance timer/status button', () => {
   it('clicking the circle toggles visibility of floating timer actions', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3524,7 +3524,7 @@ describe('Control performance timer/status button', () => {
   it('clicking inside timer actions does not close them', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3545,7 +3545,7 @@ describe('Control performance timer/status button', () => {
   it('clicking outside the timer and actions closes floating timer actions', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3565,7 +3565,7 @@ describe('Control performance timer/status button', () => {
   it('pause/resume action toggles timer running state without resetting value', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3604,7 +3604,7 @@ describe('Control performance timer/status button', () => {
   it('reset action sets timer back to zero minutes', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3629,7 +3629,7 @@ describe('Control performance timer/status button', () => {
   it('persists elapsed timer when navigating away from performing view', async () => {
     vi.useFakeTimers()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3651,7 +3651,7 @@ describe('Control performance timer/status button', () => {
     expect(screen.getByTestId('performance-status-minutes').textContent).toBe("2'")
 
     cleanup()
-    render(<App initialHash="#/songs" />)
+    render(<PlayerRoot initialHash="#/songs" />)
 
     // Advance time while ControlView is unmounted (timer UI not present)
     act(() => {
@@ -3659,7 +3659,7 @@ describe('Control performance timer/status button', () => {
     })
 
     cleanup()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3671,7 +3671,7 @@ describe('Control performance timer/status button', () => {
     vi.useFakeTimers()
 
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3706,7 +3706,7 @@ describe('Control performance timer/status button', () => {
     expect(standbyState()).toBe('READY_TO_ARM')
 
     cleanup()
-    render(<App initialHash="#/songs" />)
+    render(<PlayerRoot initialHash="#/songs" />)
 
     // Advance time while ControlView is unmounted.
     act(() => {
@@ -3714,7 +3714,7 @@ describe('Control performance timer/status button', () => {
     })
 
     cleanup()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3736,7 +3736,7 @@ describe('Control performance timer/status button', () => {
 
   it('uses the same base button style class while floating outside top bar layout', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3756,7 +3756,7 @@ describe('Control performance timer/status button', () => {
 
   it('uses circle and minute classes while keeping shared top-bar button contract', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => {
       await Promise.resolve()
@@ -3865,7 +3865,7 @@ describe('Control pre-first-lyric notes display', () => {
       items: VALID_LINES,
       notes: 'Capo 2. Soft intro.',
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3894,7 +3894,7 @@ describe('Control pre-first-lyric notes display', () => {
       title: 'Duelo',
       items: VALID_LINES,
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3921,7 +3921,7 @@ describe('Control pre-first-lyric notes display', () => {
       items: VALID_LINES,
       notes: 'Capo 2. Soft intro.',
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -3998,7 +3998,7 @@ describe('Control pre-first-lyric intro display', () => {
       items: VALID_LINES,
       intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4019,7 +4019,7 @@ describe('Control pre-first-lyric intro display', () => {
       title: 'Tragedia',
       items: VALID_LINES,
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4040,7 +4040,7 @@ describe('Control pre-first-lyric intro display', () => {
       title: 'Tragedia',
       items: VALID_LINES,
     })
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4113,7 +4113,7 @@ describe('a column shows a state, never a message', () => {
     setSongLines(SPANISH)
     setCurrentSongId('libertad')
     setCurrentSongTitle('Libertad')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
@@ -4207,7 +4207,7 @@ describe('a Spanish-only song arms and reaches the performing view', () => {
 
   it('reaches READY_TO_ARM with no language ever chosen', async () => {
     setupSpanishOnly()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -4216,7 +4216,7 @@ describe('a Spanish-only song arms and reaches the performing view', () => {
 
   it('shows the pair as `ES → ES`, because the identity case is not a reason to show nothing', async () => {
     setupSpanishOnly()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -4230,7 +4230,7 @@ describe('a Spanish-only song arms and reaches the performing view', () => {
     // **The ruling it was violating**: arm and unarm are the door between the control view and the
     // performing view, and only that door. Arming leaves the control view.
     setupSpanishOnly()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -4262,7 +4262,7 @@ describe('§6 non-video armed screen', () => {
 
   it('Previous, Next, Restart, Unarm are all present in non-video armed screen', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4279,7 +4279,7 @@ describe('§6 non-video armed screen', () => {
 
   it('no ← Cue or Cue → buttons appear on the non-video armed screen', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4305,7 +4305,7 @@ describe('§6 non-video armed screen', () => {
     setCurrentSongId('duelo')
 
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4334,7 +4334,7 @@ describe('§6 non-video armed screen', () => {
   it('BeatCircle is NOT rendered when the loaded song has no tempo (and there is no Start button)', async () => {
     // Standard library (no tempo on songs)
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4362,7 +4362,7 @@ describe('§6 non-video armed screen', () => {
     installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('luz-y-sal')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4401,7 +4401,7 @@ describe('§6 non-video armed screen', () => {
     installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4440,7 +4440,7 @@ describe('§6 non-video armed screen', () => {
     installLibrary([songWithTempo])
     setupControlViewWithReadinessPassing()
     setCurrentSongId('duelo')
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4496,7 +4496,7 @@ describe('§5 video armed screen — End Card absent', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
 
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4529,7 +4529,7 @@ describe('§5 video armed screen — End Card absent', () => {
     setSongLines(VALID_LINES)
     setCurrentSongId('duelo')
 
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -4588,7 +4588,7 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
 
   it('performer view shows manual (non-video) flow, not VideoPerformancePanel, when armed with display mode None (default)', async () => {
     setupWithVideoSongDisplayNone()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('drive-mode-manual')).toBeTruthy()
@@ -4630,7 +4630,7 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
    */
   it('a song driven by its video ends when the video passes its last cue', async () => {
     setupWithVideoSongDisplayNone()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -4676,7 +4676,7 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/path/test.mp4' }))
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
     await act(async () => { fireEvent.click(getArmButton()) })
@@ -4705,7 +4705,7 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
     // it: choosing `video` is still an explicit opt-in, just a performance one rather than a
     // format one.
     setupWithVideoSongDisplayNone()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('drive-mode-video')).toBeTruthy()
@@ -4776,7 +4776,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
   }
 
   async function armAndReachSetup() {
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).not.toBeNull()
     }, { timeout: WAIT_TIMEOUT })
@@ -4789,7 +4789,7 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
    * have already called vi.useFakeTimers() before invoking this.
    */
   async function armAndReachSetupFakeTimers() {
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     // isProjectionOpen() resolves a plain Promise (no real timers involved) — flush it.
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
@@ -5905,7 +5905,7 @@ describe('the setlist is played once', () => {
     vi.useFakeTimers()
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
-    const { unmount } = render(<App initialHash="#/" />)
+    const { unmount } = render(<PlayerRoot initialHash="#/" />)
 
     await act(async () => { await Promise.resolve() })
     await act(async () => { fireEvent.click(getArmButton()) })
@@ -5929,7 +5929,7 @@ describe('the setlist is played once', () => {
     // and silently restarted the running order.
     unmount()
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await act(async () => { await Promise.resolve() })
     await act(async () => { fireEvent.click(getArmButton()) })
     await navigateToLastLyric()
@@ -5948,7 +5948,7 @@ describe('the setlist is played once', () => {
   it('records the finished song with a real end time and the time it was loaded', async () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -5971,7 +5971,7 @@ describe('the setlist is played once', () => {
     setActiveSetlistSongIds(['duelo', 'pimiento'])
     setupControlViewWithReadinessPassing()
     setSongIndex(0)
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
 
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
@@ -6022,7 +6022,7 @@ describe('The contact panel condition is broadcast from the control window', () 
    */
   it('writes the answer at mount, before anything is armed', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -6039,7 +6039,7 @@ describe('The contact panel condition is broadcast from the control window', () 
    */
   it('goes dark on arm and STAYS dark on a mid-setlist unarm', async () => {
     setupControlViewWithReadinessPassing()
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(standbyState()).toBe('READY_TO_ARM')
     }, { timeout: WAIT_TIMEOUT })
@@ -6082,7 +6082,7 @@ describe('the gig column', () => {
   })
 
   it('reads No gig from nothing', async () => {
-    render(<App initialHash="#/" />)
+    render(<PlayerRoot initialHash="#/" />)
     await waitFor(() => {
       expect(screen.getByTestId('control-gig-value').textContent).toBe('No gig')
     }, { timeout: 3000 })

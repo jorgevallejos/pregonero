@@ -11,6 +11,7 @@
  */
 
 import { useSongNavigation } from './useSongNavigation'
+import { bridge, goToShellRoom } from './bridge'
 
 import { songVideoAssets } from './visualsFile'
 import { useBroadcastVisuals } from './visualsBroadcast'
@@ -224,7 +225,7 @@ function ProjectionButton({
   isOpen: boolean
   onToggle: () => void
 }) {
-  const api = window.electronAPI
+  const api = bridge()
   if (!api) return null
 
   if (isOpen) {
@@ -248,7 +249,7 @@ function ProjectionButton({
 
 export function ControlView() {
   const { projectionOpen, openProjection, closeProjection } = useProjectionOpenState(
-    typeof window !== 'undefined' ? window.electronAPI : undefined
+    bridge()
   )
   // Re-read when the window opens: the projector can be plugged in between arriving and doors.
   const placement = useProjectionPlacement(projectionOpen)
@@ -611,7 +612,7 @@ export function ControlView() {
   }
 
   const goToSetupHome = () => {
-    window.location.hash = '#/setup'
+    goToShellRoom('#/setup')
   }
 
   const goToGigs = () => {
@@ -1404,7 +1405,7 @@ export function ControlView() {
                   </button>
                 </div>
               </div>
-              {window.electronAPI && (
+              {bridge() && (
                 <div className="control-setup-section">
                   <span className="control-setup-label">Projection</span>
                   <div className="control-setup-content">

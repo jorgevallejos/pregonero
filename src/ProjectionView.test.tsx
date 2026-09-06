@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react'
-import App from './App'
+import { PlayerRoot } from './PlayerRoot'
 import {
   setSongLines,
   setSongIndex,
@@ -148,7 +148,7 @@ describe('Projection screen', () => {
 
   it('shows only the current translated lyric line (no next-line preview)', async () => {
     setupProjectionStorage(TWO_LINES, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -164,7 +164,7 @@ describe('Projection screen', () => {
 
   it('does not show control performance timer/status button UI on projection screen', async () => {
     setupProjectionStorage(TWO_LINES, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -181,7 +181,7 @@ describe('Projection screen', () => {
 
   it('does not show any next-line preview when on last line', async () => {
     setupProjectionStorage(TWO_LINES, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(1)
@@ -197,7 +197,7 @@ describe('Projection screen', () => {
 
   it('shows only current lyric when a section marker follows (no preview)', async () => {
     setupProjectionStorage(LINES_WITH_SECTION, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -213,7 +213,7 @@ describe('Projection screen', () => {
 
   it('respects newline characters inside a single lyric phrase (manual line breaks)', async () => {
     setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -240,7 +240,7 @@ describe('Projection screen', () => {
    */
   it('keeps a phrase\u2019s own newlines, on the rule that actually governs the lyric', async () => {
     setupProjectionStorage(PHRASE_WITH_MANUAL_BREAKS, -1, true)
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -261,7 +261,7 @@ describe('Projection screen', () => {
       -1,
       true
     )
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -280,7 +280,7 @@ describe('Projection screen', () => {
     vi.useFakeTimers()
     try {
       setupProjectionStorage(TWO_LINES, -1, true)
-      render(<App initialHash="#/projection" />)
+      render(<PlayerRoot initialHash="#/projection" />)
       simulateArm()
 
       // Flush arm-transition effect with real microtasks (fake timers don't block this).
@@ -324,7 +324,7 @@ describe('Projection screen', () => {
     wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     // Flush effects so hasSeenArmedSinceMount settles, then advance to first lyric.
@@ -359,7 +359,7 @@ describe('Projection screen', () => {
     })
     setupProjectionStorage(TWO_LINES, -1, true)
     wireCurrentSong('with-notes')
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
 
     await waitFor(() => {
       // **No lyric on the wall**, and since 2026-09-06 not even an empty one: nothing armed means
@@ -379,7 +379,7 @@ describe('Projection screen', () => {
     })
     setupProjectionStorage(TWO_LINES, -1, true)
     wireCurrentSong('with-notes')
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await act(async () => { await Promise.resolve() })
 
@@ -462,7 +462,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
     await waitFor(() => expect(screen.getByText('L4')).toBeTruthy(), { timeout: 3000 })
@@ -494,7 +494,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     simulateArm()
     await act(async () => { await Promise.resolve() })
@@ -530,7 +530,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
     // No arm event has been dispatched, and the title card is on the wall regardless.
@@ -550,7 +550,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     simulateArm()
     await act(async () => { await Promise.resolve() })
@@ -593,7 +593,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     simulateArm()
     await act(async () => { await Promise.resolve() })
@@ -630,7 +630,7 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     simulateArm()
     await act(async () => { await Promise.resolve() })
@@ -669,12 +669,12 @@ describe('Projection lifecycle: the wall shows what is playing', () => {
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    const { unmount } = render(<App initialHash="#/projection" />)
+    const { unmount } = render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
     unmount()
     cleanup()
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await act(async () => { await Promise.resolve() })
 
     await waitFor(() => expect(screen.getByText('Hello')).toBeTruthy(), { timeout: 3000 })
@@ -732,7 +732,7 @@ describe('the wall, with no song library — which is the only way the wall ever
   })
 
   it('shows the intro card when a song is loaded and not yet cued', async () => {
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -741,7 +741,7 @@ describe('the wall, with no song library — which is the only way the wall ever
   })
 
   it('carries the translated title and the tagline with it', async () => {
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await waitFor(() => {
       expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
@@ -780,7 +780,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -796,7 +796,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       items: SONG_LINES,
       title_translations: { en: 'Tragedy of Roasted Pig' },
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -812,7 +812,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       items: SONG_LINES,
       intro: { es: 'Pelea con tu destino.', en: 'Fight your destiny.' },
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -827,7 +827,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -844,7 +844,7 @@ describe('Song intro screen on projection (ARMED + index === -1)', () => {
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -885,7 +885,7 @@ describe('The projection is a compositor (regression guard: no full-frame render
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await act(async () => { await Promise.resolve() })
 
@@ -921,7 +921,7 @@ describe('The projection is a compositor (regression guard: no full-frame render
     setSingingLanguage('es')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await act(async () => { await Promise.resolve() })
 
@@ -997,7 +997,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -1014,7 +1014,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       title_translations: { en: 'Tragedy of Roasted Pig' },
       intro: { en: 'Fight your destiny.' },
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -1030,7 +1030,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -1050,7 +1050,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
       title: 'Tragedia de cerdo asado',
       items: SONG_LINES,
     })
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
 
     await waitFor(() => {
@@ -1095,7 +1095,7 @@ describe('The wall is dark when there is no gig', () => {
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     dispatchStorageUpdate()
@@ -1116,7 +1116,7 @@ describe('The wall is dark when there is no gig', () => {
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     dispatchStorageUpdate()
@@ -1150,7 +1150,7 @@ describe('The lookup lights a set of shapes, and never caps it at one', () => {
     wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -1292,7 +1292,7 @@ describe('The matrix is derived at the real output size, every render', () => {
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     dispatchStorageUpdate()
@@ -1373,7 +1373,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     HTMLVideoElement.prototype.play = vi.fn(() => Promise.resolve())
     HTMLVideoElement.prototype.pause = vi.fn()
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
 
@@ -1426,7 +1426,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
 
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
     setSongIndex(0)
@@ -1465,7 +1465,7 @@ describe('Typed shapes drive what appears where', () => {
     setProjectionLanguage('en')
     setSingingLanguage('es')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     simulateArm()
     await flushEffects()
   }
@@ -1592,7 +1592,7 @@ describe('Shapes Pregonero does not coordinate', () => {
     wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await flushEffects()
   }
 
@@ -1737,7 +1737,7 @@ describe("the wall is gated on the gig's state", () => {
     wireCurrentSong('test')
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await flushEffects()
   }
 
@@ -1904,7 +1904,7 @@ describe('every painter passes through the gate', () => {
     setSingingLanguage('es')
     if (armed) localStorage.setItem(KEY_ARMED_BROADCAST, '1-armed')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await flushEffects()
   }
 
@@ -1987,7 +1987,7 @@ describe('a song that has ended paints nothing', () => {
     setProjectionLanguage('en')
     localStorage.setItem(KEY_ARMED_BROADCAST, '1-armed')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await flushEffects()
   }
 
@@ -2054,7 +2054,7 @@ describe('The contact panel, and what it replaced', () => {
     wireCurrentSong(songId)
     setProjectionLanguage('en')
     window.location.hash = '#/projection'
-    render(<App initialHash="#/projection" />)
+    render(<PlayerRoot initialHash="#/projection" />)
     await flushEffects()
   }
 
