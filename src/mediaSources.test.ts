@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { collectMediaSources } from './mediaSources'
 import type { LibraryEntry } from './setlistStore'
 import type { VisualsFile, VisualShape } from './visualsFile'
+import { VISUALS_VERSION } from './visualsFile'
 
 function entry(id: string, title: string): LibraryEntry {
   return { ref: { id, path: `/songs/${id}.json` }, song: { id, title, items: [] } }
@@ -13,7 +14,7 @@ function visuals(
   assets: Record<string, Record<string, string>> = {}
 ): VisualsFile {
   return {
-    visualsVersion: 1,
+    visualsVersion: VISUALS_VERSION,
     gigId: 'g',
     modes: [],
     shapes,

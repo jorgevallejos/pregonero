@@ -9,7 +9,7 @@ import {
   type SetlistSongInput,
 } from './gigReadiness'
 import { GIG_VERSION, type GigFile } from './gigFile'
-import { parseVisualsFile, type VisualsFile } from './visualsFile'
+import { parseVisualsFile, VISUALS_VERSION, type VisualsFile } from './visualsFile'
 import type { LibrarySong } from './setlistStore'
 
 const GIG_ID = 'k3f9x2abcd'
@@ -45,7 +45,7 @@ function visuals(
 ): VisualsFile {
   return parseVisualsFile(
     JSON.stringify({
-      visualsVersion: 1,
+      visualsVersion: VISUALS_VERSION,
       gigId: GIG_ID,
       shapes,
       songVisuals: { defaults, songs, assets },

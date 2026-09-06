@@ -12,7 +12,7 @@
  */
 import { KEY_VISUALS_BROADCAST } from '../visualsBroadcast'
 import { GIG_FOLDER_KEY } from '../gigFolderStore'
-import type { Point, VisualShape } from '../visualsFile'
+import { VISUALS_VERSION, type Point, type VisualShape } from '../visualsFile'
 
 // **Shaped like a real gig folder, which since 2026-09-03 means an opaque id.** A test fixture
 // carrying the old `2026-09-12-bar-eduard` shape is where the superseded assumption survives.
@@ -103,7 +103,12 @@ export function installRoom(options: RoomOptions = {}): VisualShape[] {
   const gigId = options.gigId ?? TEST_GIG_ID
   const folderPath = options.folderPath ?? TEST_GIG_FOLDER
   const visuals = {
-    visualsVersion: options.visualsVersion ?? 1,
+    // **Follows the constant, never a literal** (2026-09-06). This defaulted to `1`, and on the day
+    // `VISUALS_VERSION` became `2` that would have kept every test building version-1 rooms while
+    // the reader refused them — except the reader and the fixture would have had to disagree for
+    // anything to break, so the suite would have stayed green over a bump that did not happen.
+    // **The literal is pinned by one test instead**, which is the only place it can catch anything.
+    visualsVersion: options.visualsVersion ?? VISUALS_VERSION,
     gigId,
     modes: options.modes ?? [],
     shapes,

@@ -10,7 +10,7 @@ import {
   KEY_VISUALS_BROADCAST,
 } from './visualsBroadcast'
 import { GIG_FOLDER_KEY, rememberGigFolder } from './gigFolderStore'
-import { parseVisualsFile } from './visualsFile'
+import { parseVisualsFile, VISUALS_VERSION } from './visualsFile'
 import { installRoom, closeRoom, TEST_GIG_FOLDER, shape } from './testSupport/room'
 
 function createStorage(): Storage {
@@ -94,7 +94,7 @@ describe('broadcastVisuals', () => {
     rememberGigFolder('/gigs/tonight')
     const visuals = parseVisualsFile(
       JSON.stringify({
-        visualsVersion: 1,
+        visualsVersion: VISUALS_VERSION,
         gigId: 'tonight',
         shapes: [shape('a', 'song-lyrics')],
         songVisuals: { defaults: { 'song-lyrics': ['a'] }, songs: {} },

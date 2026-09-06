@@ -21,7 +21,26 @@
  *   Muralista, where the wall is.
  */
 
-export const VISUALS_VERSION = 1
+/**
+ * **The RP JSON schema this build reads and writes.**
+ *
+ * **`2` since 2026-09-06, and the bump is a correction rather than a change.** Named modes replaced
+ * per-shape `visibleWhen` on 05/09 — the file's central concept — and this number did not move with
+ * it. So a build with the old reader would take a new room as version 1 and misread it, and the
+ * `unknown-version` refusal below **could not fire at all**: nothing that has ever existed declared
+ * anything but 1. The number claimed something it could not deliver.
+ *
+ * **Nothing is migrated.** A file carrying `visibleWhen` is genuinely old and is discarded, not
+ * relabelled. The one room mapping that existed at the bump was already the version-2 schema — two
+ * named modes, no `visibleWhen` — so its number was corrected by hand, in the same commit.
+ *
+ * **This constant lives in four places and they move together**: Muralista's `mapper.js` writes it,
+ * this reads it, Tramoya keeps a copy of this file for the shell, and Tramoya vendors `mapper.js`.
+ * `sharedWithPregonero.test.ts` and `vendorMapper` are what make that a fact rather than a hope.
+ * **When one of those goes red on a bump, that is the mechanism working — never regenerate a digest
+ * to quiet it.**
+ */
+export const VISUALS_VERSION = 2
 
 /**
  * **Why the refusal is typed** (2026-09-03).

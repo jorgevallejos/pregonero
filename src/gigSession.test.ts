@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import type { LibrarySong } from './setlistStore'
 import { installLibrary } from './testSupport/library'
 import { ensureStorage } from './testSupport/storage'
+import { VISUALS_VERSION } from './visualsFile'
 
 const readGigFolder = vi.fn()
 const writeGigFile = vi.fn()
@@ -78,7 +79,7 @@ function emptyRead(overrides: Record<string, unknown> = {}) {
 
 function visualsText(defaults: Record<string, string[]>, gigId = GIG_ID) {
   return JSON.stringify({
-    visualsVersion: 1,
+    visualsVersion: VISUALS_VERSION,
     gigId,
     shapes: [{ id: 'lyr', layer: { type: 'song-lyrics' } }],
     songVisuals: { defaults, songs: {} },
