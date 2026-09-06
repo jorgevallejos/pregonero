@@ -92,35 +92,37 @@ export function contactGigPhase(input: {
  * **Presenting: a loaded song that has not yet reached its end.**
  *
  * A song is loaded from the moment its lines are, which is before the first line shows — the wall's
- * attention has already moved to the song by then. It has reached its end once its last lyric line
- * has been shown, which is the moment the room stops being an audience for it.
+ * attention has already moved to the song by then. **It has reached its end when it has ended**, and
+ * `songEnded` is the one fact that says so.
  *
- * ## Why the index is not the whole answer (walk 5, stage 2, 2026-09-06)
+ * ## Why the lyric index is not asked, and was two faults (walk 5, 2026-09-06)
  *
- * **The index is where two of the three drive modes record the end; `songEnded` is where all three
- * do.** In clock and manual the last line's index is reached and held, so `index < last` goes false
- * on its own. **In video the index never moves at all** — `ControlView`'s auto-advance effect
- * returns at its first line when the video panel is up, and the arm left the index at `-1` — so
- * `index < last` stayed true from the arm to the final frame and for every moment after it.
+ * It used to be `index < last`. That is a proxy for the end of a song, and it was wrong at both
+ * edges of the same clause:
  *
- * The cost was the last song of the setlist: finishing `tragedia` closes the setlist and the
- * message home is then the correct wall, but this said a song was still being presented, so
- * `isContactLit` withheld it. **It arrived when Jorge unarmed**, on `!armed` — the other half of
- * the same clause — which looked like the wall lagging the gig by an unarm. It was not a lag. The
- * wall was answering a question that had gone stale in one mode only.
+ * **It never became true in video** (stage 2). `ControlView`'s auto-advance effect returns at its
+ * first line while the video panel is up, and the arm left the index at `-1`, so `index < last`
+ * held from the arm to the final frame and past it. The last song of a setlist finished, the
+ * setlist closed, and this still said a song was being presented — so `isContactLit` withheld the
+ * message home until the unarm released it on `!armed`.
  *
- * **`songEnded` is asked first because it is the direct answer.** Same shape as the beat indicator
- * one stage earlier and the wall's gate before that: a condition written where it is used, in terms
- * of something that merely correlates, rather than at the point where the fact is decided.
+ * **It became true one phrase too early in clock and manual** (stage 3). The index reaches `last`
+ * when the last phrase is *put on the wall*, not when it is over. In a repeat — `after`, where the
+ * message home is otherwise lit — that handed the wall back on top of a line that had not been read
+ * yet, and the last phrase of a replayed song was never seen. **Jorge's rule: a phrase that is due
+ * gets its full duration; the wall returns after the song ends, not during its last line.**
+ *
+ * `songEnded` has neither edge. All three drive modes call `ControlView.endCurrentSong` only once
+ * the last phrase is actually over — clock past the last cue, video on the media `ended` event,
+ * manual on the press after the last line — and `setCurrentSong` clears it for the next song.
+ *
+ * **This is the third condition in three stages to have been written at the point of use in terms
+ * of something that merely correlates, rather than at the point where the fact is decided.** The
+ * beat indicator and the wall's own gate were the other two.
  */
-export function isPresenting(
-  lines: readonly SongItem[],
-  index: number,
-  songEnded: boolean,
-): boolean {
+export function isPresenting(lines: readonly SongItem[], songEnded: boolean): boolean {
   if (lines.length === 0) return false
   if (songEnded) return false
-  const last = getLastLyricIndex(lines as SongItem[])
-  if (last < 0) return false
-  return index < last
+  // A song with no lyric lines has no end to reach and never holds the wall.
+  return getLastLyricIndex(lines as SongItem[]) >= 0
 }

@@ -552,9 +552,12 @@ export function ProjectionView() {
    * and nowhere else, so a painter cannot forget to ask — which is exactly what the video path had
    * been doing since before `v0.93.0`.
    *
-   * **Before the cards below, so the message home still stacks on top of the song.** There is one
-   * moment where both are live: the last line of a repeat, in `after`, where `isPresenting` has
-   * already gone false and the room is being asked to leave with his details again.
+   * **Before the cards below, so the message home still stacks on top of the song.** It used to be
+   * possible for both to be live at once — the last line of a repeat, in `after`, where
+   * `isPresenting` went false as the line went up. **That was a fault, not a moment**: the message
+   * home landed on a phrase nobody had read yet, and the last line of a replayed song was never
+   * seen. Since `v0.106.0` `isPresenting` waits for `songEnded`, so the song has the wall until it
+   * is actually over and the two no longer overlap. The order still matters if they ever do.
    */
   if (songIsOnTheWall) {
     for (const [shapeId, layers] of songLayers) {

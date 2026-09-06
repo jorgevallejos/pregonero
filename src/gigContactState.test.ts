@@ -65,36 +65,37 @@ describe('the contact condition, moment by moment', () => {
 
 describe('isPresenting', () => {
   it('is true from the moment a song is loaded, before its first line shows', () => {
-    expect(isPresenting(SONG, -1, false)).toBe(true)
+    expect(isPresenting(SONG, false)).toBe(true)
   })
 
   it('stays true through the song', () => {
-    expect(isPresenting(SONG, 0, false)).toBe(true)
+    expect(isPresenting(SONG, false)).toBe(true)
   })
 
-  it('is false once the last lyric line has been shown', () => {
-    // Index 2 is the last lyric; the section marker at 1 is not one.
-    expect(isPresenting(SONG, 2, false)).toBe(false)
+  it('is still true while the LAST lyric line is showing, which is not over yet', () => {
+    // Stage 3: the wall returns after the song ends, not during its last line.
+    expect(isPresenting(SONG, false)).toBe(true)
+  })
+
+  it('is false once the song has ended', () => {
+    expect(isPresenting(SONG, true)).toBe(false)
   })
 
   it('is false with no song loaded at all', () => {
-    expect(isPresenting([], -1, false)).toBe(false)
+    expect(isPresenting([], false)).toBe(false)
   })
 
   it('is false for a loaded song with no lyric lines to reach the end of', () => {
-    expect(isPresenting([{ type: 'section', label: 'Intro' }], -1, false)).toBe(false)
+    expect(isPresenting([{ type: 'section', label: 'Intro' }], false)).toBe(false)
   })
 
-  // **Walk 5, stage 2.** The index is only two of the three drive modes answer to *has this song
+  // **Walk 5, stage 2.** The index was only two of the three drive modes answer to *has this song
   // reached its end*. In video the auto-advance effect returns at its first line
-  // (`ControlView.tsx`, `if (showVideoPerformance) return`), so the index never leaves -1 for the
-  // whole song and every moment after it — and a finished song went on claiming the wall.
-  it('is false when the song has ended at an index that never moved, which is video mode', () => {
-    expect(isPresenting(SONG, -1, true)).toBe(false)
-  })
-
-  it('is false when the song has ended mid-list, whatever the index reached', () => {
-    expect(isPresenting(SONG, 0, true)).toBe(false)
+  // (`ControlView.tsx`, `if (showVideoPerformance) return`), so the index never left -1 for the
+  // whole song and every moment after it — and a finished song went on claiming the wall. The
+  // index is no longer asked at all (stage 3); this is the moment that first proved it wrong.
+  it('is false when the song has ended in video mode, where no index ever moved', () => {
+    expect(isPresenting(SONG, true)).toBe(false)
   })
 })
 
@@ -112,7 +113,7 @@ describe('the last song of the setlist, played in video mode', () => {
       setlistEntered: true,
       setlistDone: songEnded,
       // Video mode: the index sat at -1 from the arm to the final frame.
-      presenting: isPresenting(SONG, -1, songEnded),
+      presenting: isPresenting(SONG, songEnded),
     })
 
   it('does not light the wall while the song is still running', () => {
@@ -207,5 +208,42 @@ describe('the broadcast', () => {
   it('reads a damaged value as the power-up answer rather than throwing', () => {
     localStorage.setItem(KEY_CONTACT_LIT_BROADCAST, 'not json')
     expect(getContactBroadcast()).toEqual({ lit: true, fields: {}, preview: null })
+  })
+})
+
+/**
+ * **Stage 3 of walk 5.** A song replayed after the setlist has closed — a repeat, in `after`, where
+ * the message home is lit between songs. Everything played correctly except the last phrase, which
+ * was never seen: the message home took the wall in its place.
+ *
+ * **The rule Jorge set: a phrase that is due gets its full duration, and the wall returns after the
+ * song ends, not during its last line.** So these fix the moment the wall is allowed back.
+ *
+ * The last phrase is *due* for as long as its cue runs, and all three drive modes call
+ * `endCurrentSong` only once it is over — clock past the last cue, video on the media `ended`
+ * event, manual on the press after the last line. `songEnded` is therefore the whole answer, and
+ * the index is not consulted at all.
+ */
+describe('a repeat, after the setlist has closed', () => {
+  const duringTheRepeat = (songEnded: boolean) =>
+    isContactLit({
+      armed: true,
+      setlistEntered: true,
+      setlistDone: true,
+      presenting: isPresenting(SONG, songEnded),
+    })
+
+  it('gives the wall to the song from the moment its lines load', () => {
+    expect(duringTheRepeat(false)).toBe(false)
+  })
+
+  it('keeps the wall on the LAST phrase for its full duration', () => {
+    // The last lyric line is on the wall and its cue has not run out. Under the old `index < last`
+    // this was already false, and the message home took the wall on top of an unread line.
+    expect(duringTheRepeat(false)).toBe(false)
+  })
+
+  it('returns the wall once the song has actually ended', () => {
+    expect(duringTheRepeat(true)).toBe(true)
   })
 })

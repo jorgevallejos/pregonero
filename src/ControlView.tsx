@@ -665,7 +665,7 @@ export function ControlView() {
     armed: armedFlag,
     setlistEntered,
     setlistDone,
-    presenting: isPresenting(lines, index, songEnded),
+    presenting: isPresenting(lines, songEnded),
   })
   // **The content travels with the answer, on the one channel that already exists.** The
   // Projection window has no `electronAPI` and cannot read the gig folder, so the four fields go
