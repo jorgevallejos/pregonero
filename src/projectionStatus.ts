@@ -11,6 +11,11 @@
  * **This is what survived `screenSizeState.ts`**, which was named for a concept that had already
  * been dead since 2026-09-03 and now holds nothing at all.
  */
-export function getProjectionStatusText(projectionOpen: boolean): string {
-  return projectionOpen ? 'Open' : 'Closed'
+export function getProjectionStatusText(projectionOpen: boolean, placedOnProjector = true): string {
+  if (!projectionOpen) return 'Closed'
+  // **The fallback is visible, never silent.** A projection window that quietly stayed on the
+  // laptop is otherwise discovered by looking at a blank wall. **It is said in the value rather
+  // than in a note beside it** (2026-09-06): a column shows a state, and *where the window went* is
+  // one — where a paragraph explaining it is a message, and messages are invisible across a stage.
+  return placedOnProjector ? 'Open' : 'Open, on this screen'
 }

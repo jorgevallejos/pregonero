@@ -2197,46 +2197,17 @@ html, body, #root {
   background: var(--beat-accent);
 }
 
-/* ── The gig, and the readiness delta it renders ─────────────────────────────────────────────
-   Nothing here is a live state, so nothing here takes the armed green. A step that is not yet
-   done is the normal state of a gig being built and reads as dim text; only a refusal — a file
-   that will not parse, a mapping of the wrong room — takes the fail colour, and takes it as an
-   outline rather than a fill, because it is a desk problem and not a stage one. */
+/* ── A COLUMN SHOWS A STATE, NEVER A MESSAGE — and these are the classes that said otherwise ──
 
-.control-setup-note {
-  font-size: 0.8125em;
-  color: var(--text-status);
-  line-height: 1.35;
-  /* NO MID-WORD BREAK IN ANY COLUMN (Jorge, 2026-09-04). These are sentences, so they have spaces
-     to break at; `break-word` was standing authorisation for the failure `.control-setup-value` was
-     fixed for, in a size where it would have been harder to notice. */
-  overflow-wrap: normal;
-}
+   `.control-setup-note`, `.control-arm-blocked` and `.control-arm-warning` are deleted (2026-09-06).
+   They dressed a paragraph in `GIG`, bullets in `ARM` and two placement notes in `PROJECTION`, and
+   **the rule had been ruled twice and broken three times.** What each of them said is either the
+   column's own value now — `Open, on this screen` — or a popup, which is what everything that has
+   gone wrong at this screen is, because a band of text at a control is invisible across a stage in
+   the dark.
 
-.control-arm-blocked {
-  width: 100%;
-  text-align: left;
-  border-left: 2px solid var(--state-warn-border);
-  padding: 0.35em 0 0.35em 0.75em;
-  font-size: 0.8125em;
-  color: var(--state-warn-text);
-  line-height: 1.4;
-}
-
-.control-arm-blocked-title {
-  margin: 0 0 0.25em;
-  color: var(--text-primary);
-}
-
-.control-arm-blocked ul {
-  margin: 0;
-  padding-left: 1.1em;
-}
-
-.control-arm-blocked-hint {
-  margin: 0.35em 0 0;
-  color: var(--text-dim);
-}
+   **The styles go with the elements.** A class left behind is an invitation, and this rule has
+   already accepted three. */
 
 .songs-song-btn-blocked {
   border-style: dashed;
@@ -2414,19 +2385,6 @@ html, body, #root {
 
 .gig-song-notes {
   color: var(--text-dim);
-}
-
-.control-arm-warning {
-  margin-top: 0.5em;
-  font-size: 0.8125em;
-  line-height: 1.45;
-  color: var(--text-secondary);
-}
-
-.control-arm-warning ul {
-  list-style: disc;
-  margin: 0;
-  padding-left: 1.1em;
 }
 
 .setup-lapsed {

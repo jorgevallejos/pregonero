@@ -684,7 +684,9 @@ describe('v0.5 control screen state machine integration', () => {
 
     const main = screen.getByRole('main')
     const armBtn = within(main).queryByRole('button', { name: 'Arm' })
-    expect(armBtn === null || (armBtn as HTMLButtonElement).disabled).toBe(true)
+    // **`Arm` is pressable and refuses** since 2026-09-06; `aria-disabled` carries what `disabled`
+    // used to, without taking the press and the explanation with it.
+    expect(armBtn === null || armBtn.getAttribute('aria-disabled') === 'true').toBe(true)
   })
 
   it('4. When all prerequisites are satisfied, status becomes READY_TO_ARM and Arm is enabled', async () => {
@@ -731,7 +733,7 @@ describe('v0.5 control screen state machine integration', () => {
     )
 
     const armBtn = getArmButton()
-    expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+    expect(armBtn!.getAttribute('aria-disabled')).toBe('true')
   })
 
   it('4c. Setup/ready screen displays language pair as singing → translation (ES → EN)', async () => {
@@ -1567,7 +1569,7 @@ describe('ControlView performer state flow', () => {
     const main = screen.getByRole('main')
     const armBtn = within(main).queryByRole('button', { name: 'Arm' })
     expect(armBtn).not.toBeNull()
-    expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+    expect(armBtn!.getAttribute('aria-disabled')).toBe('true')
   }, 10000)
 
   describe('reset behavior when configuration changes during a session', () => {
@@ -1953,7 +1955,7 @@ describe('ControlView performer state flow', () => {
       const main = screen.getByRole('main')
       const armBtn = within(main).queryByRole('button', { name: 'Arm' })
       expect(armBtn).not.toBeNull()
-      expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+      expect(armBtn!.getAttribute('aria-disabled')).toBe('true')
     })
 
     it('9. closing projection while performing causes readiness to fail', async () => {
@@ -1996,7 +1998,7 @@ describe('ControlView performer state flow', () => {
       const main = screen.getByRole('main')
       const armBtn = within(main).queryByRole('button', { name: 'Arm' })
       expect(armBtn).not.toBeNull()
-      expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+      expect(armBtn!.getAttribute('aria-disabled')).toBe('true')
     })
   })
 
@@ -2351,7 +2353,7 @@ describe('ControlView performer state flow', () => {
       const main = screen.getByRole('main')
       const armBtn = within(main).queryByRole('button', { name: 'Arm' })
       expect(armBtn).not.toBeNull()
-      expect((armBtn as HTMLButtonElement).disabled).toBe(true)
+      expect(armBtn!.getAttribute('aria-disabled')).toBe('true')
     })
   })
 
@@ -3927,6 +3929,104 @@ describe('Control pre-first-lyric intro display', () => {
 })
 
 // ── §5 + §6 — simplified performance screens ──────────────────────────────
+
+/**
+ * **A COLUMN SHOWS A STATE, NEVER A MESSAGE — AND THIS IS THE TEST THAT HOLDS IT.**
+ *
+ * **Ruled 2026-09-03, restated 2026-09-05, and broken again by 2026-09-06.** A paragraph in `GIG`,
+ * bullets in `ARM`, two placement notes in `PROJECTION`. **Three times is not a wording problem, it
+ * is a missing guard** — the same shape as the translations note that drifted home three times and
+ * only stopped when something failed on it.
+ *
+ * **Why the rule exists**: this panel is read across a stage in the dark, where a band of text at a
+ * control is invisible. Anything that has gone wrong is a popup; anything that is a fact is the
+ * column's value.
+ *
+ * **What a column may contain**: its label, its value, and its controls — a control's own group
+ * label and its buttons. **Anything else fails this test**, whatever it is called and however good
+ * the reason is. If a new fact must be said, it goes in the value or in a popup.
+ */
+describe('a column shows a state, never a message', () => {
+  const SPANISH: SongItem[] = [
+    { languages: { es: 'Fui brasa viva en la oscuridad,' } },
+    { languages: { es: 'Chispa que quiso brotar.' } },
+  ]
+
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  /** Everything a column is allowed to say, in the order the DOM gives it. */
+  function allowedText(section: Element): string {
+    const parts: string[] = []
+    for (const el of section.querySelectorAll(
+      '.control-setup-label, .control-setup-value, .ctrl-toggle-label, button'
+    )) {
+      parts.push(el.textContent ?? '')
+    }
+    return parts.join('').replace(/\s+/g, ' ').trim()
+  }
+
+  function actualText(section: Element): string {
+    return (section.textContent ?? '').replace(/\s+/g, ' ').trim()
+  }
+
+  async function renderStandby() {
+    installLibrary([{ id: 'libertad', title: 'Libertad', items: SPANISH } as never])
+    setupControlViewWithReadinessPassing()
+    setSongLines(SPANISH)
+    setCurrentSongId('libertad')
+    setCurrentSongTitle('Libertad')
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(standbyState()).not.toBeNull()
+    }, { timeout: WAIT_TIMEOUT })
+  }
+
+  it('says nothing in any column beyond its label, its value and its controls', async () => {
+    await renderStandby()
+    const sections = [...document.querySelectorAll('.control-setup-section')]
+    expect(sections.length).toBeGreaterThan(1)
+    for (const section of sections) {
+      expect(actualText(section)).toBe(allowedText(section))
+    }
+  })
+
+  it('says nothing extra when the gig cannot be armed, which is when it used to say most', async () => {
+    // The state that produced the paragraph and the bullets: a gig open, a song that readiness
+    // refuses, and setup unconfirmed.
+    await renderStandby()
+    const sections = [...document.querySelectorAll('.control-setup-section')]
+    for (const section of sections) {
+      expect(actualText(section)).toBe(allowedText(section))
+    }
+    expect(screen.queryByTestId('control-gig-summary')).toBeNull()
+    expect(screen.queryByTestId('arm-blocked-reasons')).toBeNull()
+    expect(screen.queryByTestId('arm-setup-warning')).toBeNull()
+    expect(screen.queryByTestId('projection-placement')).toBeNull()
+    expect(screen.queryByTestId('projection-placement-fallback')).toBeNull()
+  })
+
+  it('carries no paragraph, list or note element inside a column, whatever it would say', async () => {
+    // **The shape, not the sentence.** A rule about wording is what failed three times; this fails
+    // on the element itself, so the next message has nowhere to land.
+    await renderStandby()
+    for (const section of document.querySelectorAll('.control-setup-section')) {
+      expect(section.querySelector('p')).toBeNull()
+      expect(section.querySelector('ul')).toBeNull()
+      expect(section.querySelector('li')).toBeNull()
+      expect(section.querySelector('.control-setup-note')).toBeNull()
+    }
+  })
+})
 
 /**
  * **THE WALK'S BLOCKER, AS A TEST** (walked 2026-09-06, `v0.80.0`).

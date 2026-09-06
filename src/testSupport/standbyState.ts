@@ -7,9 +7,14 @@
  * the tests need the state from something that is still on the screen.
  *
  * **The `ARM` column is that something, and it is not a substitute: it is the same fact.**
- * `canArm` is `controlState === 'READY_TO_ARM'` exactly, and the button's `disabled` is `!canArm`.
- * So a pressable `Arm` button *is* `READY_TO_ARM` and a dead one *is* `SETUP` — the distinction the
- * heading spelled out, read where a performer acts on it rather than where it was announced.
+ * `canArm` is `controlState === 'READY_TO_ARM'` exactly, and the button's `aria-disabled` is
+ * `!canArm` — the distinction the heading spelled out, read where a performer acts on it rather
+ * than where it was announced.
+ *
+ * **It read `disabled` until 2026-09-06, and that attribute is gone.** `Arm` stays pressable and
+ * refuses in a popup, because a dead button on a panel read across a dark room tells you nothing —
+ * which is how the walk of `v0.80.0` ended at moment 5. `aria-disabled` carries the same fact
+ * without taking the press away.
  *
  * **`null` means Standby is not up at all**: the app is armed, or on another screen entirely.
  *
@@ -22,5 +27,5 @@ export type StandbyState = 'SETUP' | 'READY_TO_ARM'
 export function standbyState(): StandbyState | null {
   const arm = document.querySelector<HTMLButtonElement>('[data-testid="control-arm-button"]')
   if (arm === null) return null
-  return arm.disabled ? 'SETUP' : 'READY_TO_ARM'
+  return arm.getAttribute('aria-disabled') === 'true' ? 'SETUP' : 'READY_TO_ARM'
 }

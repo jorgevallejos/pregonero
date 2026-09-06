@@ -60,7 +60,7 @@ import { addPlayedSong, isSetlistComplete } from './playedSongsState'
 import { useGigReadiness } from './useGigReadiness'
 import { useGigsExist } from './useGigsExist'
 
-import { armWarnings, isSongReadyToArm, whySongCannotArm, type GigReadiness } from './gigReadiness'
+import { isSongReadyToArm, whySongCannotArm } from './gigReadiness'
 import { getProjectionStatusText } from './projectionStatus'
 import { setVideoRunsBroadcast } from './videoRunsBroadcast'
 import type { LyricLine, SongItem } from './songState'
@@ -167,39 +167,6 @@ function usePerformanceControlViewState({
   }
 }
 
-/**
- * One line of the readiness delta for the setup panel. It renders what the readiness function
- * already decided; it decides nothing itself.
- */
-function gigSummaryText(readiness: GigReadiness): string {
-  if (readiness.gate === 'off') return 'No gig folder open.'
-  if (readiness.refusals.length > 0) return readiness.refusals[0]!
-  const blocked = readiness.songs.filter((song) => !song.ready).length
-  // The confirmation is a milestone, not a lock: unconfirmed and lapsed both read as a warning
-  // here, and neither of them stops anything. The hard gate is the line above.
-  // **Every step but the last**, taken from the array's own shape rather than from the gig flow's
-  // `LAST_STEP`. That import was a player screen reaching into the shell for a constant, and the
-  // split of 2026-09-06 is what made it visible — `App.tsx` held both sides, so nothing crossed.
-  // Readiness always states its four steps in order with the confirmation last, in both of the
-  // places it is built, so the position is the fact and the constant was a second statement of it.
-  const pending = readiness.steps
-    .slice(0, -1)
-    .filter((step) => step.status !== 'complete')
-  if (blocked > 0) {
-    return `${blocked} song${blocked === 1 ? '' : 's'} cannot be armed.`
-  }
-  if (pending.length > 0) {
-    return `Step ${pending[0]!.step} — ${pending[0]!.name.toLowerCase()} — is not done yet.`
-  }
-  if (readiness.confirmation === null) {
-    return 'Every song can be armed. Setup is not confirmed.'
-  }
-  if (readiness.confirmation.stale) {
-    return `Every song can be armed. Setup has lapsed: ${readiness.confirmation.moved[0]}`
-  }
-  return 'Set up, confirmed, and every song can be armed.'
-}
-
 function ProjectionButton({
   isOpen,
   onToggle,
@@ -270,9 +237,10 @@ export function ControlView() {
   const gigsExist = useGigsExist()
   const songReadyForGig = isSongReadyToArm(gigReadiness, currentSongId)
   const songBlockedReasons = songReadyForGig ? [] : whySongCannotArm(gigReadiness, currentSongId)
-  // **A warning, never a refusal.** The setup confirmation is a milestone: it blocks nothing, and
-  // the hard gate is the line above, which is a different thing and stays as it is.
-  const setupWarnings = armWarnings(gigReadiness)
+  // **The setup warning is no longer read here** (2026-09-06). It is a milestone rather than a
+  // gate — arming an unconfirmed gig warns and proceeds — so it never had a moment on this screen
+  // where it could be said without being in the way. `armWarnings` still exists and the gig flow's
+  // sign-off still renders it, which is the screen that owns setup.
 
   const concertTimer = useConcertSessionTimer()
   const elapsedMinutes = concertTimer.elapsedMinutes
@@ -298,6 +266,8 @@ export function ControlView() {
   const [selectedDriveMode, setSelectedDriveMode] = useState<DriveMode | null>(null)
   /** The refusal a pressed-but-unavailable mode is showing, or null. Popup, never inline. */
   const [driveRefusal, setDriveRefusal] = useState<string | null>(null)
+  /** Why `Arm` refused, or null. Same rule: a popup, never a line in a column. */
+  const [armRefusal, setArmRefusal] = useState<string[] | null>(null)
   // P6: set when the performer presses Next/Previous during Auto playback, dropping the song
   // into Manual for the REMAINDER of the song. Reset on the next song and the next arm (below),
   // and by the Restart handlers — never sticky across songs.
@@ -662,6 +632,39 @@ export function ControlView() {
   }
 
   // When re-arming mid-song, restart so the performer sees the intro screen first.
+  /**
+   * **`Arm` is pressable even when it cannot act, and says why** (2026-09-06).
+   *
+   * It was `disabled={!canArm}` with the reasons in bullets beside it. **Both halves were wrong on
+   * this screen**: a column shows a state and never a message, and a dead button on a panel read
+   * across a dark room tells you nothing at all — which is exactly how the walk of `v0.80.0` ended
+   * at moment 5, pressing a control that did nothing.
+   *
+   * **The reasons come from readiness where there are any, and from the prerequisites otherwise.**
+   * *No song*, *no languages*, *the projection window is closed* are the three the gate can be
+   * blocked on that readiness knows nothing about, and every one of them is a fact he can act on.
+   */
+  const armRefusals = (): string[] => {
+    if (canArm) return []
+    if (songBlockedReasons.length > 0) return songBlockedReasons
+    const missing: string[] = []
+    if (currentSongId === '' || lines.length === 0) missing.push('No song is loaded. Choose one on Setlist.')
+    if (effectiveSingingLang === '' || effectiveLang === '') {
+      missing.push('No languages are chosen. Choose them on Languages.')
+    }
+    if (!projectionOpen) missing.push('The projection window is closed. Open it in the Projection column.')
+    return missing.length > 0 ? missing : ['This gig cannot be armed yet.']
+  }
+
+  const handleArmPressed = () => {
+    const refusals = armRefusals()
+    if (refusals.length > 0) {
+      setArmRefusal(refusals)
+      return
+    }
+    handleArmAndRestart()
+  }
+
   const handleArmAndRestart = () => {
     // Fresh arm: audience starts on the intro/title, not blacked out from a prior performance.
     setAutoBlackout(false)
@@ -961,6 +964,47 @@ export function ControlView() {
    * control is invisible — the same reason arming errors are popups and the same overlay they use.
    * **No message ever appears in a control column** (Jorge, 2026-09-05): a column shows a state.
    */
+  /**
+   * **Why `Arm` could not act, said where it can be read.** Same overlay as every other thing that
+   * has gone wrong at this screen — **anything that has gone wrong at the control view is a
+   * popup**, because a band of text at a control is invisible across a stage in the dark.
+   */
+  const armRefusalPopup = armRefusal === null ? null : (
+    <div className="ctrl-timeline-save-overlay" data-testid="arm-refusal">
+      <div
+        className="ctrl-timeline-save-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="This song cannot be armed yet"
+      >
+        <p className="ctrl-timeline-save-message" data-testid="arm-refusal-title">
+          {currentSongTitle || 'This song'} cannot be armed:
+        </p>
+        <ul data-testid="arm-refusal-reasons">
+          {armRefusal.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+          {/* **The escape hatch, said out loud**, and it travels with the reasons rather than
+              sitting under the column: the room is the one refusal a person can go and fix in
+              another tool, and the sentence is what tells him he may. */}
+          {songBlockedReasons.length > 0 && (
+            <li>Or map the wall directly in Muralista and come back.</li>
+          )}
+        </ul>
+        <div className="ctrl-timeline-save-actions">
+          <button
+            type="button"
+            className="ctrl-btn"
+            data-testid="arm-refusal-close"
+            onClick={() => setArmRefusal(null)}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   const driveRefusalPopup = driveRefusal === null ? null : (
     <div className="ctrl-timeline-save-overlay" data-testid="drive-mode-refusal">
       <div
@@ -989,6 +1033,7 @@ export function ControlView() {
   return (
     <div className="control-screen">
       {driveRefusalPopup}
+      {armRefusalPopup}
       {showSetupPanel && (
         <header className="control-masthead" role="banner">
           {/* **THE MASTHEAD IS THE ROOM'S NAME AND NOTHING ELSE** (Jorge, 2026-09-05). The
@@ -1090,11 +1135,17 @@ export function ControlView() {
                     }
                   />
                 </div>
-                <div className="control-setup-extras">
-                  <span className="control-setup-note" data-testid="control-gig-summary">
-                    {gigSummaryText(gigReadiness)}
-                  </span>
-                </div>
+                {/* **THE SUMMARY PARAGRAPH IS GONE** (2026-09-06, third time this rule has had to
+                    be applied). It said *Step 3 — the room — is not done yet*, *2 songs cannot be
+                    armed*, *Setup has lapsed*. **A column shows a state, never a message**, and
+                    this panel is read across a stage in the dark where a band of text at a control
+                    is invisible.
+
+                    **It is removed rather than relocated, and that is the honest move.** Every
+                    sentence it carried is about setup, and setup has a screen that says all of it,
+                    line by line: the gig flow's sign-off, one press away through `Setup`.
+                    **Standby says which gig; Backstage says whether it is ready.** */}
+                <div className="control-setup-extras" />
                 <div className="control-setup-buttons">
                   {/* **`Choose` above `Setup`, and it is shown only when there is a gig to
                       choose** (Jorge, 2026-09-05). It opens the full-screen picker, exactly as
@@ -1188,6 +1239,7 @@ export function ControlView() {
                             type="button"
                             className={`ctrl-segment${driveMode === mode ? ' ctrl-segment--active' : ''}${driveModeAvailable(mode, driveCaps) ? '' : ' ctrl-segment--disabled'}`}
                             aria-pressed={driveMode === mode}
+                            aria-disabled={!driveModeAvailable(mode, driveCaps)}
                             data-testid={`drive-mode-${mode}`}
                             onClick={() => chooseDriveMode(mode)}
                           >
@@ -1218,19 +1270,13 @@ export function ControlView() {
                         no longer exists — and reporting it wrongly, since **whether the video runs
                         is the drive mode now.** The column says whether the window is open, which
                         is the one thing this column is about. */}
-                    <SetupValue text={getProjectionStatusText(projectionOpen)} />
-                    {/* **The fallback is visible, never silent.** A projection window that quietly
-                        stayed on the laptop is otherwise discovered by looking at a blank wall. */}
-                    {projectionOpen && placement.placed && placement.display !== null && (
-                      <span className="control-setup-note" data-testid="projection-placement">
-                        On the second display, {placement.display}.
-                      </span>
-                    )}
-                    {projectionOpen && !placement.placed && placement.reason !== null && (
-                      <span className="control-setup-note" data-testid="projection-placement-fallback">
-                        {placement.reason} Drag it across yourself.
-                      </span>
-                    )}
+                    {/* **The two placement notes are gone from this column** (2026-09-06). One
+                        said which display it landed on and one said why it had not — **messages,
+                        and a column shows a state.** The one that mattered is the fallback, and
+                        **it is not lost: it is in the value.** `Open, on this screen` is the state,
+                        and it is readable at the distance this panel is read at, where a paragraph
+                        is not. */}
+                    <SetupValue text={getProjectionStatusText(projectionOpen, placement.placed)} />
                   </div>
                   {/* **THE VIDEOCLIP TOGGLE IS GONE** (Jorge, 2026-09-03, built 2026-09-06).
                       **Three things were tangled in one control**: format and placement, which are
@@ -1263,42 +1309,33 @@ export function ControlView() {
                 <div className="control-setup-content">
                   <SetupValue text="Unarmed" />
                 </div>
-                <div className="control-setup-extras">
-                  {songBlockedReasons.length > 0 && (
-                    <div className="control-arm-blocked" data-testid="arm-blocked-reasons">
-                      <p className="control-arm-blocked-title">
-                        {currentSongTitle || 'This song'} cannot be armed:
-                      </p>
-                      <ul>
-                        {songBlockedReasons.map((reason) => (
-                          <li key={reason}>{reason}</li>
-                        ))}
-                      </ul>
-                      <p className="control-arm-blocked-hint">
-                        Or map the wall directly in Muralista and come back.
-                      </p>
-                    </div>
-                  )}
-                  {setupWarnings.length > 0 && (
-                    <div className="control-arm-warning" data-testid="arm-setup-warning">
-                      <ul>
-                        {setupWarnings.map((line) => (
-                          <li key={line}>{line}</li>
-                        ))}
-                      </ul>
-                      <p className="control-arm-blocked-hint">
-                        This is a warning, not a gate — you can arm anyway.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {/* **THE BULLETS ARE GONE FROM THIS COLUMN** (2026-09-06). They said why the song
+                    could not be armed, and why setup had lapsed. **A column shows a state, never a
+                    message.**
+
+                    **The refusal is not lost, it is moved to where it can be read**: `Arm` stays
+                    pressable and says why it cannot act, in a popup, exactly as a drive-mode button
+                    does. **That gives this screen one behaviour rather than two** — a control that
+                    cannot act says why when pressed — which is the ruling drive mode already
+                    follows.
+
+                    **The setup warning is removed rather than moved, and deliberately.** It is not
+                    a gate: arming an unconfirmed gig warns and proceeds, so a popup carrying it
+                    would be a dialog in front of the one press that must never wait. Everything it
+                    said is on the gig flow's sign-off, line by line, one press away through
+                    `Setup`. */}
+                <div className="control-setup-extras" />
                 <div className="control-setup-buttons">
                   <button
                     type="button"
                     className="ctrl-btn ctrl-arm"
                     data-testid="control-arm-button"
-                    onClick={handleArmAndRestart}
-                    disabled={!canArm}
+                    // **Pressable, and honest about not being able to act.** `disabled` would take
+                    // the press and with it the only way to find out why — which is how the walk
+                    // of `v0.80.0` ended at moment 5. `aria-disabled` says the same thing to a
+                    // reader without taking the press away.
+                    aria-disabled={!canArm}
+                    onClick={handleArmPressed}
                   >
                     Arm
                   </button>
