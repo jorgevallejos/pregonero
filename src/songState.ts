@@ -12,6 +12,20 @@ export type SongItem = LyricLine | SectionMarker
 const KEY_SONG_LINES = 'songLines'
 const KEY_SONG_INDEX = 'songIndex'
 const KEY_SONG_BLANK = 'songBlank'
+/**
+ * **A SONG HAS ENDED, AND `songIndex` CANNOT SAY SO** (found on the wall, 2026-09-06).
+ *
+ * A song's three states were ruled on 2026-09-04 — *loaded, not yet cued* → the intro card;
+ * *running* → lyrics and visuals; **finished → black.** The third one had no representation. The
+ * index answers the first two and conflates the third with the first: `-1` is *before the first
+ * cue* and, on the clock, *after the last one*, so a finished song read as a rewound one and the
+ * wall put its intro card back up. In `manual` there was no end at all — `nextIndex` clamps at the
+ * last line, so the last line simply stayed on the wall and the setlist could never close.
+ *
+ * **One boolean, on the channel the lyrics already travel on.** It is written by the window that
+ * knows a song has ended and read by the wall, exactly as `songBlank` is; no new channel.
+ */
+const KEY_SONG_ENDED = 'songEnded'
 const KEY_CURRENT_SONG_ID = 'currentSongId'
 const KEY_CURRENT_SONG_TITLE = 'currentSongTitle'
 const KEY_SONG_DETAILS = 'songDetails'
@@ -505,6 +519,16 @@ export function setCurrentSongId(id: string): void {
   localStorage.setItem(KEY_CURRENT_SONG_ID, id)
 }
 
+/** **The song has reached its end.** See `KEY_SONG_ENDED`. */
+export function getSongEnded(): boolean {
+  return localStorage.getItem(KEY_SONG_ENDED) === '1'
+}
+
+export function setSongEnded(ended: boolean): void {
+  if (ended) localStorage.setItem(KEY_SONG_ENDED, '1')
+  else localStorage.removeItem(KEY_SONG_ENDED)
+}
+
 export function getCurrentSongTitle(): string {
   return localStorage.getItem(KEY_CURRENT_SONG_TITLE) || ''
 }
@@ -611,6 +635,11 @@ export type CurrentSong = {
 export function setCurrentSong(song: CurrentSong): void {
   setCurrentSongId(song.id)
   setCurrentSongTitle(song.title)
+  // **A song that has just become the current one has not ended.** Here rather than in
+  // `setLoadedSong`, because the concert-session transition to the next song does not go through
+  // that function — it ends the song it is leaving and then sets this one, and without the clear
+  // the new song would be born finished and its wall black from the first line.
+  setSongEnded(false)
   setSongDetails({
     titleTranslations: song.title_translations,
     intro: song.intro,
@@ -632,6 +661,7 @@ export function resetLoadedSongState(): void {
   setCurrentSongId('')
   setCurrentSongTitle('')
   setSongDetails({})
+  setSongEnded(false)
   setSongLines([])
   setSongIndex(-1)
   setBlank(true)

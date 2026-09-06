@@ -26,6 +26,7 @@ import {
   setLoadedSong,
   getSongLines,
   parseSongFile,
+  getSongEnded,
 } from './songState'
 import { HOLD_CONFIRM_MS } from './useHoldToConfirm'
 import { getPlayedSongs, addPlayedSong } from './playedSongsState'
@@ -1137,7 +1138,17 @@ describe('v0.5 control screen state machine integration', () => {
       expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
     })
 
-    it('shows the last phrase immediately and disables Next at end-of-song', async () => {
+    /**
+     * **SUPERSEDED, 2026-09-06: Next stays live on the last line, and that press ends the song.**
+     *
+     * Disabling it there is how `manual` came to have no end at all — `nextIndex` clamps, so the
+     * press moves nothing, but **the press is the end, not the index.** With it dead the last line
+     * stayed on the wall, the song never finished, the setlist never closed and the message home
+     * was never reached; and for the last song of a setlist there is no next-song tile either, so
+     * nothing in the flow could end it. **It goes dead once the song has ended**, which is what
+     * this now asserts.
+     */
+    it('shows the last phrase immediately, and Next ends the song rather than sitting dead', async () => {
       setActiveSetlistSongIds(['duelo', 'pimiento'])
       setupControlViewWithReadinessPassing()
       render(<App initialHash="#/" />)
@@ -1155,9 +1166,19 @@ describe('v0.5 control screen state machine integration', () => {
       await navigateToLastLyric()
 
       expect(screen.getByText('Mundo')).toBeTruthy()
-      expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true)
+      // Live on the last line: the song is still being sung, and the press that follows is *done*.
+      expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(false)
       expect(screen.queryByTestId('next-song-tile')).toBeNull()
       expect(screen.queryByText('Tap to continue')).toBeNull()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      })
+      expect(getSongEnded()).toBe(true)
+      // Nothing further to do, so it goes dead — and the last line is still the index, which is
+      // what keeps the end-of-song footer and its tile in place.
+      expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(getSongIndex()).toBe(1)
     })
 
     it('does not show next-song tile before 6 seconds, then auto-reveals it at 6 seconds', async () => {
@@ -4807,6 +4828,101 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
     act(() => { vi.advanceTimersByTime(10_000) })
     // Still 0 — Manual never auto-advances past the pressed Next.
     expect(getSongIndex()).toBe(0)
+  })
+
+  /**
+   * **A SONG ENDS ONCE AND STAYS ENDED** (Jorge, 2026-09-06). *These were the most disturbing
+   * moments of the walk* — the two things below happen in front of a room, with both hands on the
+   * guitar, and there is no recovering from either without stopping to touch the app.
+   *
+   * **Two faces, one fault: a song had no ended state.** `computeAutoAdvanceIndex` answers `-1`
+   * *before the first cue* and *after the last one*, and the drive took both as *no line showing* —
+   * so a song on the clock, having played out, snapped back to index `-1`, **which is the intro
+   * card on the wall and no end-of-song on the control screen.** The tile appeared and vanished and
+   * the song looked like it had started again. In `manual` there was no end at all: `nextIndex`
+   * clamps, so the last line stayed up, the song never finished, the setlist never closed **and
+   * the message home was never reached.**
+   */
+  it('a song on the clock ends where its last cue does \u2014 it does not go back to the top', async () => {
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => { fireEvent.click(getArmButton()) })
+    // Count-in is 2000ms; the cue table is [0,2) and [2,100) seconds of song time.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^play$/i })) })
+    act(() => { vi.advanceTimersByTime(2_000 + 2_500) })
+    expect(getSongIndex()).toBe(1)
+
+    // Past the last cue's end.
+    act(() => { vi.advanceTimersByTime(100_000) })
+
+    // **The index holds at the last line**, so `isEndOfSong` stays true and the tile still has a
+    // reason to be there — it used to snap to -1 and take both away.
+    expect(getSongIndex()).toBe(1)
+    expect(getSongEnded()).toBe(true)
+    // And the performance is logged by the ending itself, not by whichever control gets pressed.
+    expect(playedSongIds()).toEqual(['duelo'])
+    vi.useRealTimers()
+  })
+
+  it('a manual song ends on the press after its last line', async () => {
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+    await act(async () => { fireEvent.click(getArmButton()) })
+
+    const next = () => screen.getByRole('button', { name: /^next$/i })
+    await act(async () => { fireEvent.click(next()) })
+    await act(async () => { fireEvent.click(next()) })
+    expect(getSongIndex()).toBe(1)
+    // On the last line and still singing it: not ended.
+    expect(getSongEnded()).toBe(false)
+    expect(playedSongIds()).toEqual([])
+
+    await act(async () => { fireEvent.click(next()) })
+    // `nextIndex` clamps, so the index cannot move — **the press is the end, not the index.**
+    expect(getSongIndex()).toBe(1)
+    expect(getSongEnded()).toBe(true)
+    expect(playedSongIds()).toEqual(['duelo'])
+  })
+
+  it('logs the performance once, however many ways the song is ended', async () => {
+    // The clock got there first, then `Unarm` at the end of a song was pressed. **One entry per
+    // performance** — the log's own rule — and `Unarm` used to add a second.
+    vi.useFakeTimers()
+    setupWithTimelineSong()
+    await armAndReachSetupFakeTimers()
+    await act(async () => { fireEvent.click(getArmButton()) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^play$/i })) })
+    act(() => { vi.advanceTimersByTime(2_000 + 101_000) })
+    expect(playedSongIds()).toEqual(['duelo'])
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Unarm/ })) })
+    expect(playedSongIds()).toEqual(['duelo'])
+    vi.useRealTimers()
+  })
+
+  it('does not carry the ending into the next song, or into a restart', async () => {
+    // **The failure this guards is a whole song played to a black wall.** `loadLines` is the
+    // navigation hook's and does not go through `setLoadedSong`, so the concert-session transition
+    // ends one song and sets the next by hand — `setCurrentSong` is where the clear belongs.
+    setupWithNoTimelineSong()
+    await armAndReachSetup()
+    await act(async () => { fireEvent.click(getArmButton()) })
+    const next = () => screen.getByRole('button', { name: /^next$/i })
+    await act(async () => { fireEvent.click(next()) })
+    await act(async () => { fireEvent.click(next()) })
+    await act(async () => { fireEvent.click(next()) })
+    expect(getSongEnded()).toBe(true)
+
+    vi.useFakeTimers()
+    const restartBtn = screen.getByRole('button', { name: /^restart$/i })
+    await act(async () => { fireEvent.pointerDown(restartBtn) })
+    act(() => { vi.advanceTimersByTime(HOLD_CONFIRM_MS) })
+    await act(async () => { fireEvent.pointerUp(restartBtn) })
+    vi.useRealTimers()
+
+    expect(getSongEnded()).toBe(false)
+    expect(getSongIndex()).toBe(-1)
   })
 
   it('a manual song has no Start step: Next is live from the moment of arming', async () => {

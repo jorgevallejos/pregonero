@@ -47,6 +47,30 @@ export function computeAutoAdvanceIndex(timeline: TimelineEntry[], elapsedMs: nu
 }
 
 /**
+ * **Whether the song is past its last cue — the question `-1` cannot answer.**
+ *
+ * `computeAutoAdvanceIndex` returns `-1` **before the first cue and after the last one**, and the
+ * drive treated both as *no line showing*. So a song on the clock, having played its last cue,
+ * snapped back to index `-1` — which on the wall is **the intro card**, because `-1` and armed is
+ * *loaded, not yet cued*, and on the control screen made `isEndOfSong` false, so **the next-song
+ * tile vanished.** Jorge saw the song appear to start again (2026-09-06). **Two symptoms, one
+ * line**, and a song's third state — *finished* — is what hangs off this.
+ *
+ * **The latest `end`, not the last entry's.** Nothing here promises the table is sorted, and
+ * reading the last row would end a song early on one that is not.
+ *
+ * **An empty table is never past its last cue**: a manual song is ended by a press, never by time.
+ */
+export function isPastLastCue(timeline: TimelineEntry[], elapsedMs: number): boolean {
+  if (timeline.length === 0) return false
+  let latestEnd = -Infinity
+  for (const cue of timeline) {
+    if (cue.end > latestEnd) latestEnd = cue.end
+  }
+  return elapsedMs / 1000 >= latestEnd
+}
+
+/**
  * P1 — start-on-cue: whether a song should use the performer's first pedal press as the
  * timeline's start cue, instead of a Play button + count-in.
  *

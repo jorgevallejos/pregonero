@@ -38,6 +38,7 @@ import {
   getLyricText,
   getSingingLanguage,
   isLyricLine,
+  getSongEnded,
 } from './songState'
 import { resolveMediaPath } from './mediaPathStore'
 
@@ -203,13 +204,30 @@ export function ProjectionView() {
    */
   const isArmed = useArmedBroadcast()
 
+  /**
+   * **A SONG THAT HAS ENDED PAINTS NOTHING** (Jorge, 2026-09-06) — the third of a song's three
+   * states, ruled 04/09 and never built: *loaded, not yet cued* → the intro card, *running* →
+   * lyrics and visuals, **finished → black.**
+   *
+   * The index cannot say it. `-1` is *before the first cue* and, on the clock, *after the last one*
+   * — so a finished song read as a rewound one and **the wall put the intro card back up**, which
+   * is what Jorge saw as the song starting again. In `manual` there was no end at all and the last
+   * line simply stayed up. See `songState.KEY_SONG_ENDED`.
+   */
+  const songEnded = getSongEnded()
+
   const showIntroScreen =
-    isArmed && index === -1 && lines.length > 0 && !performanceBlackout && currentSongTitle !== ''
+    isArmed &&
+    !songEnded &&
+    index === -1 &&
+    lines.length > 0 &&
+    !performanceBlackout &&
+    currentSongTitle !== ''
   /**
    * **The song belongs to the armed gig, and nothing of it paints outside one.** Unarming mid-song
    * used to leave the line hanging on the wall; between rooms the wall is black.
    */
-  const showContent = isArmed && index >= 0 && !blank && !isSectionMarker
+  const showContent = isArmed && !songEnded && index >= 0 && !blank && !isSectionMarker
 
   const [displayedText, setDisplayedText] = useState('')
   const [isVisible, setIsVisible] = useState(false)

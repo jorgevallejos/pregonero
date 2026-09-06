@@ -28,6 +28,8 @@ import {
   getProjectionLanguage,
   getLastLyricIndex,
   isLyricLine,
+  getSongEnded,
+  setSongEnded,
 } from './songState'
 import { resolveMediaPath } from './mediaPathStore'
 import { VideoPerformancePanel } from './VideoPerformancePanel'
@@ -65,7 +67,12 @@ import { isSongReadyToArm, whySongCannotArm } from './gigReadiness'
 import { getProjectionStatusText } from './projectionStatus'
 import { setVideoRunsBroadcast } from './videoRunsBroadcast'
 import type { LyricLine, SongItem } from './songState'
-import { computeAutoAdvanceIndex, isCueStartMode, type AdvanceMode } from './autoAdvanceState'
+import {
+  computeAutoAdvanceIndex,
+  isCueStartMode,
+  isPastLastCue,
+  type AdvanceMode,
+} from './autoAdvanceState'
 import {
   DRIVE_MODES,
   driveModeAvailable,
@@ -140,6 +147,8 @@ type ControlViewStateInput = {
   unarm: () => void
   lineCount: number
   currentIndex: number
+  /** The song has reached its end — see `songState.KEY_SONG_ENDED`. */
+  songEnded: boolean
 }
 
 /** Encapsulates performance control state machine and readiness; keeps UI from duplicating logic. */
@@ -155,6 +164,7 @@ function usePerformanceControlViewState({
   unarm,
   lineCount,
   currentIndex,
+  songEnded,
 }: ControlViewStateInput) {
   const prereqs = buildPerformanceControlPrerequisites(
     currentSongId,
@@ -169,10 +179,22 @@ function usePerformanceControlViewState({
   const canArm = controlState === 'READY_TO_ARM'
   const canUnarm = controlState === 'ARMED'
   const navEnabled = isNavigationEnabled(controlState)
+  /**
+   * **NEXT IS LIVE ON THE LAST LINE, AND THAT PRESS ENDS THE SONG** (Jorge, 2026-09-06).
+   *
+   * It was disabled there, which is how `manual` came to have no end at all: `nextIndex` clamps,
+   * so the press would have moved nothing — but **the press is the end, not the index.** With it
+   * dead, the last line stayed on the wall, the song never finished, the setlist never closed and
+   * the message home was never reached. **For the last song of a setlist there is no next-song
+   * tile either**, so nothing in the flow could end it.
+   *
+   * It is the same gesture he has been making all night, and it means the same thing: *done*.
+   * **Once the song has ended there is nothing further**, so it goes dead again.
+   */
   const nextDisabled =
     lineCount === 0 ||
     !navEnabled ||
-    (controlState === 'ARMED' && currentIndex >= lineCount - 1)
+    (controlState === 'ARMED' && currentIndex >= lineCount - 1 && songEnded)
 
   const handleArmClick = () => {
     if (tryArm(prereqs, armed)) arm()
@@ -392,6 +414,18 @@ export function ControlView() {
     setVideoRunsBroadcast(showVideoPerformance)
   }, [showVideoPerformance])
   const armed = performanceState === 'armed' || performanceState === 'performing'
+  /**
+   * **The song has ended**, held here as well as in storage.
+   *
+   * Storage is how it reaches the wall; this is how it reaches the controls. A value only in
+   * `localStorage` moves nothing on this screen — nothing re-renders when it changes — and `Next`
+   * and the end-of-song footer are both gated on it. `markSongEnded` is the one writer.
+   */
+  const [songEnded, setSongEndedHere] = useState(getSongEnded)
+  const markSongEnded = (ended: boolean) => {
+    setSongEnded(ended)
+    setSongEndedHere(ended)
+  }
   const {
     controlState,
     controlStateLabel,
@@ -412,6 +446,7 @@ export function ControlView() {
     unarm,
     lineCount: lines.length,
     currentIndex: index,
+    songEnded,
   })
   const { sendCommandWithState, sendSeek } = useWebSocket({
     index,
@@ -485,8 +520,15 @@ export function ControlView() {
     if (isAutoArmed && !wasNotStarted) {
       setManualOverrideTaken(true)
     }
+    // **The press after the last line is where a manual song ends** (Jorge, 2026-09-06).
+    // `nextIndex` clamps at the last line, so before this a manual song had no *after* at all:
+    // the last line stayed on the wall, the song never finished, and the setlist never closed.
+    // Read before `goNext`, because after it the index is the same either way.
+    const wasOnLastLine =
+      !wasNotStarted && lines.length > 0 && getSongIndex() === getLastLyricIndex(lines)
     goNext()
     const newIndex = getSongIndex()
+    if (wasOnLastLine) endCurrentSong()
     if (wasNotStarted) {
       if (isCueStartAuto) {
         startAtCue()
@@ -511,6 +553,8 @@ export function ControlView() {
   }
   const handleRestart = () => {
     goRestart()
+    // **Back to the top is not an ended song.** See `endCurrentSong`.
+    markSongEnded(false)
     // Restart also restarts the non-video beat clock (no-op when there is no tempo).
     restartBeatClock()
     // P6: back to the top of the song means the song drives itself again.
@@ -534,6 +578,7 @@ export function ControlView() {
     // Return to the pre-Play state: clock idle, audience back on the intro/title, index reset.
     resetBeatClock()
     setAutoBlackout(false)
+    markSongEnded(false)
     goRestart()
     // P6: back to the top of the song means the song drives itself again.
     setManualOverrideTaken(false)
@@ -648,9 +693,35 @@ export function ControlView() {
     index === getLastLyricIndex(lines)
   const nextDisabled = nextDisabledFromControlState
 
+  /**
+   * **A SONG ENDS ONCE AND STAYS ENDED** (Jorge, 2026-09-06), and this is the only place that says
+   * so. **The most disturbing moments of the walk** were both the absence of it: a song on the
+   * clock snapped back to index `-1` past its last cue and **appeared to start again**, and a
+   * manual song's last line **stayed on the wall for good**, so the song never finished, the
+   * setlist never closed and the message home was never reached.
+   *
+   * **Two faces, one fault: a song had no ended state.** The index conflates *before the first cue*
+   * with *after the last one*, and `nextIndex` clamps, so `manual` had no *after* at all.
+   *
+   * **Ending is also what logs the performance**, which used to be done by whichever control
+   * happened to be pressed — the next-song tile, or `Unarm` at the last line. A song that ended
+   * with neither pressed was never logged, and the last song of a setlist has no tile. **The
+   * played log is one entry per performance; the performance is over when the song is.**
+   *
+   * Idempotent, because the clock calls it on every tick past the last cue.
+   */
+  const endCurrentSong = () => {
+    if (getSongEnded()) return
+    markSongEnded(true)
+    if (currentSongId) addPlayedSong(currentSongId, { startedAt: songLoadedAtRef.current })
+  }
+
   const handleStartNextSongInConcertSession = () => {
     if (!nextSongForTile) return
-    if (currentSongId) addPlayedSong(currentSongId, { startedAt: songLoadedAtRef.current })
+    // The song being left is over, whether or not the clock got there first — and the song being
+    // arrived at is not. `setCurrentSong` clears the flag in storage; this clears it here.
+    endCurrentSong()
+    markSongEnded(false)
 
     // This is an internal concert-flow transition (already armed), so we must not auto-unarm
     // just because the user-facing song id changes.
@@ -705,8 +776,10 @@ export function ControlView() {
   }
 
   const handleArmAndRestart = () => {
-    // Fresh arm: audience starts on the intro/title, not blacked out from a prior performance.
+    // Fresh arm: audience starts on the intro/title, not blacked out from a prior performance
+    // and not still holding the last song's ending.
     setAutoBlackout(false)
+    markSongEnded(false)
     if (index >= 0) {
       goRestart()
       sendCommandWithState('setIndex', -1, { currentIndex: -1, blank: true })
@@ -932,6 +1005,9 @@ export function ControlView() {
   applyRemoteStateRef.current = applyRemoteState
   const sendCommandWithStateRef = useRef(sendCommandWithState)
   sendCommandWithStateRef.current = sendCommandWithState
+  // Through a ref for the same reason as the two above: the effect's deps are primitives only.
+  const endCurrentSongRef = useRef(endCurrentSong)
+  endCurrentSongRef.current = endCurrentSong
   useEffect(() => {
     if (showVideoPerformance) return
     if (effectiveAdvanceMode !== 'auto' || !hasTimeline) return
@@ -939,6 +1015,15 @@ export function ControlView() {
     // **The cue times are the recording's own timings, unscaled.** Nothing stands between the
     // song file and the clock since the performed tempo went — see the block above.
     const targetIndex = computeAutoAdvanceIndex(timelineRef.current, songElapsedMs)
+    // **Past the last cue is the end of the song, not the start of it.** `computeAutoAdvanceIndex`
+    // answers `-1` at both ends of a timeline; taking that as *no line showing* rewound the song,
+    // which put the intro card back on the wall and took the next-song tile away. **Hold the last
+    // line's index** — `isEndOfSong` stays true, so the tile stays — and let `songEnded` black the
+    // wall. See `isPastLastCue`.
+    if (targetIndex < 0 && isPastLastCue(timelineRef.current, songElapsedMs)) {
+      endCurrentSongRef.current()
+      return
+    }
     if (targetIndex === index) return
     // A real cue (index >= 0) un-blanks; before the first cue / in gaps (index -1) stays blank.
     const targetBlank = targetIndex < 0
@@ -1695,8 +1780,7 @@ export function ControlView() {
               onClick={
                 isEndOfSong && canUnarm
                   ? () => {
-                      if (currentSongId)
-                        addPlayedSong(currentSongId, { startedAt: songLoadedAtRef.current })
+                      endCurrentSong()
                       handleUnarm()
                     }
                   : undefined

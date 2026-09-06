@@ -15,6 +15,7 @@ import {
   setLoadedSong,
   setProjectionLanguage,
   setSingingLanguage,
+  setSongEnded,
 } from './songState'
 import { dropLibraryCache } from './setlistStore'
 import type { SongItem } from './songState'
@@ -1822,6 +1823,67 @@ describe("the wall is gated on the gig's state", () => {
     })
 
     expect(screen.getByTestId('gig-contact-panel')).toBeTruthy()
+    expect(screen.queryByTestId('song-intro-screen')).toBeNull()
+  })
+})
+
+/**
+ * **FINISHED → BLACK**, the third of a song's three states (ruled 2026-09-04, built 2026-09-06).
+ *
+ * The index cannot say a song has ended: `-1` is *before the first cue* and, on the clock, *after
+ * the last one*, so a finished song read as a rewound one and **the wall put the intro card back
+ * up.** In `manual` there was no end at all and the last line stayed. One boolean on the channel
+ * the lyrics already travel on — see `songState.KEY_SONG_ENDED`.
+ */
+describe('a song that has ended paints nothing', () => {
+  beforeEach(() => {
+    cleanup()
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.hash = '#/'
+    installRoom({ shapes: [shape('lyrics-1', 'song-lyrics')], defaults: { 'song-lyrics': ['lyrics-1'] } })
+  })
+
+  async function mountArmed(index: number) {
+    sessionStorage.setItem('liveLyricLaunched', '1')
+    installLibrary([{ id: 'test', title: 'Libertad', items: TWO_LINES }] as never)
+    setSongLines(TWO_LINES)
+    setSongIndex(index)
+    setBlank(index < 0)
+    wireCurrentSong('test')
+    setProjectionLanguage('en')
+    localStorage.setItem(KEY_ARMED_BROADCAST, '1-armed')
+    window.location.hash = '#/projection'
+    render(<App initialHash="#/projection" />)
+    await flushEffects()
+  }
+
+  it('clears the last line the moment the song ends', async () => {
+    await mountArmed(1)
+    await waitFor(() => expect(screen.getByText('World')).toBeTruthy())
+
+    await act(async () => {
+      setSongEnded(true)
+      dispatchStorageUpdate()
+    })
+    await waitFor(
+      () => {
+        expect(document.querySelector('.shape-text-inner')?.textContent ?? '').toBe('')
+      },
+      { timeout: 3000 }
+    )
+  })
+
+  it('does not put the intro card back up, which is what a finished clock song looked like', async () => {
+    // The clock used to snap the index to -1 past the last cue. Even at -1, an ended song is
+    // finished rather than waiting to be cued.
+    await mountArmed(-1)
+    expect(screen.getByTestId('song-intro-screen')).toBeTruthy()
+
+    await act(async () => {
+      setSongEnded(true)
+      dispatchStorageUpdate()
+    })
     expect(screen.queryByTestId('song-intro-screen')).toBeNull()
   })
 })

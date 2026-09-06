@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { getDefaultAdvanceMode, computeAutoAdvanceIndex, isCueStartMode, resolveAdvanceMode } from './autoAdvanceState'
+import {
+  getDefaultAdvanceMode,
+  computeAutoAdvanceIndex,
+  isCueStartMode,
+  isPastLastCue,
+  resolveAdvanceMode,
+} from './autoAdvanceState'
 import type { TimelineEntry } from './songState'
 
 describe('getDefaultAdvanceMode', () => {
@@ -91,5 +97,54 @@ describe('isCueStartMode (P1: start-on-cue for Auto, v2 timeline, no video)', ()
 
   it('is false when the song has video media — Video mode is untouched (P2)', () => {
     expect(isCueStartMode({ ...base, hasVideo: true })).toBe(false)
+  })
+})
+
+/**
+ * **`-1` MEANS TWO DIFFERENT THINGS AND THE APP COULD ONLY READ ONE OF THEM** (found on the wall,
+ * 2026-09-06).
+ *
+ * `computeAutoAdvanceIndex` returns `-1` *before the first cue* **and** *after the last one* — its
+ * own doc says so — and the auto-advance drive treated both as *no line showing*. So a song on the
+ * clock, having played its last cue, snapped to index `-1`: on the wall that is **the intro card**,
+ * because index `-1` and armed is *loaded, not yet cued*; on the control screen `isEndOfSong` went
+ * false and **the next-song tile vanished.** Jorge saw the song appear to start again. **Two
+ * symptoms, one line.**
+ *
+ * **This is the question `-1` cannot answer**, and the song's third state — *finished* — is what
+ * hangs off it. Kept pure and out of the drive so it can be asserted against the cue table rather
+ * than against a rendered clock.
+ */
+describe('isPastLastCue: the end of a song, which -1 cannot tell you about', () => {
+  const TIMELINE = [
+    { start: 0, end: 2 },
+    { start: 2, end: 5 },
+  ]
+
+  it('is false before the first cue, where the index is also -1', () => {
+    expect(computeAutoAdvanceIndex(TIMELINE, -1)).toBe(-1)
+    expect(isPastLastCue(TIMELINE, -1)).toBe(false)
+    expect(isPastLastCue(TIMELINE, 0)).toBe(false)
+  })
+
+  it('is false while a cue is running', () => {
+    expect(isPastLastCue(TIMELINE, 1_500)).toBe(false)
+    expect(isPastLastCue(TIMELINE, 4_999)).toBe(false)
+  })
+
+  it('is true from the instant the last cue ends — the same instant the index goes back to -1', () => {
+    expect(computeAutoAdvanceIndex(TIMELINE, 5_000)).toBe(-1)
+    expect(isPastLastCue(TIMELINE, 5_000)).toBe(true)
+    expect(isPastLastCue(TIMELINE, 60_000)).toBe(true)
+  })
+
+  it('reads the latest end, not the last entry, so an unsorted table cannot end a song early', () => {
+    expect(isPastLastCue([{ start: 2, end: 5 }, { start: 0, end: 2 }], 3_000)).toBe(false)
+    expect(isPastLastCue([{ start: 2, end: 5 }, { start: 0, end: 2 }], 5_000)).toBe(true)
+  })
+
+  it('never ends a song that has no timeline at all', () => {
+    // A manual song is ended by a press, never by time — there is no cue table to be past.
+    expect(isPastLastCue([], 999_999)).toBe(false)
   })
 })
