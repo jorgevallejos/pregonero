@@ -1,6 +1,6 @@
 {
   "name": "pregonero",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pregonero — the surtitle player. Given a gig, a room and song files, it arms and puts words on shapes until the setlist ends.",
   "author": "",
   "license": "MIT",
