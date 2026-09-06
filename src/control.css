@@ -4095,6 +4095,12 @@ html, body, #root {
    like on the wall — so an empty card and an empty wall read the same here as they do there. */
 .gig-cards-preview {
   width: 100%;
+  /* **MODEST, NOT FULL-BLEED** (Jorge, 2026-09-06). Stacking was right; the size was not. On a
+     real screen a full-width square preview is taller than the window, so reading this step meant
+     scrolling past two of them to reach the fields — and a preview is for reading the card, not
+     for filling the window. The cap is here rather than on the block so the label and the note
+     underneath stay part of a full-width column. */
+  max-width: 30em;
   aspect-ratio: 1 / 1;
   position: relative;
   overflow: hidden;
