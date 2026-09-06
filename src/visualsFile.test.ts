@@ -124,9 +124,52 @@ describe('song assets', () => {
     expect(songAssetFor(v, null, 'v1')).toBeNull()
   })
 
-  it('refuses a path, because a name is what travels', () => {
-    expect(songAssetFor(withAssets({ duelo: { v1: '../secret.mp4' } }), 'duelo', 'v1')).toBeNull()
-    expect(songAssetFor(withAssets({ duelo: { v1: '/Users/x/a.mp4' } }), 'duelo', 'v1')).toBeNull()
+  /**
+   * **A NAME MAY BE A RELATIVE PATH INSIDE THE FOLDER, AND REFUSING ONE WAS SILENTLY UNASSIGNING
+   * EVERY VIDEO IN THE CATALOGUE** (found on the wall, 2026-09-06).
+   *
+   * A video was assigned for `tragedia`, walked through to sign-off, and `video` drive mode was
+   * then unavailable *because the song had no video*. **`songVisuals.assets` in the real gig's
+   * `visuals.json` is `{}`** while `defaults` beside it is populated — so the file was written and
+   * the assignment was not in it.
+   *
+   * **Both repos refused any value containing a separator**, on a rule that was right when it was
+   * written: *a path here would be a fact about one machine written into a file built to travel.*
+   * **The listing stopped being flat on 2026-09-04 and this did not follow.** That change's own
+   * argument was that the constraint that mattered was *not absolute*, never *one segment* —
+   * `tragedia/pig.mov` leaks no more about where the folder lives than `pig.mov` does — and it was
+   * made because the real visuals folder holds **every animation one level down in a per-song
+   * directory**. So the picker offered a nested path, the row showed it as assigned, and the
+   * serialiser dropped it. **Every assignment in that folder was silently unassigned.**
+   *
+   * **What is refused is what was always the point**: absolute, escaping, or a fact about one
+   * machine. `assetNameIsRelative` is that rule and Muralista's `sanitizeSongAssets` is its mirror.
+   */
+  it('keeps a relative path inside the folder, because the listing offers them', () => {
+    expect(songAssetFor(withAssets({ duelo: { v1: 'tragedia/pig.mov' } }), 'duelo', 'v1')).toBe(
+      'tragedia/pig.mov'
+    )
+    expect(songAssetFor(withAssets({ duelo: { v1: 'a/b/c/d.mp4' } }), 'duelo', 'v1')).toBe('a/b/c/d.mp4')
+  })
+
+  it('refuses what a path here was ever a problem for', () => {
+    const refused = [
+      '/Users/x/a.mp4', // absolute: a fact about one machine
+      '../secret.mp4', // escaping the folder
+      'a/../../b.mp4',
+      'a\\b.mp4', // a Windows separator is a fact about one machine too
+      'a//b.mp4', // an empty segment
+      'a/b/', // a trailing separator names a directory
+      './a.mp4', // a no-op segment the listing never emits
+      'a/b/c/d/e.mp4', // deeper than the listing walks
+      '   ',
+    ]
+    for (const name of refused) {
+      expect(
+        songAssetFor(withAssets({ duelo: { v1: name } }), 'duelo', 'v1'),
+        `${JSON.stringify(name)} was kept`
+      ).toBeNull()
+    }
   })
 
   /** **A set, not a shape.** Two video shapes is how a corner gets spanned, and each carries its own. */

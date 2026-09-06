@@ -250,6 +250,36 @@ export function shapeIsVisible(shape: VisualShape): boolean {
 export type AssignmentMap = Partial<Record<string, string[]>>
 
 /**
+ * **How deep the listing walks, so how deep a stored name may be.** Muralista's `ASSET_MAX_DEPTH`
+ * and `localhostServer.cjs`'s `LISTING_MAX_DEPTH` are the same 4, and a name the picker could not
+ * have offered is not a name this file will keep.
+ */
+const ASSET_MAX_DEPTH = 4
+
+/**
+ * **A name is a relative path inside the folder** (2026-09-06).
+ *
+ * It used to be one segment, and any separator was refused — *a path here would be a fact about one
+ * machine written into a file built to travel*. **That rule was right and it outlived its listing.**
+ * On 2026-09-04 the mount listing was made to recurse, on the argument that the constraint that
+ * mattered was *not absolute*, never *one segment*: `tragedia/pig.mov` leaks no more about where
+ * the folder lives than `pig.mov` does. It was made because the real visuals folder keeps **every
+ * animation one level down in a per-song directory** — so from that day the picker offered a name
+ * this refused, and **every video assignment in that folder was silently dropped at save.**
+ *
+ * What is refused is what a path was ever a problem for: **absolute, escaping, or a separator that
+ * is a fact about one machine.** Deeper than the walk goes is refused too — the picker could not
+ * have offered it.
+ */
+export function assetNameIsRelative(name: string): boolean {
+  if (name === '' || name.includes('\\')) return false
+  if (name.startsWith('/')) return false
+  const segments = name.split('/')
+  if (segments.length > ASSET_MAX_DEPTH) return false
+  return segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+/**
  * **What a song puts in a shape** — Muralista's `songVisuals.assets`, song id → shape id → name.
  *
  * **A different question from `songs` beside it, and the two are easy to confuse.** `songs` answers
@@ -404,11 +434,12 @@ export function parseVisualsFile(text: string, expectedGigId: string): VisualsFi
     if (!songId || map === null || typeof map !== 'object') continue
     const entry: Record<string, string> = {}
     for (const [shapeId, name] of Object.entries(map as Record<string, unknown>)) {
-      // **A name, so a path is refused rather than repaired.** The same rule Muralista writes
-      // under: a separator here would be a fact about one machine in a file built to travel.
+      // **A relative path inside the folder, refused rather than repaired when it is not one.**
+      // The same rule Muralista writes under — see `assetNameIsRelative`.
       if (!shapeId || !isNonEmptyString(name)) continue
-      if (name.includes('/') || name.includes('\\')) continue
-      entry[shapeId] = name
+      const trimmed = name.trim()
+      if (!assetNameIsRelative(trimmed)) continue
+      entry[shapeId] = trimmed
     }
     if (Object.keys(entry).length > 0) assets[songId] = entry
   }
