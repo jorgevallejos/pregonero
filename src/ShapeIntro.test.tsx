@@ -53,7 +53,7 @@ describe('ShapeIntro', () => {
       `${INTRO_TITLE_MAX_SIZE * cardDesignBox(UNIT_SIZE).height}px`
     )
     expect(css('.intro-title').fontSize).toBe('var(--t)')
-    expect(css('.intro-annotation').fontSize).toBe('calc(var(--t) * 0.2)')
+    expect(css('.intro-annotation').fontSize).toBe('calc(var(--t) * 0.4)')
     expect(css('.intro-tagline').fontSize).toBe('calc(var(--t) * 0.28)')
     expect(css('.intro-rule').width).toBe('calc(var(--t) * 0.4)')
     expect(css('.intro-rule').height).toBe('calc(var(--t) * 0.04)')
@@ -85,5 +85,38 @@ describe('ShapeIntro', () => {
     expect(document.querySelector('.intro-tagline')).toBeNull()
     // And the title does not carry the gap that separated it from an annotation that is not there.
     expect(css('.intro-title').marginTop).toBe('0px')
+  })
+})
+
+/**
+ * **THE TRANSLATED TITLE IS READABLE AT WALL DISTANCE** (Jorge, 2026-09-06).
+ *
+ * Found at moment 6 and **measured rather than eyeballed** — real components at the real quad in
+ * headless Chrome, because jsdom returns zero for every dimension and the suite is blind to this by
+ * construction. On the gig's own video frame at 1920x1080 the annotation came out **14.8px tall on
+ * a 590px shape**, against a lyric line in the shape beside it at **272px**. One eighteenth.
+ *
+ * **What the suite CAN hold is the proportion**, and the proportion was contradicting this file's
+ * own doc: *the tagline is the fragile part, smallest on the wall* — while the annotation was
+ * `0.2t` and the tagline `0.28t`. **The smallest thing on the card was the one the doc did not
+ * name.** That is checkable here, and it is what stops the number drifting back.
+ */
+describe('the card\u2019s parts keep their order of size', () => {
+  const ratio = (declaration: string): number => {
+    const m = /calc\(var\(--t\)\s*\*\s*([\d.]+)\)/.exec(declaration)
+    if (m) return parseFloat(m[1]!)
+    return declaration === 'var(--t)' ? 1 : NaN
+  }
+
+  it('puts the title first, the translated title after it, and the tagline smallest', () => {
+    render(<ShapeIntro parts={PARTS} boxWidth={UNIT_SIZE} />)
+    const title = ratio(css('.intro-title').fontSize)
+    const annotation = ratio(css('.intro-annotation').fontSize)
+    const tagline = ratio(css('.intro-tagline').fontSize)
+
+    expect(title).toBe(1)
+    expect(annotation).toBeLessThan(title)
+    // **The line that was wrong.** It was 0.2 against the tagline's 0.28.
+    expect(annotation).toBeGreaterThan(tagline)
   })
 })

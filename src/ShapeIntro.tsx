@@ -27,6 +27,21 @@ import { CARD_INSET, CARD_INSET_Y, cardDesignBox, cardInsetX } from './cardBox'
  *
  * **The tagline is the fragile part** — smallest on the wall, carrying the sentence the room is
  * meant to leave with. It is the first thing to check at a wall.
+ *
+ * ## The translated title, and the number that was wrong (Jorge, 2026-09-06)
+ *
+ * **Too small to read at wall distance**, found at moment 6. Measured at the real quad in headless
+ * Chrome, on the gig's own video frame at 1920x1080: **14.8px tall on a 590px shape — 2.5% of it —
+ * against a lyric line in the shape beside it at 272px.** One eighteenth.
+ *
+ * **And it contradicted this file's own doc.** *The tagline is the fragile part, smallest on the
+ * wall* — the annotation was `0.2t` and the tagline `0.28t`, so the smallest thing on the card was
+ * the one the doc did not name. **A proportion nobody could see was wrong until the card was on a
+ * wall**, which is what the Cards step now puts it on.
+ *
+ * **It is `0.4t`**: twice the tagline, and still a quarter of the title, so it stays an annotation.
+ * The colour is untouched — dim is what makes it an annotation rather than a second title — and
+ * the wall is where that is judged now.
  */
 
 /**
@@ -155,7 +170,7 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
             <span
               className="intro-annotation"
               style={{
-                fontSize: 'calc(var(--t) * 0.2)',
+                fontSize: 'calc(var(--t) * 0.4)',
                 lineHeight: 1.2,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
