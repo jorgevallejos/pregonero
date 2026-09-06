@@ -65,24 +65,66 @@ describe('the contact condition, moment by moment', () => {
 
 describe('isPresenting', () => {
   it('is true from the moment a song is loaded, before its first line shows', () => {
-    expect(isPresenting(SONG, -1)).toBe(true)
+    expect(isPresenting(SONG, -1, false)).toBe(true)
   })
 
   it('stays true through the song', () => {
-    expect(isPresenting(SONG, 0)).toBe(true)
+    expect(isPresenting(SONG, 0, false)).toBe(true)
   })
 
   it('is false once the last lyric line has been shown', () => {
     // Index 2 is the last lyric; the section marker at 1 is not one.
-    expect(isPresenting(SONG, 2)).toBe(false)
+    expect(isPresenting(SONG, 2, false)).toBe(false)
   })
 
   it('is false with no song loaded at all', () => {
-    expect(isPresenting([], -1)).toBe(false)
+    expect(isPresenting([], -1, false)).toBe(false)
   })
 
   it('is false for a loaded song with no lyric lines to reach the end of', () => {
-    expect(isPresenting([{ type: 'section', label: 'Intro' }], -1)).toBe(false)
+    expect(isPresenting([{ type: 'section', label: 'Intro' }], -1, false)).toBe(false)
+  })
+
+  // **Walk 5, stage 2.** The index is only two of the three drive modes answer to *has this song
+  // reached its end*. In video the auto-advance effect returns at its first line
+  // (`ControlView.tsx`, `if (showVideoPerformance) return`), so the index never leaves -1 for the
+  // whole song and every moment after it — and a finished song went on claiming the wall.
+  it('is false when the song has ended at an index that never moved, which is video mode', () => {
+    expect(isPresenting(SONG, -1, true)).toBe(false)
+  })
+
+  it('is false when the song has ended mid-list, whatever the index reached', () => {
+    expect(isPresenting(SONG, 0, true)).toBe(false)
+  })
+})
+
+/**
+ * **Stage 2 of walk 5, and the fault it is here to keep out.** `tragedia` is the last song; playing
+ * it to its end closes the setlist, so the message home is the correct wall. It arrived only when
+ * Jorge unarmed. **Which of the two happened was the whole of the question** — it appeared at the
+ * end and he noticed at the unarm (nothing wrong), or it appeared only on the unarm (the setlist
+ * closed and the wall did not follow). These pin the second, because that is what it was.
+ */
+describe('the last song of the setlist, played in video mode', () => {
+  const lastSongEnds = (songEnded: boolean, armed: boolean) =>
+    isContactLit({
+      armed,
+      setlistEntered: true,
+      setlistDone: songEnded,
+      // Video mode: the index sat at -1 from the arm to the final frame.
+      presenting: isPresenting(SONG, -1, songEnded),
+    })
+
+  it('does not light the wall while the song is still running', () => {
+    expect(lastSongEnds(false, true)).toBe(false)
+  })
+
+  it('lights the wall the moment the song ends, with the arm untouched', () => {
+    expect(lastSongEnds(true, true)).toBe(true)
+  })
+
+  it('was already lit before the unarm, so the unarm changes nothing', () => {
+    expect(lastSongEnds(true, false)).toBe(true)
   })
 })
 

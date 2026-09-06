@@ -94,9 +94,32 @@ export function contactGigPhase(input: {
  * A song is loaded from the moment its lines are, which is before the first line shows — the wall's
  * attention has already moved to the song by then. It has reached its end once its last lyric line
  * has been shown, which is the moment the room stops being an audience for it.
+ *
+ * ## Why the index is not the whole answer (walk 5, stage 2, 2026-09-06)
+ *
+ * **The index is where two of the three drive modes record the end; `songEnded` is where all three
+ * do.** In clock and manual the last line's index is reached and held, so `index < last` goes false
+ * on its own. **In video the index never moves at all** — `ControlView`'s auto-advance effect
+ * returns at its first line when the video panel is up, and the arm left the index at `-1` — so
+ * `index < last` stayed true from the arm to the final frame and for every moment after it.
+ *
+ * The cost was the last song of the setlist: finishing `tragedia` closes the setlist and the
+ * message home is then the correct wall, but this said a song was still being presented, so
+ * `isContactLit` withheld it. **It arrived when Jorge unarmed**, on `!armed` — the other half of
+ * the same clause — which looked like the wall lagging the gig by an unarm. It was not a lag. The
+ * wall was answering a question that had gone stale in one mode only.
+ *
+ * **`songEnded` is asked first because it is the direct answer.** Same shape as the beat indicator
+ * one stage earlier and the wall's gate before that: a condition written where it is used, in terms
+ * of something that merely correlates, rather than at the point where the fact is decided.
  */
-export function isPresenting(lines: readonly SongItem[], index: number): boolean {
+export function isPresenting(
+  lines: readonly SongItem[],
+  index: number,
+  songEnded: boolean,
+): boolean {
   if (lines.length === 0) return false
+  if (songEnded) return false
   const last = getLastLyricIndex(lines as SongItem[])
   if (last < 0) return false
   return index < last
