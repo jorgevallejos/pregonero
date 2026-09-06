@@ -61,13 +61,8 @@ import { useGigReadiness } from './useGigReadiness'
 import { useGigsExist } from './useGigsExist'
 
 import { armWarnings, isSongReadyToArm, whySongCannotArm, type GigReadiness } from './gigReadiness'
-import {
-  getProjectionStatusText,
-  getStoredDisplayMode,
-  getDefaultDisplayMode,
-  KEY_DISPLAY_MODE_BROADCAST,
-  type DisplayMode,
-} from './screenSizeState'
+import { getProjectionStatusText } from './projectionStatus'
+import { setVideoRunsBroadcast } from './videoRunsBroadcast'
 import type { LyricLine, SongItem } from './songState'
 import { computeAutoAdvanceIndex, isCueStartMode, type AdvanceMode } from './autoAdvanceState'
 import {
@@ -293,13 +288,6 @@ export function ControlView() {
   const currentLibrarySong = currentSongId ? getLibrarySongById(currentSongId) : undefined
   const songIntro = currentLibrarySong?.intro?.[effectiveLang] ?? ''
 
-  /**
-   * **The stored display mode, read and never written any more** (2026-09-06). Nothing on this
-   * screen sets it since the Videoclip toggle went, and it is still read so a value left by an
-   * older build does not silently change what the Projection window is told. **The whole chain goes
-   * next**, which is where the stored key goes with it.
-   */
-  const selectedDisplayMode: DisplayMode | null = getStoredDisplayMode()
 
   /**
    * **The drive mode he has chosen for this song, or null for the default.**
@@ -341,18 +329,6 @@ export function ControlView() {
       : null
   const isVideoMode = songVideoSrc !== null
   const resolvedVideoPath = songVideoSrc ? resolveMediaPath(songVideoSrc) : null
-  // Effective display mode: stored value or default (small for video songs, none for non-video)
-  const effectiveDisplayMode: DisplayMode = selectedDisplayMode ?? getDefaultDisplayMode(isVideoMode)
-  // Keep the localStorage broadcast in sync with the effective display mode at all times —
-  // not just on toggle clicks. Without this, a broadcast left over from a previous session
-  // (e.g. 'none') can be stale relative to this session's fresh computed default (e.g. 'small'
-  // for a video song), and the Projection window — which reads the broadcast at mount — ends up
-  // disagreeing with Control until the user manually clicks the toggle. See the A1 bug
-  // (2026-07-04 projector test) and the "Storage-event / persisted-flag gotcha" in CLAUDE.md.
-  // effectiveDisplayMode is a string primitive, safe as an effect dependency.
-  useEffect(() => {
-    try { localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, effectiveDisplayMode) } catch { /* unavailable in some envs */ }
-  }, [effectiveDisplayMode])
   const songTimeline = currentLibrarySong?.timeline ?? []
   const hasTimeline = songTimeline.length > 0
 
@@ -405,6 +381,19 @@ export function ControlView() {
    * is a residual question Cowork raised and is not one.
    */
   const showVideoPerformance = driveMode === 'video'
+
+  /**
+   * **The wall is told whether the video runs, and nothing else about the mode.** It cannot work it
+   * out: it knows the room's assignment and nothing about what was chosen, so a `manual` drive on a
+   * song the room gives a video would leave a frozen first frame up all song.
+   *
+   * Written through on every change of the value rather than inside a handler — the reader takes it
+   * at mount, and a broadcast that only moved on a click goes stale against a fresh session's own
+   * state (the A1 rule in `CLAUDE.md`).
+   */
+  useEffect(() => {
+    setVideoRunsBroadcast(showVideoPerformance)
+  }, [showVideoPerformance])
   const armed = performanceState === 'armed' || performanceState === 'performing'
   const {
     controlState,

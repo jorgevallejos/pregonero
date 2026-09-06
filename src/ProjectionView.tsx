@@ -48,12 +48,7 @@ import { useEffect, useState, useRef } from 'react'
 import { getAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
 import { getLibrarySongById } from './setlistStore'
 
-import {
-  getDefaultDisplayMode,
-  getBroadcastDisplayMode,
-  KEY_DISPLAY_MODE_BROADCAST,
-  type DisplayMode,
-} from './screenSizeState'
+import { useVideoRuns } from './videoRunsBroadcast'
 import type { LyricLine } from './songState'
 
 import './control.css'
@@ -145,17 +140,14 @@ export function ProjectionView() {
   // **The output size in real pixels, this render.** Never remembered, never cached into a matrix.
   const { width: outputWidth, height: outputHeight } = useOutputSize()
 
-  // Display mode broadcast from Control window — 3-way None/Small/Big toggle (Prompt 13).
-  const [projectionDisplayMode, setProjectionDisplayMode] = useState<DisplayMode | null>(getBroadcastDisplayMode)
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === KEY_DISPLAY_MODE_BROADCAST || e.key === null) {
-        setProjectionDisplayMode(getBroadcastDisplayMode())
-      }
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  /**
+   * **Whether the video runs tonight, as the Control window answered it.**
+   *
+   * It was a 3-way `None / Small / Big` broadcast, and **in this window only `None` versus
+   * not-`None` ever did anything.** The size half was format wearing a performance control's
+   * clothes, and it is gone; what is left is the boolean it always was.
+   */
+  const videoRuns = useVideoRuns()
 
   // Auto blackout broadcast from Control window (T2). While active, the pre-first-cue index -1
   // state renders BLACK instead of the intro/title — the audience is dark during the count-in
@@ -290,9 +282,9 @@ export function ProjectionView() {
   const isVideoMode = Boolean(
     visuals && currentSongId && songVideoAssets(visuals, currentSongId).named.length > 0
   )
-  // Respect the display mode broadcast: 'none' means lyrics only, 'small'/'big' means play it.
-  const effectiveProjectionDisplayMode: DisplayMode = projectionDisplayMode ?? getDefaultDisplayMode(isVideoMode)
-  const videoWanted = Boolean(isVideoMode && effectiveProjectionDisplayMode !== 'none')
+  // **The room says this song has a video; the Control window says whether it runs.** Both are
+  // needed and neither implies the other — the performer can drive a video song by hand.
+  const videoWanted = Boolean(isVideoMode && videoRuns)
 
   // **The lookup, and it is the whole of it**: for each song-aware type, the shapes this song
   // reassigns, or the gig-level shapes of that type. It resolves to a *set* and every member is

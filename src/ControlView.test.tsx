@@ -40,7 +40,6 @@ import {
 import { installLibrary } from './testSupport/library'
 import { APP_VERSION } from './appVersion'
 import { MEDIA_PATH_STORE_KEY } from './mediaPathStore'
-import { clearStoredDisplayMode } from './screenSizeState'
 import { getAutoBlackout } from './autoBlackout'
 import { installRoom, TEST_GIG_ID } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
@@ -4244,7 +4243,6 @@ describe('§16 a video song driven by hand behaves like a non-video song (perfor
   beforeEach(() => {
     vi.clearAllMocks()
     clearStorage()
-    clearStoredDisplayMode()
   })
 
   afterEach(() => {

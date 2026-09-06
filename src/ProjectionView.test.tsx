@@ -22,7 +22,7 @@ import { closeRoom, installRoom, shape, FULL_FRAME } from './testSupport/room'
 import { KEY_VISUALS_BROADCAST } from './visualsBroadcast'
 import { KEY_ARMED_BROADCAST } from './performanceState'
 import { setAutoBlackout, AUTO_BLACKOUT_KEY } from './autoBlackout'
-import { KEY_DISPLAY_MODE_BROADCAST } from './screenSizeState'
+import { KEY_VIDEO_RUNS_BROADCAST } from './videoRunsBroadcast'
 
 function createStorage(): Storage {
   const store = new Map<string, string>()
@@ -852,7 +852,7 @@ describe('A2.3 — intro screen shows in video mode too (over the pre-play black
     // would have written when the performer picked Small. Note it is the *selection* being
     // simulated, not merely Control having mounted — a mounted Control with no selection
     // broadcasts 'none', and these tests would still not see a video region.
-    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    localStorage.setItem(KEY_VIDEO_RUNS_BROADCAST, '1')
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(song.items)
     setSongIndex(-1)
@@ -1226,7 +1226,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
       },
     ])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/test.mp4' }))
-    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    localStorage.setItem(KEY_VIDEO_RUNS_BROADCAST, '1')
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(LINES)
     setSongIndex(-1)
@@ -1289,7 +1289,7 @@ describe('In Video mode the video is the clock, and the lyric is in another shap
       },
     ])
     localStorage.setItem(MEDIA_PATH_STORE_KEY, JSON.stringify({ 'test.mp4': '/fake/test.mp4' }))
-    localStorage.setItem(KEY_DISPLAY_MODE_BROADCAST, 'small')
+    localStorage.setItem(KEY_VIDEO_RUNS_BROADCAST, '1')
     sessionStorage.setItem('liveLyricLaunched', '1')
     setSongLines(TWO_LINES)
     setSongIndex(-1)
