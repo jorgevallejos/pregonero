@@ -173,6 +173,60 @@ describe('VideoPerformancePanel — BeatCircle', () => {
     expect(screen.queryByTestId('beat-circle')).toBeNull()
   })
 
+  /**
+   * **AND IT STOPS WHEN THE SONG WAS ACTUALLY PLAYING, WHICH IS THE ONLY WAY A SONG ENDS**
+   * (Jorge, 2026-09-06).
+   *
+   * On the wall the beat kept running after the song had ended: **the wall was black and the
+   * indicator was still moving**, which says the song continues while the wall says it stopped.
+   *
+   * **The test above could not see it, and the reason is the standing tell.** It never presses
+   * `Play`, so `playState` is `idle`, so `isClockRunning` is false — and with the pulse also off
+   * there is no interval at all, so the one `setPhase(null)` sticks. **A song that ends was
+   * playing**; that is a state the running app cannot avoid and the test never reached.
+   *
+   * **The tick has two gates and only one of them learned about the ending.** `songFinished`
+   * reached `isPulseRunning`; `shouldTick` is `isClockRunning || isPulseRunning`, and nothing
+   * returns the transport to idle when a video runs out — so the interval kept running and its
+   * first line rewrites `phase` on every tick, before the transport half is even consulted.
+   */
+  it('stops when the song finishes MID-PLAY, which is the only way a song ends', async () => {
+    const Panel = await importPanel()
+    const { rerender } = render(<Panel {...defaultProps()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    // Past the count-in: the transport is playing, which is what the other test never reaches.
+    act(() => { vi.advanceTimersByTime(2100) })
+    expect(screen.getByTestId('beat-circle')).toBeTruthy()
+
+    rerender(<Panel {...defaultProps()} songFinished />)
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(screen.queryByTestId('beat-circle')).toBeNull()
+  })
+
+  /**
+   * **AND THE BEAT WAS NOT THE ONLY THING READING THE OLD ANSWER**, which the kickoff asked to
+   * check. `playState` drives the bottom bar too, so a finished song showed **Pause active and
+   * Play disabled** — the controls saying it was still running while the wall said it had stopped.
+   *
+   * Moving the state rather than adding a second guard is what makes both true at once.
+   */
+  it('offers Play again when the song ends, rather than a live Pause on a finished song', async () => {
+    const Panel = await importPanel()
+    const { rerender } = render(<Panel {...defaultProps()} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^play$/i }))
+    })
+    act(() => { vi.advanceTimersByTime(2100) })
+    expect((screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Pause' }) as HTMLButtonElement).disabled).toBe(false)
+
+    rerender(<Panel {...defaultProps()} songFinished />)
+    expect((screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Pause' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('BeatCircle appears after Play is pressed (tempo present)', async () => {
     const Panel = await importPanel()
     render(<Panel {...defaultProps()} />)

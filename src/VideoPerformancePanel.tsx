@@ -166,9 +166,32 @@ export function VideoPerformancePanel({
     return () => clearInterval(id)
   }, [shouldTick, bpm, numerator, denominator, countInBars])
 
-  // The song is over: the indicator goes with it rather than freezing on its last beat.
+  /**
+   * **THE SONG IS OVER, SO THE TRANSPORT IS NOT PLAYING — AND THAT IS THE POINT OF DECISION**
+   * (Jorge, 2026-09-06).
+   *
+   * On the wall the beat kept running after the song had ended: **the wall was black and the
+   * indicator was still moving**, which says the song continues while the wall says it stopped.
+   *
+   * **`songFinished` had been applied at one point of use and not at the decision.** It reached
+   * `isPulseRunning`, but `shouldTick` is `isClockRunning || isPulseRunning` and nothing returned
+   * the transport to idle when a video ran out — so the interval kept running, and its first line
+   * rewrites `phase` on every tick before the transport half is even consulted. Clearing `phase`
+   * once could not survive the next 50ms.
+   *
+   * **And the beat was not the only thing still reading the old answer.** `playState` also drives
+   * the bottom bar, so a finished song showed **Pause active and Play disabled** — the controls
+   * saying it was still running.
+   *
+   * **So the state itself moves, and everything downstream becomes true at once**: the clock stops
+   * ticking, the indicator goes with it, and the transport offers `Play` again. `videoStartedRef`
+   * resets with it so a later `Play` or `Restart` re-arms the count-in handoff.
+   */
   useEffect(() => {
-    if (songFinished) setPhase(null)
+    if (!songFinished) return
+    videoStartedRef.current = false
+    setPlayState('idle')
+    setPhase(null)
   }, [songFinished])
 
   // ── Play button ──────────────────────────────────────────────────────────
