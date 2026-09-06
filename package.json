@@ -1,18 +1,14 @@
 {
-  "name": "tramoya",
-  "version": "0.107.0",
-  "description": "Offline lyric/translation projection for macOS",
-  "main": "electron/main.cjs",
+  "name": "pregonero",
+  "version": "1.0.0",
+  "description": "Pregonero — the surtitle player. Given a gig, a room and song files, it arms and puts words on shapes until the setlist ends.",
   "author": "",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5174 && cross-env VITE_DEV_SERVER_URL=http://localhost:5174 electron .\"",
-    "dev:single": "cross-env VITE_SINGLE_SCREEN=1 npm run dev",
-    "check:main": "node scripts/checkMainProcess.cjs",
-    "build": "npm run check:main && vite build",
-    "pack": "npm run build && electron-builder --mac",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run && npm run test:warp",
@@ -21,22 +17,15 @@
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "ws": "^8.18.0"
-  },
-  "optionalDependencies": {
-    "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.15"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.1",
-    "concurrently": "^9.2.1",
-    "cross-env": "^7.0.3",
-    "electron": "^41.2.1",
-    "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -46,36 +35,6 @@
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.8",
-    "vitest": "^4.1.4",
-    "wait-on": "^7.2.0"
-  },
-  "build": {
-    "appId": "com.changopepper.tramoya",
-    "productName": "Tramoya",
-    "publish": null,
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "src/vendor/**/*",
-      "package.json"
-    ],
-    "mac": {
-      "category": "public.app-category.utilities",
-      "icon": "build/icon.png",
-      "identity": null,
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "afterSign": "build/adhoc-sign.cjs",
-    "dmg": {
-      "title": "Tramoya",
-      "artifactName": "Tramoya-${version}.${ext}"
-    }
+    "vitest": "^4.1.4"
   }
 }
