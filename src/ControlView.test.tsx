@@ -5792,9 +5792,15 @@ describe('§P14 Manual/Auto lyric-advance toggle', () => {
       return 1 // row flow with no column template: one implicit column, everything stacks
     }
 
-    /** Every `.control-setup-section` App can render, conditional ones included. */
+    /**
+     * Every `.control-setup-section` Standby can render, conditional ones included.
+     *
+     * **It reads `ControlView.tsx`, and it read `App.tsx` until 2026-09-06** — the screen moved
+     * into its own file when the two products were separated, and this fixture reads the file the
+     * screen is in.
+     */
     const sectionsAppCanRender = () =>
-      (readFileSync(resolve(__dirname, 'App.tsx'), 'utf8').match(
+      (readFileSync(resolve(__dirname, 'ControlView.tsx'), 'utf8').match(
         /className="control-setup-section"/g
       ) ?? []).length
 
