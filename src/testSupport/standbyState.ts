@@ -12,6 +12,10 @@
  * heading spelled out, read where a performer acts on it rather than where it was announced.
  *
  * **`null` means Standby is not up at all**: the app is armed, or on another screen entirely.
+ *
+ * **It reads the FIRST arm button in the document**, so a container a previous test left behind
+ * answers for this one — and answers `SETUP`, because that screen was never set up. **Call
+ * `cleanup()` before rendering** if the file's earlier tests might have leaked one.
  */
 export type StandbyState = 'SETUP' | 'READY_TO_ARM'
 

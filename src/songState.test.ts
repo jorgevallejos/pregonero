@@ -331,6 +331,25 @@ describe('getEffectiveSingingLanguage', () => {
     const lines: SongItem[] = [lyric({ es: 'Hola', en: 'Hello' })]
     expect(getEffectiveSingingLanguage(lines)).toBe('')
   })
+
+  /**
+   * **THE WHOLE CATALOGUE IS SHAPED LIKE THIS**, and no test used it until the walk of `v0.80.0`
+   * found out. Every line of every real song carries `es` and nothing else.
+   */
+  describe('a song that offers one language', () => {
+    const spanishOnly: SongItem[] = [lyric({ es: 'Fui brasa viva en la oscuridad,' })]
+
+    it('answers with that language, with nothing stored', () => {
+      expect(getEffectiveSingingLanguage(spanishOnly)).toBe('es')
+    })
+
+    it('answers with that language over a value stored for another song', () => {
+      // A language stored from another song is not a choice about this one, and this one offers
+      // nothing else to honour.
+      setSingingLanguage('en')
+      expect(getEffectiveSingingLanguage(spanishOnly)).toBe('es')
+    })
+  })
 })
 
 describe('getEffectiveProjectionLanguage', () => {
@@ -385,6 +404,26 @@ describe('getEffectiveProjectionLanguage', () => {
       lyric({ es: 'Hola', fr: 'Bonjour' }),
     ]
     expect(getEffectiveProjectionLanguage(lines)).toBe('')
+  })
+
+  /**
+   * **`ES → ES` is a real setting, not a degenerate one**: the room reads the words being sung,
+   * which is what surtitles are for before they are translation. **The identity case is not a
+   * reason to show nothing** (Jorge, 2026-09-06).
+   */
+  describe('a song that offers one language', () => {
+    const spanishOnly: SongItem[] = [lyric({ es: 'Fui brasa viva en la oscuridad,' })]
+
+    it('projects that language, with nothing stored', () => {
+      // **This is the walk's blocker.** It used to answer `''` — no value in `LYRICS DISPLAY`, no
+      // translation language selected, `canArm` false, and a dead `Arm` button.
+      expect(getEffectiveProjectionLanguage(spanishOnly)).toBe('es')
+    })
+
+    it('projects that language over a value stored for another song', () => {
+      setProjectionLanguage('en')
+      expect(getEffectiveProjectionLanguage(spanishOnly)).toBe('es')
+    })
   })
 })
 

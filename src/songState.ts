@@ -604,17 +604,53 @@ export function getAvailableSingingLanguages(lines: SongItem[]): string[] {
   return getAvailableLanguages(lines)
 }
 
-/** Effective singing language: stored value if available for song, else ''. */
+/**
+ * **A SONG THAT OFFERS ONE LANGUAGE HAS ALREADY ANSWERED BOTH QUESTIONS** (found by walking
+ * `v0.80.0`, 2026-09-06).
+ *
+ * Both functions below used to return `''` for a song with a single language and nothing stored,
+ * and that emptiness reached further than it looks:
+ *
+ * - `LYRICS DISPLAY` showed **no value at all**, because the column renders the pair only when
+ *   there is one.
+ * - `translationLanguageSelected` and `singingLanguageSelected` were both false, so the control
+ *   state never left `SETUP`, **`canArm` was false, and the `Arm` button was disabled.** Pressing
+ *   it did nothing, and nothing on the screen said why.
+ *
+ * **That is the whole of the walk's blocker**, and it is why nothing past moment 5 was reached: the
+ * catalogue is Spanish, every line carries `es` and nothing else, and the projection default was
+ * `'en'` if the song has it and `''` otherwise.
+ *
+ * **The rule: with exactly one language there is no choice to make, so that language is the
+ * answer** — for what is sung and for what is projected. `ES → ES` is a real setting, not a
+ * degenerate one: the room reads the words being sung, which is what surtitles are for before they
+ * are translation. **The identity case is not a reason to show nothing.**
+ *
+ * **It overrides a stored value too**, and deliberately: a language stored from another song is not
+ * a choice about this one, and this one offers nothing else to honour.
+ */
+function onlyLanguage(available: readonly string[]): string | null {
+  return available.length === 1 ? available[0]! : null
+}
+
+/** Effective singing language: the only one there is, else the stored value if this song has it. */
 export function getEffectiveSingingLanguage(lines: SongItem[]): string {
-  const stored = getSingingLanguage()
   const available = getAvailableSingingLanguages(lines)
+  const only = onlyLanguage(available)
+  if (only !== null) return only
+  const stored = getSingingLanguage()
   return stored && available.includes(stored) ? stored : ''
 }
 
-/** Effective projection language: stored value if available in song, else 'en' if no stored and song has it, else ''. */
+/**
+ * Effective projection language: the only one there is; else the stored value if this song has it;
+ * else `'en'` when nothing is stored and the song carries it.
+ */
 export function getEffectiveProjectionLanguage(lines: SongItem[]): string {
-  const stored = getProjectionLanguage()
   const available = getAvailableLanguages(lines)
+  const only = onlyLanguage(available)
+  if (only !== null) return only
+  const stored = getProjectionLanguage()
   if (stored) {
     return available.includes(stored) ? stored : ''
   }

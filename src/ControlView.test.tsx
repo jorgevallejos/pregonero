@@ -3928,6 +3928,96 @@ describe('Control pre-first-lyric intro display', () => {
 
 // ── §5 + §6 — simplified performance screens ──────────────────────────────
 
+/**
+ * **THE WALK'S BLOCKER, AS A TEST** (walked 2026-09-06, `v0.80.0`).
+ *
+ * **Arming did nothing and nothing on the screen said why.** The diagnosis, before any fix: it was
+ * not *armed without navigating* — **the `Arm` button was disabled**, because the control state
+ * never left `SETUP`.
+ *
+ * **The cause is the catalogue's own shape.** Every line of every real song carries `es` and
+ * nothing else; the projection default was *`en` if the song has it, otherwise nothing*, and the
+ * singing default was *the stored value or nothing*. With neither answered, two of the five arm
+ * prerequisites were false.
+ *
+ * **1764 tests said nothing about it**, because every fixture in the suite was bilingual. This one
+ * is shaped like the songs on disk.
+ */
+describe('a Spanish-only song arms and reaches the performing view', () => {
+  const SPANISH_ONLY: SongItem[] = [
+    { languages: { es: 'Fui brasa viva en la oscuridad,' } },
+    { languages: { es: 'Chispa que quiso brotar.' } },
+  ]
+
+  beforeEach(() => {
+    // **`cleanup()` first, and it is not a formality.** `standbyState()` reads the *first* arm
+    // button in the document, so a container left behind by an earlier test answers for this one —
+    // and answers `SETUP`, because that screen was never set up. Found here, where three tests that
+    // pass alone had one failing in the file's own run.
+    cleanup()
+    vi.clearAllMocks()
+    clearStorage()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  function setupSpanishOnly() {
+    installLibrary([{ id: 'libertad', title: 'Libertad', items: SPANISH_ONLY } as never])
+    setupControlViewWithReadinessPassing()
+    setSongLines(SPANISH_ONLY)
+    setCurrentSongId('libertad')
+    setCurrentSongTitle('Libertad')
+    // **Nothing chosen on the Languages screen**, which is the state the walk was in: neither key
+    // exists in the machine's storage.
+    localStorage.removeItem('projectionLanguage')
+    localStorage.removeItem('singingLanguage')
+  }
+
+  it('reaches READY_TO_ARM with no language ever chosen', async () => {
+    setupSpanishOnly()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(standbyState()).toBe('READY_TO_ARM')
+    }, { timeout: WAIT_TIMEOUT })
+    expect((getArmButton() as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows the pair as `ES → ES`, because the identity case is not a reason to show nothing', async () => {
+    setupSpanishOnly()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(standbyState()).toBe('READY_TO_ARM')
+    }, { timeout: WAIT_TIMEOUT })
+    const column = [...document.querySelectorAll('.control-setup-section')].find((s) =>
+      s.textContent?.includes('Lyrics display')
+    )!
+    expect(column.querySelector('.control-setup-value')?.textContent).toBe('ES → ES')
+  })
+
+  it('leaves Standby for the performing view when Arm is pressed', async () => {
+    // **The ruling it was violating**: arm and unarm are the door between the control view and the
+    // performing view, and only that door. Arming leaves the control view.
+    setupSpanishOnly()
+    render(<App initialHash="#/" />)
+    await waitFor(() => {
+      expect(standbyState()).toBe('READY_TO_ARM')
+    }, { timeout: WAIT_TIMEOUT })
+
+    await act(async () => {
+      fireEvent.click(getArmButton())
+    })
+
+    expect(standbyState()).toBeNull()
+    expect(document.querySelector('.control-masthead')).toBeNull()
+    expect(screen.getByTestId('performance-state-label').textContent).toBe('Performance: Armed')
+    expect(screen.getByTestId('performing-content')).toBeTruthy()
+  })
+})
+
 describe('§6 non-video armed screen', () => {
   beforeEach(() => {
     cleanup()
