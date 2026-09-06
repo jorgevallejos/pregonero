@@ -655,3 +655,20 @@ export function doubledShapeLines(visuals: VisualsFile): string[] {
       return `${where}: ${what} live at once.`
     })
 }
+
+/**
+ * **The types that are on because the projector is on.** Everything else is song-aware, or a fill.
+ *
+ * **A fact about the file format, so it lives with the format's reader.** It sat in
+ * `ShapeStatic.tsx` until `v0.107.0` and was pinned there as `KNOWN_CROSSINGS` — a pure predicate
+ * in a component file, which a shared reader could only get at by importing a player renderer.
+ * Named and accepted at the time, on the rule that nothing moves to make a test pass.
+ *
+ * **The repo split is what made it worth paying.** That one import pulled `ShapeStatic` and
+ * `ShapeText` into the shell's bundle, so the shell could not be built without the player.
+ */
+export const STATIC_TYPES = ['image', 'video', 'text'] as const
+
+export function isStaticType(type: string): boolean {
+  return (STATIC_TYPES as readonly string[]).includes(type)
+}

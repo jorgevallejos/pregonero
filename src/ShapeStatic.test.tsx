@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { ShapeStatic, isStaticType } from './ShapeStatic'
+import { ShapeStatic } from './ShapeStatic'
+import { isStaticType } from './visualsFile'
 import type { VisualShape } from './visualsFile'
 
 vi.mock('./mediaPathStore', () => ({

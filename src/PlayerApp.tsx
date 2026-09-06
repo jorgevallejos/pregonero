@@ -29,6 +29,8 @@
  * this stage buys is that the two products are separable before anything is separated.
  */
 import { useConcertSessionTimer } from './concertSessionState'
+
+export { isPlayerRoute } from './playerRoutes'
 import { ControlView } from './ControlView'
 import { SongsView } from './SongsView'
 import { LanguagesView } from './LanguagesView'
@@ -47,18 +49,6 @@ import { ProjectionView } from './ProjectionView'
 export function ConcertSessionTimerRunner() {
   useConcertSessionTimer()
   return null
-}
-
-/** Whether this hash is the player's. The shell's router asks before taking a route itself. */
-export function isPlayerRoute(hash: string): boolean {
-  return (
-    hash === '#/' ||
-    hash === '' ||
-    hash === '#/songs' ||
-    hash === '#/gigs' ||
-    hash === '#/languages' ||
-    hash === '#/projection'
-  )
 }
 
 export function PlayerApp({ hash }: { hash: string }) {

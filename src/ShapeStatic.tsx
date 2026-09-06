@@ -27,13 +27,6 @@ import { shapeFrame, type VisualShape } from './visualsFile'
  * aid, not content. Putting one on a wall at a gig would be a bug that looks like a feature.
  */
 
-/** The types that are on because the projector is on. Everything else is song-aware, or a fill. */
-export const STATIC_TYPES = ['image', 'video', 'text'] as const
-
-export function isStaticType(type: string): boolean {
-  return (STATIC_TYPES as readonly string[]).includes(type)
-}
-
 type Props = {
   shape: VisualShape
   type: string

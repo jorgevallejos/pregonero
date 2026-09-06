@@ -17,8 +17,7 @@
  */
 
 import type { LibraryEntry } from './setlistStore'
-import { shapeTypeOf, type VisualsFile } from './visualsFile'
-import { isStaticType } from './ShapeStatic'
+import { shapeTypeOf, type VisualsFile, isStaticType } from './visualsFile'
 
 /** One name, and everything that asks for it. A name used twice is one row, not two. */
 export type MediaSource = {
