@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { ShapeContact, readContactFields, hasContactContent, CONTACT_MAX_SIZE } from './ShapeContact'
+import { ShapeContact, readContactFields, hasContactContent } from './ShapeContact'
 import { UNIT_SIZE } from './vendor/warp.js'
 
 vi.mock('./mediaPathStore', () => ({
@@ -67,9 +67,11 @@ describe('ShapeContact', () => {
     const handles = screen.getByTestId('message-home-handles')
     expect(handles.textContent).toBe('changopepper.com@changopepper')
     expect(handles.style.color).toBe('rgb(139, 132, 120)')
-    // Smaller than the line, off the same number, so the whole card shrinks as one thing.
-    const t = CONTACT_MAX_SIZE * UNIT_SIZE
-    expect(handles.style.fontSize).toBe(`${t * 0.62}px`)
+    // Smaller than the line, off the same number, so the whole card shrinks as one thing. **The
+    // ratio itself, not a number derived from the ceiling**: `--t` is what the fit moves, and a
+    // measure written any other way does not move with it — see `cardAutoFit.test.tsx`.
+    expect(screen.getByTestId('message-home-line').style.fontSize).toBe('var(--t)')
+    expect(handles.style.fontSize).toBe('calc(var(--t) * 0.62)')
   })
 
   it('fills the logo column’s width, because equal heights is not available', () => {

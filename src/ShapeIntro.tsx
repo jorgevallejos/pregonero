@@ -101,26 +101,32 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
         textAlign: 'left',
       }}
     >
-      <div ref={blockRef} className="intro-block" style={{ width: '100%' }}>
+      {/* **`--t` IS THE ONE NUMBER, AND THE FIT MOVES IT DIRECTLY** (2026-09-06). See
+          `ShapeContact` and `cardAutoFit.test.tsx`: writing these measures from the React state
+          made `fitInBox`'s `apply` a no-op, so the search evaluated one unchanging layout and
+          returned the floor. **This card was not visibly broken only because its content fits at
+          the maximum, where the search never begins** — one long title away from the message
+          home's 8px. */}
+      <div ref={blockRef} className="intro-block" style={{ ['--t' as string]: `${t}px`, width: '100%' }}>
         {parts.annotation && (
           <div
             className="intro-head"
-            style={{ display: 'flex', alignItems: 'center', gap: `${t * 0.1}px` }}
+            style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--t) * 0.1)' }}
           >
             <span
               className="intro-rule"
               data-testid="intro-rule"
               style={{
                 flex: '0 0 auto',
-                width: `${t * 0.4}px`,
-                height: `${t * 0.04}px`,
+                width: 'calc(var(--t) * 0.4)',
+                height: 'calc(var(--t) * 0.04)',
                 background: CLAY,
               }}
             />
             <span
               className="intro-annotation"
               style={{
-                fontSize: `${t * 0.2}px`,
+                fontSize: 'calc(var(--t) * 0.2)',
                 lineHeight: 1.2,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
@@ -134,8 +140,8 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
         <div
           className="intro-title"
           style={{
-            marginTop: parts.annotation ? `${t * 0.17}px` : 0,
-            fontSize: `${t}px`,
+            marginTop: parts.annotation ? 'calc(var(--t) * 0.17)' : 0,
+            fontSize: 'var(--t)',
             lineHeight: 0.95,
             letterSpacing: '-0.035em',
             textTransform: 'uppercase',
@@ -148,8 +154,8 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
           <div
             className="intro-tagline"
             style={{
-              marginTop: `${t * 0.3}px`,
-              fontSize: `${t * 0.28}px`,
+              marginTop: 'calc(var(--t) * 0.3)',
+              fontSize: 'calc(var(--t) * 0.28)',
               lineHeight: 1.25,
               color: DIM,
             }}

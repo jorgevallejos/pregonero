@@ -145,14 +145,22 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
         textAlign: 'left',
       }}
     >
+      {/* **`--t` IS THE ONE NUMBER, AND THE FIT MOVES IT DIRECTLY** (2026-09-06). Every measure
+          below is `calc(var(--t) * k)`, so the whole card shrinks as one thing — and, which is the
+          part that was broken, so `fitInBox`'s `apply` actually changes what it then measures.
+          Writing these from the React state instead made the search evaluate one unchanging layout
+          fourteen times and return the floor: **the card came out at 8px on the wall.** The state
+          is still what paints the first frame and what a re-render restores; it is not what the
+          search moves. See `cardAutoFit.test.tsx`. */}
       <div
         ref={blockRef}
         className="contact-block"
         style={{
+          ['--t' as string]: `${t}px`,
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          gap: `${t * 0.9}px`,
+          gap: 'calc(var(--t) * 0.9)',
         }}
       >
         {hasLogoColumn && (
@@ -167,7 +175,7 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
               src={logoUrl!}
               alt=""
               aria-hidden="true"
-              style={{ width: `${t * 8}px`, height: 'auto', objectFit: 'contain' }}
+              style={{ width: 'calc(var(--t) * 8)', height: 'auto', objectFit: 'contain' }}
             />
           </div>
         )}
@@ -179,7 +187,12 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
             className="contact-rule"
             data-testid="message-home-rule"
             aria-hidden="true"
-            style={{ flex: '0 0 auto', alignSelf: 'stretch', width: `${Math.max(1, t * 0.06)}px`, background: CLAY }}
+            style={{
+              flex: '0 0 auto',
+              alignSelf: 'stretch',
+              width: 'max(1px, calc(var(--t) * 0.06))',
+              background: CLAY,
+            }}
           />
         )}
         {hasTextColumn && (
@@ -193,7 +206,7 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
                 className="contact-line"
                 data-testid="message-home-line"
                 style={{
-                  fontSize: `${t}px`,
+                  fontSize: 'var(--t)',
                   lineHeight: 1.25,
                   letterSpacing: '0.02em',
                   color: PAPER,
@@ -207,8 +220,8 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
                 className="contact-handles"
                 data-testid="message-home-handles"
                 style={{
-                  marginTop: fields.message ? `${t * 0.7}px` : 0,
-                  fontSize: `${t * 0.62}px`,
+                  marginTop: fields.message ? 'calc(var(--t) * 0.7)' : 0,
+                  fontSize: 'calc(var(--t) * 0.62)',
                   lineHeight: 1.4,
                   letterSpacing: '0.04em',
                   color: DIM,

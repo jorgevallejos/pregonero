@@ -42,14 +42,15 @@ describe('ShapeIntro', () => {
 
   it('sizes every part as a multiple of the title, so the card shrinks as one thing', () => {
     render(<ShapeIntro parts={PARTS} boxWidth={UNIT_SIZE} />)
-    // jsdom measures nothing, so the fit leaves the title at its ceiling — which is what makes the
-    // ratios below readable as ratios.
-    const t = INTRO_TITLE_MAX_SIZE * UNIT_SIZE
-    expect(css('.intro-title').fontSize).toBe(`${t}px`)
-    expect(css('.intro-annotation').fontSize).toBe(`${t * 0.2}px`)
-    expect(css('.intro-tagline').fontSize).toBe(`${t * 0.28}px`)
-    expect(css('.intro-rule').width).toBe(`${t * 0.4}px`)
-    expect(css('.intro-rule').height).toBe(`${t * 0.04}px`)
+    // **The ratios themselves, not numbers derived from the ceiling.** `--t` is the one number and
+    // it is what the fit moves; a measure written any other way stays put while the fit searches,
+    // which is how the message home came out at 8px on a wall — see `cardAutoFit.test.tsx`.
+    expect(css('.intro-block').getPropertyValue('--t')).toBe(`${INTRO_TITLE_MAX_SIZE * UNIT_SIZE}px`)
+    expect(css('.intro-title').fontSize).toBe('var(--t)')
+    expect(css('.intro-annotation').fontSize).toBe('calc(var(--t) * 0.2)')
+    expect(css('.intro-tagline').fontSize).toBe('calc(var(--t) * 0.28)')
+    expect(css('.intro-rule').width).toBe('calc(var(--t) * 0.4)')
+    expect(css('.intro-rule').height).toBe('calc(var(--t) * 0.04)')
     expect(css('.intro-rule').background).toBe('rgb(217, 139, 122)')
   })
 

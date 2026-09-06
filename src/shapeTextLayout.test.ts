@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   fitInBox,
+  TEXT_MIN_PX,
   quadStretch,
   readTextFields,
   textLayoutBoxWidth,
@@ -209,5 +210,26 @@ describe('a line against the boundary', () => {
     const box = { clientWidth: 0, clientHeight: 0 } as HTMLElement
     const measured = { scrollWidth: 9999, scrollHeight: 9999 } as unknown as HTMLElement
     expect(fitInBox(box, measured, () => {}, MAX, 60, 60)).toBe(MAX)
+  })
+
+  /**
+   * **AN `apply` THAT MOVES NOTHING RETURNS THE FLOOR, AND IT LOOKS LIKE A LAYOUT PROBLEM**
+   * (found on the wall, 2026-09-06).
+   *
+   * The search is only a search if `apply` changes what `measured` measures. Given one that does
+   * not, `fits()` answers for the layout as it already stands at every candidate — false all
+   * fourteen times when the content does not fit at the maximum — and `lo` is never raised off
+   * `TEXT_MIN_PX`. **Nothing throws and nothing warns; the content is simply tiny**, which is the
+   * same silent failure the zero-width box above is guarded against, reached the other way.
+   *
+   * Both locked cards did exactly this: `apply` wrote a `--t` custom property and every measure
+   * was written from React state instead, so the message home came out at 8px on the wall.
+   * `cardAutoFit.test.tsx` is the guard that stops it coming back; this is the mechanism.
+   */
+  it('returns the floor when apply moves nothing, which is how a card ends up 8px tall', () => {
+    const box = { clientWidth: 1000, clientHeight: 1000 } as HTMLElement
+    // Too big at every size, and deaf to `apply` — exactly a card sized from somewhere else.
+    const measured = { scrollWidth: 9999, scrollHeight: 9999 } as unknown as HTMLElement
+    expect(fitInBox(box, measured, () => {}, MAX, 60, 60)).toBe(TEXT_MIN_PX)
   })
 })
