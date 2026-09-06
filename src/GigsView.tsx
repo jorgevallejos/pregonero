@@ -24,6 +24,12 @@
  * which gig is open; the pencil on Backstage goes through it too. **Two doors performing one act
  * is fine; two mechanisms is how they drift.**
  *
+ * **Big full-width rows, stacked from the top, left-aligned** (Jorge, 2026-09-06). The first
+ * build reused the setlist screen's song tile — a fixed 220×130 box in a centred auto-fit grid,
+ * label clamped to three lines — so the one thing this screen exists to show was wrapped and
+ * truncated inside a small box in an empty window. **The row is the width of the app and the
+ * label is one line**, because this is read across a dark room like everything else here.
+ *
  * **Nothing is asked on the way, and a half-finished gig is selectable.** Readiness is reported at
  * arming, which is where the gate is — the same rule the play triangle lived under before it came
  * off Backstage's rows. Blocking selection here would stop Jorge looking at his own gig.
@@ -117,14 +123,20 @@ export function GigsView() {
   }
 
   return (
-    <div className="songs-screen">
+    /* **ROWS, NOT SONG TILES** (Jorge, 2026-09-06). This screen reused `.songs-song-btn`, which is
+       a fixed 220×130 box in a centred auto-fit grid with a three-line clamp on its label — so a
+       gig read `2026-05-16 · Bom Festival` wrapped over three lines and truncated, alone in an
+       empty screen. **The second class is how every screen on this surface escapes that grid**
+       (Backstage, the folders list, the song flow); this follows the precedent rather than
+       inventing a way out. */
+    <div className="songs-screen gigs-picker-screen">
       <header className="songs-top-bar">
         <button type="button" className="songs-back" onClick={goBack}>
           Back
         </button>
         <h1 className="songs-title">Gigs</h1>
       </header>
-      <main className="songs-body" data-testid="gigs-picker">
+      <main className="songs-body gigs-picker-body" data-testid="gigs-picker">
         {/* **`null` is *not read yet* and `[]` is *read and empty*, and they are different
             screens.** The empty one should be unreachable — Standby draws no `Choose` from
             nothing — so it says what it means rather than pretending to be a list. */}
@@ -137,12 +149,15 @@ export function GigsView() {
             <button
               key={choice.path}
               type="button"
-              className="songs-song-btn"
+              className="gigs-picker-row"
               data-testid={`gigs-picker-row-${choice.path.split('/').filter(Boolean).pop()}`}
               disabled={busy}
               onClick={() => choose(choice.path)}
             >
-              <span className="songs-song-title">{choice.label}</span>
+              {/* The date and the venue on one line, which is what `gigLabelFrom` already
+                  returns. **One rule for what a gig is called**, and this screen does not get a
+                  second rendering of it. */}
+              {choice.label}
             </button>
           ))
         )}

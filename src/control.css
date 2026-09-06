@@ -1251,6 +1251,59 @@ html, body, #root {
   vertical-align: middle;
 }
 
+/* ── The gig picker ────────────────────────────────────────────────────────
+   **BIG FULL-WIDTH ROWS, STACKED FROM THE TOP** (Jorge, 2026-09-06). This screen
+   reused `.songs-song-btn` below — a fixed 220×130 tile in a centred auto-fit
+   grid, its label clamped to three lines — so the one thing the screen exists to
+   show, `2026-05-16 · Bom Festival`, wrapped over three lines and truncated
+   inside a small box in an otherwise empty window.
+
+   Two classes on each element, which is how Backstage, the folders list and the
+   song flow all escape that grid: `.songs-screen:not(.languages-screen)
+   .songs-body` outranks a single class.
+
+   **The date and the venue stay on one line**, which is the whole point of
+   reading it across a dark room, so the row does not wrap; a label longer than
+   the window ellipses rather than folding. **Neither dimension is a number this
+   screen chose**: full width, and a height that is the type plus its padding. */
+.songs-screen.gigs-picker-screen .songs-body.gigs-picker-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-items: stretch;
+  gap: 0.75em;
+  max-width: none;
+  margin: 0;
+  padding: 1.5em 1.5em 3em;
+}
+
+.gigs-picker-row {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: clamp(1.5em, 3.2vw, 2.4em);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.55em 0.7em;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-tile);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  touch-action: manipulation;
+}
+
+.gigs-picker-row:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.gigs-picker-row:disabled {
+  cursor: default;
+  color: var(--text-dim);
+}
+
 .songs-song-btn {
   width: 220px;
   height: 130px;
