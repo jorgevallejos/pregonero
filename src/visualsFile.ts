@@ -1,6 +1,11 @@
 /**
  * `visuals.json` — the room. **Muralista writes it; Pregonero only ever reads it.**
  *
+ * **`visuals.json` is the RP JSON — Room Performance** (named 2026-09-06; the filename is not
+ * changing, and `docs/formats.md` in the vault is the canonical description). *Room* rather than
+ * *visuals* because that is already the vocabulary — *map the room*, *the room's shapes* — and
+ * because the file holds a calibration and a set of shapes, which is a room and not a picture.
+ *
  * The field names here are Muralista's, taken from its `visualsDocument()`: `visualsVersion`,
  * `gigId`, `shapes`, `songVisuals`, and a shape's type living at `shape.layer.type`. The kickoff
  * prompt for this stage named them `schemaVersion` and `gig`; those names appear in no writer and

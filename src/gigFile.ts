@@ -1,7 +1,8 @@
 /**
  * `gig.json` — the gig as a unit, written down.
  *
- * **Pregonero is its only writer** (`docs/gig-file.md`, "Four files, four writers"). Muralista
+ * **`gig.json` is the GP JSON — Gig Performance** (named 2026-09-06; the filename is not
+ * changing). **Pregonero is its only writer** (`docs/formats.md`, "One writer per file"). Muralista
  * reads `venue` and `songs` from it and nothing else; it must never need `setlist`, and the day
  * it needs a field below that line it has been made to understand Pregonero.
  *

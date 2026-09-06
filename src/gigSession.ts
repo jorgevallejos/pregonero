@@ -325,7 +325,7 @@ async function adoptSetlistFromGig(gig: GigFile, folderPath: string): Promise<vo
  *
  * **Re-read on open. One write can still happen here**, and it is Pregonero writing the file it
  * owns: a `gig.json` that has not reached the step where it carries a running order gets the app's
- * written in. That is accretion, not an overwrite — `docs/gig-file.md`, "The file exists before it
+ * written in. That is accretion, not an overwrite — `docs/formats.md`, "The file exists before it
  * is finished". **A file that already states a setlist is read, never rewritten here**; changing
  * the running order is `publishSetlistToGig`, which is an explicit act with a screen behind it.
  *
