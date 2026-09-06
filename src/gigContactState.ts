@@ -1,21 +1,27 @@
 /**
- * **When the contact panel is lit**, and the whole of it is one condition.
+ * **When the message home is lit**, and the whole of it is one condition read off the gig's phase.
  *
- * > Lit when **not armed**, or when the **setlist is done and no song is presenting**. Dark
- * > otherwise.
+ * > Lit **outside the setlist** — `before` it or `after` it — **unless a song is being presented
+ * > and the gig is armed**, which is a repeat.
  *
- * It is written as a condition rather than as a list of events on purpose, because one condition
- * covers all four moments with no special case:
+ * **The phase is `gigPhase.ts` and it is the named thing this used to assemble by hand** (2026-09-06).
+ * The condition itself is unchanged, and deliberately so: it was written as a condition rather than
+ * as a list of events, and one condition covers all four moments with no special case:
  *
  * | Moment | Why the condition answers it |
  * |---|---|
- * | Power-up | Not armed. |
- * | Through the setlist, gaps included | Armed, and the setlist is not done. A gap is inside the setlist. |
- * | While a repeat plays | Armed, setlist done, but a song is presenting. |
- * | The instant that repeat ends | Armed, setlist done, nothing presenting — the room is being asked to leave with his details again. |
+ * | Power-up | `before`, and outside the setlist. |
+ * | Through the setlist, gaps included | `during`. A gap is inside the setlist. |
+ * | While a repeat plays | `after`, armed, and a song is presenting. |
+ * | The instant that repeat ends | `after`, nothing presenting — the room is being asked to leave with his details again. |
  *
  * **If an implementation needs a special case for any of those four, the condition is wrong.** Go
  * back to it rather than adding the branch.
+ *
+ * **`!armed` lights it in both outside states**, and that is one rule rather than two: nothing is
+ * being performed, so there is nothing for the wall's attention to belong to. It is why unarming
+ * mid-song after the setlist has closed lights the shape rather than leaving a stranded lyric under
+ * a dark one.
  *
  * ## Where it is evaluated, and why it travels as one boolean
  *
@@ -31,6 +37,7 @@
 
 import { useEffect, useState } from 'react'
 import { getLastLyricIndex, type SongItem } from './songState'
+import { gigPhase, isOutsideSetlist, type GigPhase } from './gigPhase'
 
 /** The key is an address and is deliberately not renamed — see `contentFolders.ts`. */
 export const KEY_CONTACT_LIT_BROADCAST = 'pregoneroContactLit'
@@ -43,9 +50,27 @@ export type ContactConditionInput = {
   presenting: boolean
 }
 
-/** The condition. Nothing anywhere else may decide this. */
+/**
+ * The condition. Nothing anywhere else may decide this.
+ *
+ * **Outside the setlist, and not over a song that is actually being performed.** The second clause
+ * is the repeat: `after` is where a requested song is played from, and the wall belongs to that
+ * song while it runs.
+ *
+ * **Equivalent to the `!armed || (setlistDone && !presenting)` it replaced**, case for case — the
+ * phase is a name for what that expression was computing, not a change to it.
+ */
 export function isContactLit({ armed, setlistDone, presenting }: ContactConditionInput): boolean {
-  return !armed || (setlistDone && !presenting)
+  return isOutsideSetlist(gigPhase({ armed, setlistDone })) && (!armed || !presenting)
+}
+
+/**
+ * **The gig's phase, for a caller that has the same two inputs.** Re-exported here because this is
+ * where the rest of the app already looks for the question *what is the gig doing* — the same
+ * reason `gigSession` re-exports the folder memory.
+ */
+export function contactGigPhase(input: { armed: boolean; setlistDone: boolean }): GigPhase {
+  return gigPhase(input)
 }
 
 /**

@@ -45,6 +45,7 @@ import {
   type PerformanceControlPrerequisites,
 } from './performanceControlStateMachine'
 import { isContactLit, isPresenting, setContactLitBroadcast } from './gigContactState'
+import { gigPhase } from './gigPhase'
 
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 import { gigLabelFrom } from './gigFile'
@@ -555,8 +556,21 @@ export function ControlView() {
   // cannot disagree with it. Re-read each render; every append re-renders this component.
   const setlistDone = isSetlistComplete(playableSongs.map((song) => song.id))
 
-  // **The contact panel's one condition**, evaluated here because every input is this window's:
-  // the armed flag, the played log and the playable setlist. The Projection window is handed the
+  /**
+   * **THE GIG'S PHASE: before the setlist, in it, after it** (2026-09-06).
+   *
+   * The states were always real and were nameless — `armed`, a played log and a playable setlist,
+   * assembled by hand wherever the gig was needed. **Naming it is what gives moments 3, 9, 11 and
+   * 12 somewhere to attach**, and both of the things it decides below used to be separate readings
+   * of `setlistDone` that nothing tied together.
+   *
+   * **The stored armed flag, not the control screen's label**: with the projection window closed an
+   * armed performance reports `setup`, and he is still armed.
+   */
+  const phase = gigPhase({ armed: armedFlag, setlistDone })
+
+  // **The message home's one condition**, evaluated here because every input is this window's: the
+  // armed flag, the played log and the playable setlist. The Projection window is handed the
   // answer rather than the inputs, so there is one implementation of the condition and no second
   // opinion about it.
   //
@@ -564,8 +578,6 @@ export function ControlView() {
   // takes it at mount, and a broadcast that only moved on a click goes stale against a fresh
   // session's own state (the A1 rule in CLAUDE.md).
   const contactLit = isContactLit({
-    // The stored flag, not the control screen's label: with the projection window closed an armed
-    // performance reports `setup`, and he is still armed.
     armed: armedFlag,
     setlistDone,
     presenting: isPresenting(lines, index),
@@ -574,8 +586,12 @@ export function ControlView() {
     setContactLitBroadcast(contactLit)
   }, [contactLit])
 
+  // **Moment 12's other half, and it is the same fact as the one above.** A repeat plays from
+  // `after` and stays in `after`, so once the setlist has closed there is no next song to offer —
+  // during the repeat or after it. Read off the phase rather than off `setlistDone` a second time,
+  // because *the running order cannot resume* and *the wall goes back to him* are one ruling.
   const nextSongForTile =
-    !setlistDone && currentSongPosition >= 0 && currentSongPosition < playableSongs.length - 1
+    phase !== 'after' && currentSongPosition >= 0 && currentSongPosition < playableSongs.length - 1
       ? playableSongs[currentSongPosition + 1]
       : null
   const [showNextSongTile, setShowNextSongTile] = useState(false)
