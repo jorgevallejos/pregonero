@@ -377,6 +377,43 @@ html, body, #root {
   padding: 0;
 }
 
+/* ── The next song's title, on the performing view ─────────────────────────
+   **THE SAME DEFECT `Unarmed` HAD ON 04/09, AND THAT FIX NEVER REACHED HERE**
+   (Jorge, 2026-09-06). The tile borrowed `.songs-song-title` from the setlist
+   screen, which carries `overflow-wrap: anywhere` — mid-word breaking asked for
+   by name — so `Pimiento` could come out as `Pimien / to` on a stage.
+
+   **Both halves of that fix, applied to this box.** The tile is the container,
+   so the type is a share of its own width rather than of the viewport; the cap
+   is divided by the longest word, which `SetupValue.longestWordLength` measures
+   from the string and hands over as a number, nothing read off the screen; and
+   **mid-word breaking is off outright**, which is what makes *no word breaks
+   mid-word* a property of the screen rather than of arithmetic that could drift.
+
+   **The setlist screen's own tiles are untouched.** This is the surface read
+   across a stage; that one is a list you walk up to. */
+.performing-next-song-tile-wrap .songs-song-btn {
+  container-type: inline-size;
+}
+
+.performing-next-song-title {
+  min-width: 0;
+  max-width: 100%;
+  /* 150 for the same reason `.control-setup-value` uses it: the widest realistic
+     letters keep a tenth of the box spare. The floor is low on purpose — a word
+     too small to be comfortable is still a word, and a clipped one is not. */
+  font-size: max(0.75rem, min(1.35em, calc(150cqi / var(--value-longest-word, 7))));
+  text-align: center;
+  line-height: 1.2;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 .control-performing-lyric-block {
   width: 100%;
   display: flex;

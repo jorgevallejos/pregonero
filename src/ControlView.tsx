@@ -54,7 +54,7 @@ import { gigPhase } from './gigPhase'
 // **One owner for what a gig is called**, shared with Backstage's rows and the gig flow's header.
 import { gigLabelFrom, type MessageHome } from './gigFile'
 
-import { SetupValue } from './SetupValue'
+import { SetupValue, setupValueStyle } from './SetupValue'
 import { useEffect, useState, useRef } from 'react'
 import { useBeatClock } from './useBeatClock'
 import { BeatCircle } from './BeatCircle'
@@ -1593,7 +1593,17 @@ export function ControlView() {
                       data-testid="next-song-tile"
                       onClick={handleStartNextSongInConcertSession}
                     >
-                      <span className="songs-song-title">{nextSongForTile.title}</span>
+                      {/* **Not `.songs-song-title`** (Jorge, 2026-09-06). That class is the
+                          setlist screen's and carries `overflow-wrap: anywhere`, which is mid-word
+                          breaking asked for by name — **the same defect `Unarmed` had on 04/09,
+                          and that fix never reached this tile.** The title is sized against the
+                          tile's own width here, divided by its longest word, and never breaks. */}
+                      <span
+                        className="performing-next-song-title"
+                        style={setupValueStyle(nextSongForTile.title)}
+                      >
+                        {nextSongForTile.title}
+                      </span>
                     </button>
                   </div>
                 )}

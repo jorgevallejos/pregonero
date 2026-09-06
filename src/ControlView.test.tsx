@@ -1360,7 +1360,59 @@ describe('v0.5 control screen state machine integration', () => {
 
       const tile = screen.getByTestId('next-song-tile')
       expect(tile.className.trim()).toBe('songs-song-btn')
-      expect(tile.querySelector('.songs-song-title')?.textContent).toBe('Pimiento')
+      // **The box is the setlist's; the title inside it is not** (2026-09-06). See the test below.
+      expect(tile.querySelector('.performing-next-song-title')?.textContent).toBe('Pimiento')
+    })
+
+    /**
+     * **THE PERFORMING VIEW STOPS BREAKING THE NEXT SONG'S TITLE MID-WORD** (Jorge, 2026-09-06).
+     *
+     * **The same defect class as `Unarmed` on 04/09**, and the kickoff's own question — *check
+     * whether that fix simply never reached this tile* — is exactly right: it did not. The tile
+     * borrowed `.songs-song-title` from the setlist screen, which carries
+     * `overflow-wrap: anywhere`, **which is mid-word breaking asked for by name.**
+     *
+     * The `Unarmed` fix is two halves and both are here now: **the box sizes the type**, in `cqi`
+     * against the tile's own width and divided by the longest word — `SetupValue.longestWordLength`
+     * is the same measurement, made from the string rather than off the screen — and **mid-word
+     * breaking is switched off outright**, so *no word breaks mid-word* is a property of the screen
+     * rather than a consequence of arithmetic that could drift.
+     *
+     * The setlist screen's own tiles are untouched: this is the surface read across a stage.
+     */
+    it('sizes the next song\u2019s title against its tile, and never breaks a word', async () => {
+      vi.useFakeTimers()
+      setActiveSetlistSongIds(['duelo', 'pimiento'])
+      setupControlViewWithReadinessPassing()
+      render(<App initialHash="#/" />)
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { fireEvent.click(getArmButton()) })
+      await navigateToLastLyric()
+      act(() => { vi.advanceTimersByTime(6_000) })
+
+      const title = screen.getByTestId('next-song-tile').querySelector(
+        '.performing-next-song-title'
+      ) as HTMLElement
+      // The longest unbreakable run, handed to CSS as a number — nothing is measured off screen.
+      expect(title.style.getPropertyValue('--value-longest-word')).toBe('8')
+
+      const css = readFileSync(resolve(__dirname, 'control.css'), 'utf8')
+      const rule = (selector: string) => {
+        const at = css.indexOf(selector + ' {')
+        expect(at, `${selector} is not in control.css`).toBeGreaterThan(-1)
+        return css.slice(at, css.indexOf('}', at))
+      }
+      const own = rule('.performing-next-song-title')
+      expect(own).toMatch(/overflow-wrap:\s*normal/)
+      expect(own).toMatch(/word-break:\s*normal/)
+      expect(own).not.toMatch(/anywhere|break-word/)
+      // Sized against its own box, not the viewport — the half the `Unarmed` fix turned on.
+      expect(own).toMatch(/cqi/)
+      expect(own).toMatch(/var\(--value-longest-word/)
+      expect(rule('.performing-next-song-tile-wrap .songs-song-btn')).toMatch(
+        /container-type:\s*inline-size/
+      )
+      vi.useRealTimers()
     })
 
     it('tapping next-song tile starts next song directly (without unarm/setup)', async () => {
