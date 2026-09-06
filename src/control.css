@@ -4068,10 +4068,20 @@ html, body, #root {
    is are Muralista's, decided at the wall on the visuals step. The square below is the unit box the
    compositor lays content out in, scaled down — so what changes between here and the wall is the
    quad, and nothing else. */
+/* **THE TWO PREVIEWS STACK, EACH AT THE FULL WIDTH OF THE APP** (Jorge, 2026-09-06).
+   They were side by side, in blocks capped at 20em, each preview a fixed 320px
+   square — two small squares on a wide screen with the fields above them, which
+   is what made the step read as cramped. Everything else about it is good and is
+   untouched: the fields, the live preview, the song selector.
+
+   The card is drawn in a square unit box exactly as the compositor draws it, so
+   the preview is square; `aspect-ratio` keeps it square at any width, and the
+   scale is measured in `CardPreview` rather than written here, because *the full
+   width of the app* is not a number. */
 .gig-cards-previews {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2em;
+  flex-direction: column;
+  gap: 2.5em;
   margin-top: 1.5em;
 }
 
@@ -4079,15 +4089,18 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 0.5em;
-  max-width: 20em;
 }
 
 /* The ink ground shows through wherever a card paints nothing, which is what a dark shape looks
    like on the wall — so an empty card and an empty wall read the same here as they do there. */
 .gig-cards-preview {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
   border: 1px solid var(--rule);
   background: #121211;
-  flex: 0 0 auto;
 }
 
 /* THE IDENTITY, SHOWN AS IT IS DERIVED. It is what appears on Backstage and what names the folder,
