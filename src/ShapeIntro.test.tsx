@@ -6,6 +6,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { ShapeIntro, INTRO_TITLE_MAX_SIZE, INTRO_INSET } from './ShapeIntro'
+import { cardDesignBox } from './cardBox'
 import { UNIT_SIZE } from './vendor/warp.js'
 
 afterEach(cleanup)
@@ -45,7 +46,12 @@ describe('ShapeIntro', () => {
     // **The ratios themselves, not numbers derived from the ceiling.** `--t` is the one number and
     // it is what the fit moves; a measure written any other way stays put while the fit searches,
     // which is how the message home came out at 8px on a wall — see `cardAutoFit.test.tsx`.
-    expect(css('.intro-block').getPropertyValue('--t')).toBe(`${INTRO_TITLE_MAX_SIZE * UNIT_SIZE}px`)
+    // **A fraction of the CARD's height, not the shape's** (2026-09-06). The card has its own
+    // proportions and is scaled into the shape; a title sized off the shape made the card a
+    // different card in every room — see `cardBox.ts`.
+    expect(css('.intro-block').getPropertyValue('--t')).toBe(
+      `${INTRO_TITLE_MAX_SIZE * cardDesignBox(UNIT_SIZE).height}px`
+    )
     expect(css('.intro-title').fontSize).toBe('var(--t)')
     expect(css('.intro-annotation').fontSize).toBe('calc(var(--t) * 0.2)')
     expect(css('.intro-tagline').fontSize).toBe('calc(var(--t) * 0.28)')

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { UNIT_SIZE } from './vendor/warp.js'
 import { fitInBox } from './shapeTextLayout'
-import { INTRO_INSET } from './ShapeIntro'
+import { CARD_INSET_Y, cardDesignBox, cardInsetX } from './cardBox'
 import { resolveMediaPath, absolutePathToMediaUrl } from './mediaPathStore'
 import type { MessageHome } from './gigFile'
 
@@ -20,10 +20,21 @@ import type { MessageHome } from './gigFile'
  * **The artist-name annotation is gone. The logo says it**, and that fell out of the change rather
  * than being decided.
  *
- * **The logo does not match column two's height, and it cannot.** Jorge asked for it; the wordmark
- * is 2.56 : 1, so at a 508px column it would be 1300px wide — wider than the whole card. **Equal
- * heights is not available with this wordmark in a landscape shape**, so the logo fills its column's
- * width instead and is centred against column two.
+ * ## The rule is a wall (Jorge, 2026-09-06)
+ *
+ * **Column one holds the logo and nothing else; column two holds the line and the handles; and
+ * nothing crosses the rule, in either direction, at any card size.**
+ *
+ * **It did.** The logo's only bound was `8 × t`, a multiple of the type size with nothing tying it
+ * to the column it was supposed to live in, so it ran through the rule and into the copy — measured
+ * on the real gig's video frame at 1920x1080: the logo's box ended at x=1314 with the rule at
+ * x=1028. It also drove the card's height, because a square logo at `8 × t` is `8 × t` tall.
+ *
+ * **And the premise the old bound was reasoned from was false.** *The wordmark is 2.56 : 1, so
+ * equal heights is not available* — the file the gig actually carries,
+ * `Logo Chango Pepper - black.png`, is **1327 x 1327, square**. A rule derived from an asset's
+ * shape is a rule that breaks when the asset changes, which is why the logo is now bounded by its
+ * column on **both** axes and keeps its own aspect inside it, whatever aspect that turns out to be.
  *
  * ## Every field is optional, and the card degrades rather than breaking
  *
@@ -90,7 +101,12 @@ type Props = {
 export function ShapeContact({ fields, boxWidth, testId }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
-  const maxPx = CONTACT_MAX_SIZE * UNIT_SIZE
+  const columnRef = useRef<HTMLDivElement | null>(null)
+  const textRef = useRef<HTMLDivElement | null>(null)
+  // **The card's own box, and the type is a fraction of ITS height rather than the shape's.** That
+  // is what makes the card the same card in a tall shape and a wide one — see `cardBox.ts`.
+  const card = cardDesignBox(boxWidth)
+  const maxPx = CONTACT_MAX_SIZE * card.height
   const [t, setT] = useState(maxPx)
 
   const logoPath = fields.logo ? resolveMediaPath(fields.logo) : null
@@ -102,20 +118,19 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
   const hasTextColumn = Boolean(fields.message || fields.url || fields.handle)
 
   useLayoutEffect(() => {
-    const panel = panelRef.current
     const block = blockRef.current
-    if (!panel || !block) return
+    const column = columnRef.current
+    const text = textRef.current
+    if (!block || !column || !text) return
+    // **The fit is now about column two only, and it is a fallback rather than the layout.** The
+    // card's size comes from the design box; the search exists for the one case the box cannot
+    // answer — a message longer than the column holds at the nominal size. Measuring the column
+    // rather than the whole block is what keeps the logo out of the answer: it is bounded, so it
+    // can never be the thing that does not fit.
     setT(
-      fitInBox(
-        panel,
-        block,
-        (px) => block.style.setProperty('--t', `${px}px`),
-        maxPx,
-        Math.round(INTRO_INSET * boxWidth),
-        Math.round(INTRO_INSET * UNIT_SIZE)
-      )
+      fitInBox(column, text, (px) => block.style.setProperty('--t', `${px}px`), maxPx, 0, 0)
     )
-  }, [fields.message, fields.url, fields.handle, logoUrl, boxWidth, maxPx])
+  }, [fields.message, fields.url, fields.handle, logoUrl, maxPx])
 
   // **Nothing pointed at the shape means a dark shape**, and the caller paints nothing rather than
   // an empty rectangle. Stated here as well as there, because this is the component that knows.
@@ -134,10 +149,12 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
         left: 0,
         width: `${boxWidth}px`,
         height: `${UNIT_SIZE}px`,
-        padding: `${Math.round(INTRO_INSET * UNIT_SIZE)}px ${Math.round(INTRO_INSET * boxWidth)}px`,
+        padding: `${CARD_INSET_Y}px ${cardInsetX(boxWidth)}px`,
         boxSizing: 'border-box',
         display: 'flex',
+        // The design box is centred in the shape on both axes: what is left over is ground.
         alignItems: 'center',
+        justifyContent: 'center',
         transformOrigin: '0 0',
         transform: `scaleX(${UNIT_SIZE / boxWidth})`,
         background: INK,
@@ -157,17 +174,30 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
         className="contact-block"
         style={{
           ['--t' as string]: `${t}px`,
-          width: '100%',
+          ['--card-w' as string]: `${card.width}px`,
+          ['--card-h' as string]: `${card.height}px`,
+          width: 'var(--card-w)',
+          height: 'var(--card-h)',
           display: 'flex',
-          alignItems: 'center',
-          gap: 'calc(var(--t) * 0.9)',
+          alignItems: 'stretch',
+          gap: hasLogoColumn && hasTextColumn ? 'calc(var(--card-w) * 0.045)' : '0px',
         }}
       >
         {hasLogoColumn && (
           <div
             className="contact-logo-column"
             data-testid="message-home-logo-column"
-            style={{ flex: '0 1 auto', display: 'flex', alignItems: 'center', minWidth: 0 }}
+            style={{
+              // **A wall, not a preference.** A fixed share of the card when there is a second
+              // column, the whole card when there is not — and `0 0 auto` so nothing it holds can
+              // push it, which is how the logo got out last time.
+              flex: '0 0 auto',
+              width: hasTextColumn ? 'calc(var(--card-w) * 0.3)' : 'var(--card-w)',
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <img
               className="contact-logo"
@@ -175,13 +205,25 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
               src={logoUrl!}
               alt=""
               aria-hidden="true"
-              style={{ width: 'calc(var(--t) * 8)', height: 'auto', objectFit: 'contain' }}
+              // **Bounded on both axes, keeping its own aspect, whatever that aspect is.** `width`
+              // and `height` are `auto` so the intrinsic ratio decides which bound binds: the
+              // gig's square file fills the column's height, a wide wordmark fills its width, and
+              // neither can exceed the column. The old `width: calc(var(--t) * 8)` bounded neither
+              // and was reasoned from an asset that is not the one in the gig.
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+              }}
             />
           </div>
         )}
-        {/* **The clay rule, the full height of the content, and only when both columns exist.**
+        {/* **The clay rule, the full height of the card, and only when both columns exist.**
             Horizontal on the intro card, vertical here: the same mark, so the two cards read as
-            one voice. */}
+            one voice. It is the wall the ruling names, and the two tests either side of it are
+            what make that literal. */}
         {hasLogoColumn && hasTextColumn && (
           <div
             className="contact-rule"
@@ -190,17 +232,30 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
             style={{
               flex: '0 0 auto',
               alignSelf: 'stretch',
-              width: 'max(1px, calc(var(--t) * 0.06))',
+              width: 'max(1px, calc(var(--card-w) * 0.006))',
               background: CLAY,
             }}
           />
         )}
         {hasTextColumn && (
           <div
+            ref={columnRef}
             className="contact-text-column"
             data-testid="message-home-text-column"
-            style={{ flex: '1 1 auto', minWidth: 0 }}
+            style={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              // The column is the fit's box, so it needs a definite height to fit against; the
+              // content is centred inside it rather than the column being sized by the content.
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              // **A single unbreakable run breaks rather than leaving the column.** A URL and a
+              // handle are exactly that kind of string, and the rule is a wall.
+              overflowWrap: 'anywhere',
+            }}
           >
+            <div ref={textRef} className="contact-text">
             {fields.message && (
               <div
                 className="contact-line"
@@ -234,6 +289,7 @@ export function ShapeContact({ fields, boxWidth, testId }: Props) {
                 ))}
               </div>
             )}
+            </div>
           </div>
         )}
       </div>

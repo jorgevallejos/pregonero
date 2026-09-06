@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { UNIT_SIZE } from './vendor/warp.js'
 import { fitInBox } from './shapeTextLayout'
+import { CARD_INSET, CARD_INSET_Y, cardDesignBox, cardInsetX } from './cardBox'
 
 /**
  * The song's title card, drawn into a `song-intro` shape.
@@ -28,10 +29,21 @@ import { fitInBox } from './shapeTextLayout'
  * meant to leave with. It is the first thing to check at a wall.
  */
 
-/** Of the shape's height. Auto-fit only goes below it. */
+/**
+ * Of **the card's** height, not the shape's (2026-09-06). Auto-fit only goes below it.
+ *
+ * It was a fraction of the unit box, which is the shape — so a tall shape gave a huge title and a
+ * wide one a small title, and the card was a different card in every room. `cardBox.ts` is the lock;
+ * this is a proportion inside it.
+ */
 export const INTRO_TITLE_MAX_SIZE = 0.16
-/** Of the shape's width, left and right. */
-export const INTRO_INSET = 0.07
+/**
+ * Of the shape, left and right — the margin between the card and the shape's edge.
+ *
+ * **The name stays, the number moved house.** It is `cardBox.CARD_INSET` now, because the message
+ * home was importing it from this file: one inset for both cards, owned where the box is.
+ */
+export const INTRO_INSET = CARD_INSET
 
 const INK = '#121211'
 const PAPER = '#e6dfd1'
@@ -56,26 +68,24 @@ type Props = {
 export function ShapeIntro({ parts, boxWidth, testId }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
-  const maxPx = INTRO_TITLE_MAX_SIZE * UNIT_SIZE
+  const partsRef = useRef<HTMLDivElement | null>(null)
+  // **The card's own box, and the title is a fraction of ITS height rather than the shape's** —
+  // see `cardBox.ts`. This is what stops the card taking the quad's proportions.
+  const card = cardDesignBox(boxWidth)
+  const maxPx = INTRO_TITLE_MAX_SIZE * card.height
   const [t, setT] = useState(maxPx)
 
   useLayoutEffect(() => {
-    const panel = panelRef.current
     const block = blockRef.current
-    if (!panel || !block) return
+    const partsEl = partsRef.current
+    if (!block || !partsEl) return
     // One number for the whole card: everything inside is a multiple of it, so searching over it
-    // keeps every proportion exactly where the mock put it.
+    // keeps every proportion exactly where the mock put it. **The box is the card now, not the
+    // shape** — a long title shrinks to stay inside the card rather than growing to fill the room.
     setT(
-      fitInBox(
-        panel,
-        block,
-        (px) => block.style.setProperty('--t', `${px}px`),
-        maxPx,
-        Math.round(INTRO_INSET * boxWidth),
-        Math.round(INTRO_INSET * UNIT_SIZE)
-      )
+      fitInBox(block, partsEl, (px) => block.style.setProperty('--t', `${px}px`), maxPx, 0, 0)
     )
-  }, [parts.title, parts.annotation, parts.tagline, boxWidth, maxPx])
+  }, [parts.title, parts.annotation, parts.tagline, maxPx])
 
   return (
     <div
@@ -88,11 +98,12 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
         left: 0,
         width: `${boxWidth}px`,
         height: `${UNIT_SIZE}px`,
-        padding: `${Math.round(INTRO_INSET * UNIT_SIZE)}px ${Math.round(INTRO_INSET * boxWidth)}px`,
+        padding: `${CARD_INSET_Y}px ${cardInsetX(boxWidth)}px`,
         boxSizing: 'border-box',
         display: 'flex',
-        // The block is vertically centred, always.
+        // The card is centred in the shape on both axes: what is left over is ground.
         alignItems: 'center',
+        justifyContent: 'center',
         transformOrigin: '0 0',
         transform: `scaleX(${UNIT_SIZE / boxWidth})`,
         background: INK,
@@ -107,7 +118,25 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
           returned the floor. **This card was not visibly broken only because its content fits at
           the maximum, where the search never begins** — one long title away from the message
           home's 8px. */}
-      <div ref={blockRef} className="intro-block" style={{ ['--t' as string]: `${t}px`, width: '100%' }}>
+      <div
+        ref={blockRef}
+        className="intro-block"
+        style={{
+          ['--t' as string]: `${t}px`,
+          ['--card-w' as string]: `${card.width}px`,
+          ['--card-h' as string]: `${card.height}px`,
+          width: 'var(--card-w)',
+          height: 'var(--card-h)',
+          display: 'flex',
+          flexDirection: 'column',
+          // The three parts are vertically centred in the card, always.
+          justifyContent: 'center',
+        }}
+      >
+        {/* The measured element. It is what the fit shrinks until the three parts sit inside the
+            card — **inside the card, not inside the shape**, which is what keeps a long title from
+            growing the card out of its own proportions. */}
+        <div ref={partsRef} className="intro-parts">
         {parts.annotation && (
           <div
             className="intro-head"
@@ -163,6 +192,7 @@ export function ShapeIntro({ parts, boxWidth, testId }: Props) {
             {parts.tagline}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

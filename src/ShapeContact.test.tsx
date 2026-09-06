@@ -74,13 +74,62 @@ describe('ShapeContact', () => {
     expect(handles.style.fontSize).toBe('calc(var(--t) * 0.62)')
   })
 
-  it('fills the logo column’s width, because equal heights is not available', () => {
-    // Jorge asked for the logo to match column two's height and **the wordmark will not allow it**
-    // — 2.56 : 1 would be wider than the whole card. It fills its column instead.
+  /**
+   * **THE RULE IS A WALL** (Jorge, 2026-09-06). *Column one holds the logo and nothing else, column
+   * two holds the line and the handles, and nothing crosses the rule in either direction at any
+   * card size.*
+   *
+   * **It did cross.** The logo's only bound was `calc(var(--t) * 8)` — a multiple of the type size,
+   * with nothing tying it to its column — so on the real gig's video frame at 1920x1080 the logo's
+   * box ended at x=1314 with the rule at x=1028, straight through it and into the copy. It also
+   * drove the card's height, because **the gig's logo is square**: `Logo Chango Pepper - black.png`
+   * is 1327 x 1327, not the 2.56 : 1 wordmark the old comment reasoned from. **A bound derived
+   * from an asset's shape breaks when the asset changes.**
+   *
+   * **jsdom returns zero for every dimension**, so where the boxes actually land is measured
+   * headless against the real components at the real quad — five shape sizes including a tall
+   * narrow one and a very wide one. What is asserted here is the structure that makes it true, and
+   * each line below is one way the logo got out.
+   */
+  it('bounds the logo by its column on both axes, keeping whatever aspect the file has', () => {
     render(<ShapeContact fields={{ logo: 'logo.png', message: 'Write to me.' }} boxWidth={UNIT_SIZE} />)
     const logo = screen.getByTestId('message-home-logo')
     expect(logo.getAttribute('src')).toBe('media://local/media/logo.png')
+    // Bounded on BOTH axes — a square file fills the column's height, a wide one its width.
+    expect(logo.style.maxWidth).toBe('100%')
+    expect(logo.style.maxHeight).toBe('100%')
+    // And `auto` on both, so the intrinsic ratio decides which bound binds. A declared width is
+    // what let the old logo ignore the column it was in.
+    expect(logo.style.width).toBe('auto')
     expect(logo.style.height).toBe('auto')
+    expect(logo.style.objectFit).toBe('contain')
+  })
+
+  it('gives the logo a fixed share of the card, which nothing it holds can push', () => {
+    render(
+      <ShapeContact
+        fields={{ logo: 'logo.png', message: 'Write to me.', url: 'changopepper.com' }}
+        boxWidth={UNIT_SIZE}
+      />
+    )
+    const column = screen.getByTestId('message-home-logo-column')
+    // `0 0 auto` and a fraction of the card: it cannot grow to fit its content and cannot shrink
+    // out from under it either. The old column was `0 1 auto` with no width at all, so its size
+    // was whatever the image asked for.
+    expect(column.style.flex).toBe('0 0 auto')
+    expect(column.style.width).toBe('calc(var(--card-w) * 0.3)')
+
+    const text = screen.getByTestId('message-home-text-column')
+    expect(text.style.flex).toBe('1 1 auto')
+    expect(text.style.minWidth).toBe('0px')
+    // A URL and a handle are single unbreakable runs, and the rule is a wall.
+    expect(text.style.overflowWrap).toBe('anywhere')
+  })
+
+  it('gives the logo the whole card when there is no second column to divide from', () => {
+    render(<ShapeContact fields={{ logo: 'logo.png' }} boxWidth={UNIT_SIZE} />)
+    expect(screen.getByTestId('message-home-logo-column').style.width).toBe('var(--card-w)')
+    expect(screen.queryByTestId('message-home-rule')).toBeNull()
   })
 
   it('draws the clay rule only when both columns have content', () => {
